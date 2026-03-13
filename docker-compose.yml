@@ -1,0 +1,20 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-befordrings-applikation
+    env_file:
+      - .env
+    ports:
+      - "8020:8020"
+    restart: unless-stopped
+    volumes:
+      - ./app:/app/app
+      - ./.env:/app/.env:ro
+    networks:
+      - api-befordrings-applikation-network
+
+networks:
+  api-befordrings-applikation:
+    driver: bridge

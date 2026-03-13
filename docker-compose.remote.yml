@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-befordrings-applikation
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./app:/app/app
+    networks:
+      edge:
+        aliases:
+          - api-befordrings-applikation
+
+networks:
+  edge:
+    external: true
