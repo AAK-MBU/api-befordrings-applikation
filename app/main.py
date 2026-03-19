@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import befordring, udskrivning, skoleferie
+from app.api import bevilling, citizen, overview
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -24,9 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(befordring.router)
-app.include_router(udskrivning.router)
-app.include_router(skoleferie.router)
+app.include_router(overview.router)
+app.include_router(citizen.router)
+app.include_router(bevilling.router)
 
 
 @app.get("/")

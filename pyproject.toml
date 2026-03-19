@@ -11,6 +11,8 @@ license = {text = "MIT"}
 keywords = ["fastapi", "befordrings-api", "api"]
 
 dependencies = [
+    "automation-server-client @ git+https://github.com/odense-rpa/automation-server-client.git",
+
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "sqlmodel>=0.0.14",
@@ -33,6 +35,9 @@ dependencies = [
     "pandas",
     "beautifulsoup4",
 ]
+
+[tool.uv.sources]
+automation-server-client = { git = "https://github.com/odense-rpa/automation-server-client.git", tag = "v0.2.1" }
 
 [project.optional-dependencies]
 dev = [
