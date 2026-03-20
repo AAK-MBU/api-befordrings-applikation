@@ -18,7 +18,7 @@ class CitizenService:
             SELECT
                 [Sagsbehandlerkode],
                 [Navn],
-                [Beskrivelse]
+                [Beskrivelse],
                 [Aktiv]
             FROM
                 [befordring_app].[befordring].[Sagsbehandler]
