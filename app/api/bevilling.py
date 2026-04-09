@@ -14,24 +14,17 @@ All endpoints interact with the database through the shared
 database utility module.
 """
 
-import os
-
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter
 from fastapi import Query
 
-from automation_server_client import AutomationServer
-
 from app.services.citizen_service import CitizenService
 from app.services.bevilling_service import BevillingService
-
+from app.utils import helper_functions
 
 router = APIRouter(prefix="/bevilling", tags=["Bevilling"])
-
-DBCONNECTIONSTRINGDEV = os.getenv("DBCONNECTIONSTRINGDEV")
-DBCONNECTIONSTRINGPROD = os.getenv("DBCONNECTIONSTRINGPROD")
 
 TEST_CITIZEN_DATA = {
     "barnets_fulde_navn": "Kasper Hansentest",
@@ -72,7 +65,7 @@ TEST_CITIZEN_DATA = {
 
     "revurdering": "30-06-2026",
 
-    "befordringsudvalg": "30-06-2026",
+    "befordringsudvalg": "20-06-2026",
 
     "hjemmel": "§ 26, stk. 1 afstand",
 
@@ -114,6 +107,52 @@ TEST_CITIZEN_DATA = {
 
     "modtagelsesdato": "21-11-2025"
 }
+
+
+@router.post("/create_letter/{cpr}/{bevilling_id}")
+def create_letter(cpr: str, bevilling_id: int, letter_data: dict):
+    """
+    Create new letter
+    """
+
+    cpr = cpr.replace("-", "")
+
+    ### !!! REMOVE !!! ###
+    citizen_data = TEST_CITIZEN_DATA
+    bevilling_data = {}
+    ### !!! REMOVE !!! ###
+
+    current_timestamp = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+
+    bevilling_service = BevillingService()
+    citizen_service = CitizenService()
+
+    # citizen_data = citizen_service.get_stamdata(cpr=cpr)
+    # bevilling_data = bevilling_service.get_bevilling(bevilling_id=bevilling_id)
+
+    ref = f"{cpr}_{current_timestamp}".replace(" ", "_").replace("-", "_").replace(".", "_").replace(":", "_")
+
+    merged_data = {
+        "data": {
+            **letter_data,
+            **(citizen_data if citizen_data else {}),
+            **(bevilling_data if bevilling_data else {})
+        },
+        "reference": ref
+    }
+
+    ats_workqueue = helper_functions.fetch_workqueue(workqueue_name="bur.befordring.afgoerelsesbreve")
+
+    data = {
+        "item": merged_data,
+    }
+
+    ats_workqueue.add_item(data=data, reference=ref)
+
+    return {
+        "status": "queued",
+        "reference": ref
+    }
 
 
 @router.get("/get_bevillinger")
@@ -248,7 +287,24 @@ def get_citizen_bevillinger(cpr: str):
 
     service = BevillingService()
 
-    return service.get_citizen_bevillinger(cpr=cpr)
+    bevillinger = service.get_citizen_bevillinger(cpr=cpr)
+
+    for bev in bevillinger:
+        koerselsraekker = service.get_koerselsraekker(bevilling_id=bev["bevilling_id"])
+
+        bev["koerselsraekker"] = koerselsraekker
+
+    return bevillinger
+
+
+@router.post("/create_koerselsraekke/{bevilling_id}")
+def create_koerselsraekke(bevilling_id: str, new_koerselsraekke_data: dict):
+    """
+    """
+
+    service = BevillingService()
+
+    return service.create_koerselsraekke(bevilling_id=bevilling_id, new_koerselsraekke_data=new_koerselsraekke_data)
 
 
 @router.post("/create_bevilling/{cpr}")
@@ -304,43 +360,6 @@ def create_bevilling(cpr: str, new_bevilling_data: dict):
     service = BevillingService()
 
     return service.create_bevilling(cpr=cpr, new_bevilling_data=new_bevilling_data)
-
-
-@router.post("/create_letter/{cpr}/{bevilling_id}")
-def create_letter(cpr: str, bevilling_id: int, letter_data: dict):
-    """
-    Create new letter
-    """
-
-    # INSERT LOGIC TO FETCH CITIZEN DATA HERE:
-    # ...
-
-    current_timestamp = datetime.now()
-
-    bevilling_service = BevillingService()
-    citizen_service = CitizenService()
-
-    citizen_data = citizen_service.get_stamdata(cpr=cpr)
-    bevilling_data = bevilling_service.get_bevilling(bevilling_id=bevilling_id)
-
-    merged_data = {
-        **letter_data,
-        **(citizen_data[0] if citizen_data else {}),
-        **(bevilling_data[0] if bevilling_data else {})
-    }
-
-    ### !!! REMOVE !!! ###
-    os.environ["ATS_TOKEN"] = os.getenv("ATS_TOKEN_DEV")
-    os.environ["ATS_URL"] = os.getenv("ATS_URL_DEV")
-    ### !!! REMOVE !!! ###
-
-    ats = AutomationServer.from_environment()
-
-    ats_workqueue = ats.workqueue()
-
-    ref = f"{cpr}_{current_timestamp}"
-
-    ats_workqueue.add_item(data=merged_data, reference=ref)
 
 
 @router.put("/{bevilling_id}")

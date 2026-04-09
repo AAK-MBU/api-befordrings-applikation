@@ -1,15 +1,10 @@
 """API endpoints for Citizen functionalities."""
 
-import os
-
 from fastapi import APIRouter
 
 from app.services.citizen_service import CitizenService
 
 router = APIRouter(prefix="/citizen", tags=["Citizen"])
-
-DBCONNECTIONSTRINGDEV = os.getenv("DBCONNECTIONSTRINGDEV")
-DBCONNECTIONSTRINGPROD = os.getenv("DBCONNECTIONSTRINGPROD")
 
 
 @router.get("/stamdata/{cpr}")
@@ -58,7 +53,18 @@ def get_stamdata(cpr: str):
     return service.get_stamdata(cpr=cpr)
 
 
-@router.put("/citizens/stamdata/{cpr}")
+@router.get("/stamdata/{cpr}/parents")
+def get_parent_data(cpr: str):
+    """
+    Endpoint to retrieve information regarding a child's parents
+    """
+
+    service = CitizenService()
+
+    return service.get_parent_data(cpr=cpr)
+
+
+@router.put("/stamdata/{cpr}")
 def update_citizen_stamdata(cpr: str, stamdata: dict):
     """
     Update stamdata (master data) for a citizen identified by CPR.

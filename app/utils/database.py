@@ -7,8 +7,6 @@ import pandas as pd
 
 from sqlalchemy import create_engine, text
 
-DBCONNECTIONSTRINGPROD = os.getenv("DBCONNECTIONSTRINGPROD")
-
 
 def get_db_connection_string():
     """
@@ -16,6 +14,14 @@ def get_db_connection_string():
     """
 
     return os.getenv("DBCONNECTIONSTRINGDEV")
+
+
+def get_lis_db_connection_string():
+    """
+    Database helper to retrieve the database connection string
+    """
+
+    return os.getenv("DBCONNECTIONSTRINGSERVER29")
 
 
 def read_sql(query: str = "", params: dict = None, conn_string: str = "") -> pd.DataFrame:

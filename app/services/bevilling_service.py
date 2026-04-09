@@ -96,15 +96,68 @@ class BevillingService:
 
         return df.to_dict("records")
 
+    def get_koerselsraekker(self, bevilling_id: int):
+
+        sql = """
+            SELECT
+                [koerselsraekke_id],
+                [bevilling_id],
+                [tidspunkt],
+                [koerselstype],
+                [koerselstype_tillaeg],
+                [bevilget_koereafstand_pr_vej],
+                [dage],
+                [bevilling_fra],
+                [bevilling_til],
+                [taxa_id],
+                [kommentar]
+            FROM
+                [befordring_app].[befordring].[Koerselsraekke]
+            WHERE
+                bevilling_id = :bevilling_id
+            ORDER BY
+                tidspunkt DESC
+        """
+
+        df = database.read_sql(
+            query=sql,
+            params={
+                "bevilling_id": bevilling_id
+            },
+            conn_string=self.conn_string
+        )
+
+        return df.to_dict("records")
+
     def get_citizen_bevillinger(self, cpr: str):
 
         sql = """
             SELECT
-                *
+                [bevilling_id],
+                [barnets_fulde_navn],
+                [barnets_cpr],
+                [status],
+                [sagsbehandlingsdato],
+                [adresse_for_bevilling],
+                [skole],
+                [gaaafstand_km],
+                [hjaelpemidler],
+                [afstandskriterie_dato],
+                [afstandskriterie_klassetrin],
+                [ansoeger_relation],
+                [revurdering],
+                [befordringsudvalg],
+                [hjemmel],
+                [afgoerelsesbrev],
+                [sagsbehandler],
+                [ppr_ansvarlig]
             FROM
-                BEVILLING
+                [befordring_app].[befordring].[Bevilling]
             WHERE
-                CPR = :cpr
+                barnets_cpr = :cpr
+            ORDER BY
+                status ASC,
+                sagsbehandlingsdato DESC
         """
 
         df = database.read_sql(
@@ -115,63 +168,227 @@ class BevillingService:
 
         return df.to_dict("records")
 
-    def create_bevilling(self, cpr: str, new_bevilling_data: dict):
+    def create_koerselsraekke(self, bevilling_id: int, new_koerselsraekke_data: dict):
 
-        sql = """
-            INSERT INTO DATA (
-                col1,
-                col2,
-                col3,
-                col4
+        insert_sql = """
+            INSERT INTO [befordring_app].[befordring].[Koerselsraekke] (
+
+                bevilling_id,
+                tidspunkt,
+                koerselstype,
+                koerselstype_tillaeg,
+                bevilget_koereafstand_pr_vej,
+                dage,
+                bevilling_fra,
+                bevilling_til,
+                taxa_id,
+                kommentar
+
             )
             VALUES (
-                :col1,
-                :col2,
-                :col3,
-                :col4
+
+                :bevilling_id,
+                :tidspunkt,
+                :koerselstype,
+                :koerselstype_tillaeg,
+                :bevilget_koereafstand_pr_vej,
+                :dage,
+                :bevilling_fra,
+                :bevilling_til,
+                :taxa_id,
+                :kommentar
+
             )
         """
 
         params = {
-            "col1": 1,
-            "col2": 2,
-            "col3": 3,
-            "col4": 4
+            "bevilling_id": bevilling_id,
+            "tidspunkt": new_koerselsraekke_data.get("tidspunkt"),
+            "koerselstype": new_koerselsraekke_data.get("koerselstype"),
+            "koerselstype_tillaeg": new_koerselsraekke_data.get("koerselstype_tillaeg"),
+            "bevilget_koereafstand_pr_vej": new_koerselsraekke_data.get("bevilget_koereafstand_pr_vej"),
+            "dage": new_koerselsraekke_data.get("dage"),
+            "bevilling_fra": new_koerselsraekke_data.get("bevilling_fra"),
+            "bevilling_til": new_koerselsraekke_data.get("bevilling_til"),
+            "taxa_id": new_koerselsraekke_data.get("taxa_id"),
+            "kommentar": new_koerselsraekke_data.get("kommentar"),
         }
 
-        rows = database.execute_sql(
-            query=sql,
+        # 🔹 1. Insert
+        database.execute_sql(
+            query=insert_sql,
             params=params,
             conn_string=self.conn_string
         )
 
-        return {"rows_inserted": rows}
+        # 🔹 2. Fetch newest row
+        select_sql = """
+            SELECT TOP 1 *
+            FROM [befordring_app].[befordring].[Koerselsraekke]
+            WHERE bevilling_id = :bevilling_id
+            ORDER BY koerselsraekke_id DESC
+        """
+
+        df = database.read_sql(
+            query=select_sql,
+            params={"bevilling_id": bevilling_id},
+            conn_string=self.conn_string
+        )
+
+        # 🔹 3. Return clean object
+        if df.empty:
+            return None
+
+        return df.iloc[0].to_dict()
+
+    def create_bevilling(self, cpr: str, new_bevilling_data: dict):
+
+        insert_sql = """
+            INSERT INTO [befordring_app].[befordring].[Bevilling] (
+
+                barnets_fulde_navn,
+                barnets_cpr,
+                status,
+                sagsbehandlingsdato,
+                adresse_for_bevilling,
+                skole,
+                gaaafstand_km,
+                hjaelpemidler,
+                afstandskriterie_dato,
+                afstandskriterie_klassetrin,
+                ansoeger_relation,
+                revurdering,
+                befordringsudvalg,
+                hjemmel,
+                afgoerelsesbrev,
+                sagsbehandler,
+                ppr_ansvarlig
+
+            )
+            VALUES (
+
+                :barnets_fulde_navn,
+                :barnets_cpr,
+                :status,
+                GETDATE(),
+                :adresse_for_bevilling,
+                :skole,
+                :gaaafstand_km,
+                :hjaelpemidler,
+                :afstandskriterie_dato,
+                :afstandskriterie_klassetrin,
+                :ansoeger_relation,
+                :revurdering,
+                :befordringsudvalg,
+                :hjemmel,
+                :afgoerelsesbrev,
+                :sagsbehandler,
+                :ppr_ansvarlig
+
+            )
+        """
+
+        params = {
+            "barnets_fulde_navn": new_bevilling_data.get("barnets_fulde_navn"),
+            "barnets_cpr": cpr,
+            "status": new_bevilling_data.get("status"),
+            "adresse_for_bevilling": new_bevilling_data.get("adresse_for_bevilling"),
+            "skole": new_bevilling_data.get("skole"),
+            "gaaafstand_km": new_bevilling_data.get("gaaafstand_km"),
+            "hjaelpemidler": new_bevilling_data.get("hjaelpemidler"),
+            "afstandskriterie_dato": new_bevilling_data.get("afstandskriterie_dato"),
+            "afstandskriterie_klassetrin": new_bevilling_data.get("afstandskriterie_klassetrin"),
+            "ansoeger_relation": new_bevilling_data.get("ansoeger_relation"),
+            "revurdering": new_bevilling_data.get("revurdering"),
+            "befordringsudvalg": new_bevilling_data.get("befordringsudvalg"),
+            "hjemmel": new_bevilling_data.get("hjemmel"),
+            "afgoerelsesbrev": new_bevilling_data.get("afgoerelsesbrev"),
+            "sagsbehandler": new_bevilling_data.get("sagsbehandler"),
+            "ppr_ansvarlig": new_bevilling_data.get("ppr_ansvarlig")
+        }
+
+        # 🔹 1. Insert
+        database.execute_sql(
+            query=insert_sql,
+            params=params,
+            conn_string=self.conn_string
+        )
+
+        # 🔹 2. Fetch the newest row
+        select_sql = """
+            SELECT TOP 1 *
+            FROM [befordring_app].[befordring].[Bevilling]
+            WHERE barnets_cpr = :cpr
+            ORDER BY bevilling_id DESC
+        """
+
+        df = database.read_sql(
+            query=select_sql,
+            params={"cpr": cpr},
+            conn_string=self.conn_string
+        )
+
+        # 🔹 3. Return clean object
+        if df.empty:
+            return None
+
+        return df.iloc[0].to_dict()
 
     def update_bevilling(self, bevilling_id: int, bevilling_data: dict):
 
-        set_clause = ", ".join([f"{key} = :{key}" for key in bevilling_data])
+        allowed_fields = [
+            "barnets_fulde_navn",
+            "barnets_cpr",
+            "status",
+            "sagsbehandlingsdato",
+            "adresse_for_bevilling",
+            "skole",
+            "gaaafstand_km",
+            "hjaelpemidler",
+            "afstandskriterie_dato",
+            "afstandskriterie_klassetrin",
+            "ansoeger_relation",
+            "revurdering",
+            "befordringsudvalg",
+            "hjemmel",
+            "afgoerelsesbrev",
+            "sagsbehandler",
+            "ppr_ansvarlig"
+        ]
+
+        # 👇 filter ONLY valid DB fields
+        filtered_data = {
+            key: value
+            for key, value in bevilling_data.items()
+            if key in allowed_fields
+        }
+
+        set_clause = ", ".join([f"{key} = :{key}" for key in filtered_data])
 
         sql = f"""
-            UPDATE bevillinger
+            UPDATE [befordring_app].[befordring].[Bevilling]
             SET {set_clause}
             WHERE bevilling_id = :bevilling_id
         """
 
-        params = {**bevilling_data, "bevilling_id": bevilling_id}
+        print(sql)
 
-        rows = database.execute_sql(
-            sql,
-            params,
-            self.conn_string
-        )
+        params = {**filtered_data, "bevilling_id": bevilling_id}
+
+        rows = database.execute_sql(sql, params, self.conn_string)
 
         return {"rows_updated": rows}
 
     def delete_bevilling(self, bevilling_id: int):
 
         sql = """
-            DELETE FROM bevillinger
-            WHERE bevilling_id = :bevilling_id
+            begin tran
+            delete
+            FROM [befordring_app].[befordring].[Bevilling]
+
+            where bevilling_id = :bevilling_id
+
+            commit
         """
 
         rows = database.execute_sql(
