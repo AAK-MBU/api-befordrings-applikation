@@ -1,0 +1,28 @@
+{
+	"/": [
+		"src/routes/+page.server.js",
+		"src/routes/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/Stamdata": [
+		"src/routes/Stamdata/+page.ts",
+		"src/routes/+layout.ts"
+	],
+	"/nye-ansoegninger": [
+		"src/routes/+layout.ts"
+	],
+	"/rapporter": [
+		"src/routes/+layout.ts"
+	],
+	"/revurdering": [
+		"src/routes/+layout.ts"
+	],
+	"/sagsbehandlere": [
+		"src/routes/sagsbehandlere/+page.server.ts",
+		"src/routes/+layout.ts"
+	],
+	"/sag/[cpr]": [
+		"src/routes/sag/[cpr]/+page.server.ts",
+		"src/routes/+layout.ts"
+	]
+}

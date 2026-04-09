@@ -1,0 +1,19 @@
+{
+    "barnets_fulde_navn": "Kasper Hansentest",
+    "barnets_cpr": "2301155000", // must be unique - primary key? idk
+    "status": "Inaktiv",
+    "sagsbehandlingsdato": "2024-01-01",
+    "adresse_for_bevilling": "Gade 19, 8230 Aabyhoej",
+    "skole": "Langagerskolen",
+    "gaaafstand_km": 25, // float
+    "hjaelpemidler": "Kørestol",
+    "afstandskriterie_dato": "2024-06-30",
+    "afstandskriterie_klassetring": "1",
+    "ansoeger_relation": "Forældremyndighed",
+    "revurdering": "2024-06-30",
+    "befordringsudvalg": "2024-06-20",
+    "hjemmel": "§26, stk. 1, nr. 2",
+    "afgoerelsesbrev": "Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)",
+    "sagsbehandler": "Nina",
+    "ppr_ansvarlig": "Hans"
+}
