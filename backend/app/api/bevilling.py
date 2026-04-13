@@ -20,9 +20,9 @@ from typing import Optional
 from fastapi import APIRouter
 from fastapi import Query
 
-from backend.app.services.citizen_service import CitizenService
-from backend.app.services.bevilling_service import BevillingService
-from backend.app.utils import helper_functions
+from app.services.citizen_service import CitizenService
+from app.services.bevilling_service import BevillingService
+from app.utils import helper_functions
 
 router = APIRouter(prefix="/bevilling", tags=["Bevilling"])
 

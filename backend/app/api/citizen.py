@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from backend.app.services.citizen_service import CitizenService
+from app.services.citizen_service import CitizenService
 
 router = APIRouter(prefix="/citizen", tags=["Citizen"])
 

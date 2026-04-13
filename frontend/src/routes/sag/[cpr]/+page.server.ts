@@ -1,13 +1,16 @@
-import { env } from '$env/dynamic/private';
+import { env as privateEnv } from '$env/dynamic/private';
+import { env as publicEnv } from '$env/dynamic/public';
 
 export async function load({ params, fetch }) {
 
   const { cpr } = params;
 
+  const API_URL = publicEnv.PUBLIC_API_BASE_URL;
+
   const [stamdataRes, parentsRes, citizenBevillingerRes] = await Promise.all([
-    fetch(`http://localhost:8000/citizen/stamdata/${cpr}`),
-    fetch(`http://localhost:8000/citizen/stamdata/${env.PRIVATE_CPR}/parents`),
-    fetch(`http://localhost:8000/bevilling/get_citizen_bevillinger/${cpr}`),
+    fetch(`${API_URL}/citizen/stamdata/${cpr}`),
+    fetch(`${API_URL}/citizen/stamdata/${privateEnv.PRIVATE_CPR}/parents`),
+    fetch(`${API_URL}/bevilling/get_citizen_bevillinger/${cpr}`)
   ]);
 
   if (!stamdataRes.ok) {

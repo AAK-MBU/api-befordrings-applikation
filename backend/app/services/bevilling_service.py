@@ -1,6 +1,6 @@
 # app/services/bevilling_service.py
 
-from backend.app.utils import database
+from app.utils import database
 
 
 class BevillingService:

@@ -21,9 +21,9 @@ import os
 
 from fastapi import APIRouter
 
-from backend.app.services.bevilling_service import BevillingService
-from backend.app.services.citizen_service import CitizenService
-from backend.app.utils import database
+from app.services.bevilling_service import BevillingService
+from app.services.citizen_service import CitizenService
+from app.utils import database
 
 router = APIRouter(prefix="/overview", tags=["Overview"])
 
