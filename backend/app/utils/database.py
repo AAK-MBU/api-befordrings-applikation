@@ -13,7 +13,7 @@ def get_db_connection_string():
     Database helper to retrieve the database connection string
     """
 
-    return "Driver={ODBC Driver 17 for SQL Server};Server=srvsql58;Database=befordring_app;Trusted_Connection=yes;"
+    return os.getenv("DBCONNECTIONSTRINGDEV")
 
 
 def get_lis_db_connection_string():
