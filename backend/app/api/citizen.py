@@ -1,51 +1,56 @@
-"""API endpoints for Citizen functionalities."""
+"""API routes for citizen-related data.
+
+This module exposes endpoints for retrieving and updating citizen data used
+on the concrete citizen case page.
+
+The routes primarily handle:
+
+- Stamdata for a child/citizen
+- Parent/guardian information
+- Editable stamdata fields stored on the Elev table
+"""
 
 from fastapi import APIRouter
 
 from app.services.citizen_service import CitizenService
+
 
 router = APIRouter(prefix="/citizen", tags=["Citizen"])
 
 
 @router.get("/stamdata/{cpr}")
 def get_stamdata(cpr: str):
-    """
-    Retrieve stamdata (master data) for a specific citizen.
+    """Retrieve stamdata for a specific citizen.
 
-    This endpoint returns the stamdata associated with a given CPR
-    number. Stamdata represents the core citizen information used
-    throughout the application, such as name, address, school,
-    and other identifying details.
-
-    The data returned by this endpoint is typically used to populate
-    the "Stamdata" section of a citizen's case page in the application.
+    Stamdata is the core data shown on the citizen case page. It contains
+    the child's identifying and case-relevant information, for example name,
+    CPR, address, school, class data, school distance and mirrored status.
 
     Parameters
     ----------
     cpr : str
-        CPR number identifying the citizen whose stamdata should
-        be retrieved.
+        CPR number identifying the citizen whose stamdata should be retrieved.
 
     Returns
     -------
-    list[dict]
-        A list containing the citizen stamdata record.
+    dict | None
+        The citizen stamdata record if found. If no record exists for the CPR,
+        None is returned.
 
         Example response:
 
-        [
-            {
-                "cpr": "2301155000",
-                "navn": "Kasper Hansentest",
-                "adresse": "Gade 1, 8000 Aarhus C",
-                "skole": "Langagerskolen",
-                "klassetrin": 3
-            }
-        ]
+        {
+            "cpr": "0101101234",
+            "adresseringsnavn": "Test Barnesen",
+            "adresse_tekst": "Testvej 1, 8000 Aarhus C",
+            "skolematrikel": "Langagerskolen",
+            "skoleafstand": 6.2,
+            "status_tekst": "Aktiv"
+        }
 
     Example request
     ---------------
-    GET /citizen/stamdata/2301155000
+    GET /citizen/stamdata/0101101234
     """
 
     service = CitizenService()
@@ -55,8 +60,37 @@ def get_stamdata(cpr: str):
 
 @router.get("/stamdata/{cpr}/parents")
 def get_parent_data(cpr: str):
-    """
-    Endpoint to retrieve information regarding a child's parents
+    """Retrieve parent/guardian information for a child.
+
+    This endpoint returns parent data connected to the supplied child CPR.
+    The data is used in the "Oplysninger om forældre" table on the citizen
+    case page.
+
+    Parameters
+    ----------
+    cpr : str
+        CPR number identifying the child whose parent data should be retrieved.
+
+    Returns
+    -------
+    list[dict]
+        A list of parent/guardian records.
+
+        Example response:
+
+        [
+            {
+                "adresseringsnavn": "Parent Name",
+                "cpr_foraelder": "0101701234",
+                "adresse_tekst": "Parent Address",
+                "foraeldremyndighed": true,
+                "navne_adresse_beskyttelse": false
+            }
+        ]
+
+    Example request
+    ---------------
+    GET /citizen/stamdata/0101101234/parents
     """
 
     service = CitizenService()
@@ -64,62 +98,56 @@ def get_parent_data(cpr: str):
     return service.get_parent_data(cpr=cpr)
 
 
-@router.put("/stamdata/{cpr}")
+@router.patch("/stamdata/{cpr}")
 def update_citizen_stamdata(cpr: str, stamdata: dict):
-    """
-    Update stamdata (master data) for a citizen identified by CPR.
+    """Update editable stamdata fields for a citizen.
 
-    This endpoint performs a dynamic SQL UPDATE on the citizen_stamdata table.
-    Any fields included in the request body will be updated in the database.
-    The keys in the request JSON must correspond to column names in the
-    citizen_stamdata table.
+    The frontend sends field names from the stamdata view. The service maps
+    those fields to the actual database columns on the Elev table.
 
-    The CPR number used to locate the record is provided as a path parameter,
-    while the fields to update are provided in the request body.
-
-    The SQL statement is constructed dynamically so that only the supplied
-    fields are updated. For example, if the request body contains "address"
-    and "phone", the resulting SQL will look like:
-
-        UPDATE citizen_stamdata
-        SET address = :address,
-            phone = :phone
-        WHERE cpr = :cpr
+    Only explicitly allowed fields can be updated through this endpoint.
+    Unknown or disallowed fields return HTTP 400.
 
     Parameters
     ----------
     cpr : str
-        CPR number identifying the citizen record to update.
+        CPR number identifying the citizen to update.
 
     stamdata : dict
-        JSON body containing one or more stamdata fields to update.
-        Keys must match column names in the citizen_stamdata table.
+        JSON body containing the stamdata fields to update.
+
+        Example body:
+
+        {
+            "skoleafstand": 5.7,
+            "klasseart": "Specialklasse",
+            "elevklassetrin": 4
+        }
 
     Returns
     -------
     dict
-        A dictionary containing the number of rows updated, e.g.:
+        Information about the update operation.
 
-        {"rows_updated": 1}
+        Example response:
+
+        {
+            "rows_updated": 1,
+            "updated_fields": [
+                "skoleafstand",
+                "klasseart",
+                "elevklassetrin"
+            ]
+        }
 
     Example request
     ---------------
-    PUT /citizens/stamdata/2301155000
-
-    Body:
-    {
-        "address": "New street 12, 8000 Aarhus C",
-        "phone": "12345678",
-        "city": "Aarhus"
-    }
-
-    Example result
-    --------------
-    {
-        "rows_updated": 1
-    }
+    PATCH /citizen/stamdata/0101101234
     """
 
     service = CitizenService()
 
-    service.update_citizen_stamdata(cpr=cpr, stamdata=stamdata)
+    return service.update_citizen_stamdata(
+        cpr=cpr,
+        stamdata=stamdata
+    )

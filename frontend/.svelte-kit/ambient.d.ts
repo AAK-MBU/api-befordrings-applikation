@@ -38,7 +38,6 @@
  * The above values will be the same _even if_ different values for `ENVIRONMENT` or `PUBLIC_BASE_URL` are set at runtime, as they are statically replaced in your code with their build time values.
  */
 declare module '$env/static/private' {
-	export const PRIVATE_CPR: string;
 	export const AAK_PASSWORD: string;
 	export const ALLUSERSPROFILE: string;
 	export const API_ADMIN_TOKEN: string;
@@ -251,7 +250,6 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
-		PRIVATE_CPR: string;
 		AAK_PASSWORD: string;
 		ALLUSERSPROFILE: string;
 		API_ADMIN_TOKEN: string;

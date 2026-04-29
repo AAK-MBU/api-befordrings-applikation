@@ -17,10 +17,6 @@
 	"/revurdering": [
 		"src/routes/+layout.ts"
 	],
-	"/sagsbehandlere": [
-		"src/routes/sagsbehandlere/+page.server.ts",
-		"src/routes/+layout.ts"
-	],
 	"/sag/[cpr]": [
 		"src/routes/sag/[cpr]/+page.server.ts",
 		"src/routes/+layout.ts"

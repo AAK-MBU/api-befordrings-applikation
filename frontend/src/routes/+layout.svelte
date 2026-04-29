@@ -15,7 +15,6 @@
     { href: '/nye-ansoegninger', label: 'Nye ansøgninger' },
     { href: '/revurdering', label: 'Revurdering' },
     { href: '/rapporter', label: 'Rapporter' },
-    { href: '/sagsbehandlere', label: 'Sagsbehandlere' },
   ];
 
   // Reaktiv variabel — opdateres automatisk ved navigation

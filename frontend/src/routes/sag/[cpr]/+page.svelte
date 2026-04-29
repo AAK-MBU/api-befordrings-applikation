@@ -1,682 +1,1047 @@
 <script lang="ts">
-  import DataTable from "$lib/components/DataTable.svelte";
+  import { env as publicEnv } from "$env/dynamic/public";
+  import { invalidateAll } from "$app/navigation";
 
-	import KoerselsraekkeTable from "$lib/components/KoerselsraekkeTable.svelte";
+  import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
+  import BevillingTable from "$lib/components/BevillingTable.svelte";
+  import { getStatusBadgeClass } from "$lib/tableColumnConfig";
 
-	import EditCell from "$lib/components/cells/EditCell.svelte";
-	import DeleteCell from "$lib/components/cells/DeleteCell.svelte";
-
-  import { statusBadgeClasses } from "$lib/tableColumnConfig";
-  
   export let data;
 
+  const API_URL = publicEnv.PUBLIC_API_BASE_URL;
 
-	let creatingKoerselsraekkeFor: number | null = null;
-	let newKoerselsraekke: any = {};
 
-	let editingBevillingId: number | null = null;
-	let editableBevilling: any = {};
-  
-	let { stamdata, parents, citizenBevillinger } = data;
-  
+  // -----------------------------
+  // Page state
+  // -----------------------------
+
+  let { stamdata, parents, bevillinger, lookupOptions } = data;
+
   let activeTab = "stamdata";
-  
-  let isEditing = false;
-  
+
+  let editingStamdata = false;
   let editableStamdata = { ...stamdata };
-  
-  const stamdataColumns = [
-    { key: "sags_id", label: "Sags-ID", editable: false },
-    { key: "status", label: "Status",
-      render: (row: any) => {
-        const value = row.status ?? "";
-        const lower = value.toLowerCase();
 
-        const colorClass =
-          statusBadgeClasses[lower] ?? statusBadgeClasses.default;
+  let showCreateBevillingModal = false;
 
-        return `
-          <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${colorClass}">
-            ${value}
-          </span>
-        `;
-      }
-    },
-    { key: "folkeregisteradresse", label: "Folkeregisteradresse" },
-    { key: "skole", label: "Skole" },
-    { key: "skolematrikel", label: "Skolematrikel" },
-    { key: "gaaafstand_km", label: "Afstand (km)" },
-    { key: "klasseart", label: "Klasseart" },
-    { key: "klassebetegnelse", label: "Klasse" },
-    { key: "personligt_klassetrin", label: "Klassetrin" },
-    { key: "sfo", label: "SFO" },
-    { key: "bopaelsdistrikt", label: "Bopælsdistrikt" }
+
+  $: if (data && !editingStamdata) {
+    stamdata = data.stamdata;
+    parents = data.parents;
+    bevillinger = data.bevillinger;
+    lookupOptions = data.lookupOptions;
+
+    editableStamdata = { ...data.stamdata };
+  }
+
+
+  // -----------------------------
+  // Create bevilling state
+  // -----------------------------
+
+  function getEmptyBevilling() {
+    return {
+      status_id: "",
+      adresse_for_bevilling: "",
+      matrikel_id: "",
+      hjemmel_id: "",
+      afgoerelsesbrev_id: "",
+      revurderingsdato: "",
+      befordringsudvalg: "",
+      esdh_noegle: "",
+      sagsbehandler_id: "",
+      ppr_sagsbehandler_id: "",
+      ansoegningsdato: "",
+      sagsbehandlingsdato: "",
+      relation_til_barnet: "",
+      foerste_koersel_dato: "",
+      ansoegningstype: "",
+      afstandskriterie_dato: "",
+      afstandskriterie_klassetrin: "",
+      begrundelse_fra_formular: "",
+      noter: "",
+      hjaelpemiddel_ids: []
+    };
+  }
+
+
+  let newBevilling: any = getEmptyBevilling();
+
+  const begrundelseOptions = [
+    "Sygdom",
+    "Afstand",
+    "Farlig skolevej"
   ];
 
-  const parentsColumns = [
-    { key: "navn", label: "Navn" },
-    { key: "cpr", label: "Cpr-nummer" },
-    { key: "folkeregisteradresse", label: "Folkeregisteradresse" },
-    { key: "foraeldremyndig", label: "Forældremyndighed" },
-    { key: "navne_og_adressebeskyttelse", label: "Beskyttelse" },
-  ];
-
-  const bevillingColumns = [
+  let selectedBegrundelser: string[] = [];
+  let begrundelseSelectValue = "";
 
 
-		{
-			key: "edit",
-			label: "",
-			filterable: false,
-			component: EditCell
-		},
+  // -----------------------------
+  // Table columns
+  // -----------------------------
 
-		{
-			key: "delete",
-			label: "",
-			filterable: false,
-			component: DeleteCell
-		},
-
+  const stamdataColumns: DataTableColumn[] = [
     {
-      key: "status",
-      label: "Status",
-      render: (row: any) => {
-        const value = row.status ?? "";
-        const lower = value.toLowerCase();
-
-        const colorClass =
-          statusBadgeClasses[lower] ?? statusBadgeClasses.default;
-
-        return `
-          <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${colorClass}">
-            ${value}
-          </span>
-        `;
-      }
+      key: "esdh_noegle",
+      label: "Sags-ID",
+      editable: false,
+      render: (row) => `
+        <a href="#" class="text-sky-600 underline">
+          ${row.esdh_noegle ?? ""}
+        </a>
+      `
     },
-    { key: "sagsbehandlingsdato", label: "Sagsbehandlingsdato" },
-    { key: "adresse_for_bevilling", label: "Bevillingsadresse" },
-    { key: "skole", label: "Skole" },
-    { key: "gaaafstand_km", label: "Gåafstand (km)" },
-    { key: "hjaelpemidler", label: "Hjælpemidler" },
-    { key: "afstandskriterie_dato", label: "Afstandskriterie dato" },
-    { key: "afstandskriterie_klassetrin", label: "Afstandskriterie klassetrin" },
-    { key: "ansoeger_relation", label: "Ansøger relation" },
-    { key: "revurdering", label: "Revurdering" },
-    { key: "befordringsudvalg", label: "Befordringsudvalg" },
-    { key: "hjemmel", label: "Hjemmel" },
-    { key: "afgoerelsesbrev", label: "Afgørelsesbrev" },
-    { key: "sagsbehandler", label: "Sagsbehandler" },
-    { key: "ppr_ansvarlig", label: "PPR ansvarlig" },
-
+    {
+      key: "status_tekst",
+      label: "Status",
+      editable: false,
+      render: (row) => `
+        <span class="inline-block px-3 py-1 ${getStatusBadgeClass(row.status_tekst)}">
+          ${row.status_tekst ?? ""}
+        </span>
+      `
+    },
+    {
+      key: "adresse_tekst",
+      label: "Folkeregisteradresse",
+      editable: false
+    },
+    {
+      key: "skolematrikel",
+      label: "Skolematrikel",
+      editable: false
+    },
+    {
+      key: "skoleafstand",
+      label: "Korteste gåafstand mellem elevens adresse og skole (km)",
+      editable: true
+    },
+    {
+      key: "klasseart",
+      label: "Klasseart",
+      editable: true
+    },
+    {
+      key: "klassebetegnelse",
+      label: "Klassebetegnelse",
+      editable: true
+    },
+    {
+      key: "elevklassetrin",
+      label: "Personligt klassetrin",
+      editable: true
+    },
+    {
+      key: "sfo",
+      label: "SFO",
+      editable: true
+    },
+    {
+      key: "bopaelsdistrikt",
+      label: "Bopælsdistrikt",
+      editable: true
+    }
   ];
 
-  async function save() {
 
-		console.log("SENDING:", editableStamdata);
+  const parentColumns: DataTableColumn[] = [
+    {
+      key: "adresseringsnavn",
+      label: "Navn"
+    },
+    {
+      key: "cpr_foraelder",
+      label: "Cpr-nummer"
+    },
+    {
+      key: "adresse_tekst",
+      label: "Folkeregisteradresse"
+    },
+    {
+      key: "foraeldremyndighed",
+      label: "Forældremyndig",
+      render: (row) => row.foraeldremyndighed ? "Ja" : "Nej"
+    },
+    {
+      key: "navne_adresse_beskyttelse",
+      label: "Navne- og adressebeskyttelse",
+      render: (row) => row.navne_adresse_beskyttelse ? "Ja" : "Nej"
+    }
+  ];
 
-    const res = await fetch(
-      `http://localhost:8000/citizen/stamdata/${stamdata.barnets_cpr}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(editableStamdata)
-      }
+
+  // -----------------------------
+  // Small helpers
+  // -----------------------------
+
+  function emptyToNull(value: any) {
+    if (value === "") {
+      return null;
+    }
+
+    return value;
+  }
+
+
+  function numberOrNull(value: any) {
+    if (value === "") {
+      return null;
+    }
+
+    return Number(value);
+  }
+
+
+  function resetCreateBevillingForm() {
+    newBevilling = getEmptyBevilling();
+
+    selectedBegrundelser = [];
+    begrundelseSelectValue = "";
+  }
+
+
+  function getMirroredStamdataStatus(updatedBevillinger: any[]) {
+    const activeBevilling = updatedBevillinger.find((bevilling: any) =>
+      String(bevilling.status_tekst ?? "").toLowerCase() === "aktiv"
     );
 
-    if (!res.ok) {
-      alert("Noget gik galt");
+    if (activeBevilling) {
+      return {
+        status_tekst: activeBevilling.status_tekst,
+        bevilling_id: activeBevilling.bevilling_id
+      };
+    }
+
+    const latestUpdatedBevilling = [...updatedBevillinger].sort((a: any, b: any) => {
+      const aDate = new Date(
+        a.updated_at ?? a.created_at ?? a.sagsbehandlingsdato ?? 0
+      ).getTime();
+
+      const bDate = new Date(
+        b.updated_at ?? b.created_at ?? b.sagsbehandlingsdato ?? 0
+      ).getTime();
+
+      return bDate - aDate;
+    })[0];
+
+    return {
+      status_tekst: latestUpdatedBevilling?.status_tekst ?? "",
+      bevilling_id: latestUpdatedBevilling?.bevilling_id ?? null
+    };
+  }
+
+
+  // -----------------------------
+  // Begrundelse helpers
+  // -----------------------------
+
+  function addBegrundelse() {
+    if (begrundelseSelectValue === "") {
       return;
     }
 
-    Object.assign(stamdata, editableStamdata);
+    if (!selectedBegrundelser.includes(begrundelseSelectValue)) {
+      selectedBegrundelser = [
+        ...selectedBegrundelser,
+        begrundelseSelectValue
+      ];
+    }
 
-    isEditing = false;
+    newBevilling.begrundelse_fra_formular = selectedBegrundelser.join(", ");
+
+    begrundelseSelectValue = "";
   }
 
-    let showBevillingModal = false;
 
-    let newBevilling = {
-        barnets_fulde_navn: stamdata.barnets_fulde_navn,
-        status: "Aktiv",
-        sagsbehandlingsdato: "",
-        adresse_for_bevilling: "Test Adresse 123",
-        skole: "Test Skole",
-        gaaafstand_km: "10",
-        hjaelpemidler: "Ingen",
-        afstandskriterie_dato: "2026-03-01",
-        afstandskriterie_klassetrin: "5",
-        ansoeger_relation: "Forælder",
-        revurdering: "2026-06-01",
-        befordringsudvalg: "2026-06-01",
-        hjemmel: "§26",
-        afgoerelsesbrev: "Standard",
-        sagsbehandler: "Test Sagsbehandler",
-        ppr_ansvarlig: "Test PPR"
+  function removeBegrundelse(value: string) {
+    selectedBegrundelser = selectedBegrundelser.filter(
+      (existingValue) => existingValue !== value
+    );
+
+    newBevilling.begrundelse_fra_formular = selectedBegrundelser.join(", ");
+  }
+
+
+  // -----------------------------
+  // Stamdata handlers
+  // -----------------------------
+
+  function handleEditStamdata(row: any) {
+    editingStamdata = true;
+    editableStamdata = { ...row };
+  }
+
+
+  function handleCancelStamdata() {
+    editingStamdata = false;
+    editableStamdata = { ...stamdata };
+  }
+
+
+  function handleStamdataChange(key: string, value: any) {
+    editableStamdata = {
+      ...editableStamdata,
+      [key]: value
+    };
+  }
+
+
+  async function handleSaveStamdata() {
+    const updates = {
+      skoleafstand: editableStamdata.skoleafstand,
+      klasseart: editableStamdata.klasseart,
+      elevklassetrin: editableStamdata.elevklassetrin,
+      klassebetegnelse: editableStamdata.klassebetegnelse,
+      sfo: editableStamdata.sfo,
+      bopaelsdistrikt: editableStamdata.bopaelsdistrikt
     };
 
-    async function submitNewBevilling() {
+    const response = await fetch(`${API_URL}/citizen/stamdata/${stamdata.cpr}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(updates)
+    });
 
-        try {
-
-            const res = await fetch(
-                `http://localhost:8000/bevilling/create_bevilling/${stamdata.barnets_cpr}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(newBevilling)
-                }
-            );
-
-            console.log("FETCH DONE", res);
-
-            if (!res.ok) {
-                console.error("Response not OK", res);
-                alert("Kunne ikke oprette bevilling");
-
-                return;
-            }
-
-            const created = await res.json();
-
-            console.log("CREATED:", created);
-
-            citizenBevillinger = [created, ...citizenBevillinger];
-
-            showBevillingModal = false;
-
-        } catch (err) {
-
-            console.error("FETCH ERROR:", err);
-
-            alert("Fetch fejlede - se console");
-
-        }
-
+    if (!response.ok) {
+      alert("Kunne ikke gemme stamdata");
+      return;
     }
 
-    function handleDeleteClick(event: MouseEvent | KeyboardEvent) {
+    stamdata = {
+      ...stamdata,
+      ...updates
+    };
 
-        const target = event.target as HTMLElement;
+    bevillinger = bevillinger.map((bevilling: any) => {
+      return {
+        ...bevilling,
+        skoleafstand: updates.skoleafstand
+      };
+    });
 
-        if (target.tagName === "BUTTON" && target.dataset.id) {
+    editableStamdata = { ...stamdata };
+    editingStamdata = false;
+  }
 
-            const id = Number(target.dataset.id);
 
-            deleteBevilling(id);
+  // -----------------------------
+  // Bevilling handlers
+  // -----------------------------
 
-        }
+  async function handleCreateBevilling() {
+    const payload = {
+      adresse_for_bevilling: emptyToNull(newBevilling.adresse_for_bevilling),
+      status_id: numberOrNull(newBevilling.status_id),
+      matrikel_id: numberOrNull(newBevilling.matrikel_id),
+      hjemmel_id: numberOrNull(newBevilling.hjemmel_id),
+      afgoerelsesbrev_id: numberOrNull(newBevilling.afgoerelsesbrev_id),
 
+      revurderingsdato: emptyToNull(newBevilling.revurderingsdato),
+      befordringsudvalg: emptyToNull(newBevilling.befordringsudvalg),
+      esdh_noegle: emptyToNull(newBevilling.esdh_noegle),
+
+      sagsbehandler_id: numberOrNull(newBevilling.sagsbehandler_id),
+      ppr_sagsbehandler_id: numberOrNull(newBevilling.ppr_sagsbehandler_id),
+
+      ansoegningsdato: emptyToNull(newBevilling.ansoegningsdato),
+      sagsbehandlingsdato: emptyToNull(newBevilling.sagsbehandlingsdato),
+      relation_til_barnet: emptyToNull(newBevilling.relation_til_barnet),
+      foerste_koersel_dato: emptyToNull(newBevilling.foerste_koersel_dato),
+      ansoegningstype: emptyToNull(newBevilling.ansoegningstype),
+
+      afstandskriterie_dato: emptyToNull(newBevilling.afstandskriterie_dato),
+      afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
+      begrundelse_fra_formular: emptyToNull(newBevilling.begrundelse_fra_formular),
+      noter: emptyToNull(newBevilling.noter),
+
+      hjaelpemiddel_ids: newBevilling.hjaelpemiddel_ids ?? []
+    };
+
+    const response = await fetch(`${API_URL}/bevilling/create_bevilling/${stamdata.cpr}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      alert("Kunne ikke oprette bevilling");
+      return;
     }
 
+    await invalidateAll();
 
-    async function deleteBevilling(bevilling_id: number) {
+    activeTab = "bevillinger";
+    showCreateBevillingModal = false;
+    resetCreateBevillingForm();
+  }
 
-        const confirmed = confirm("Er du sikker på at du vil slette bevillingen?");
 
-        if (!confirmed) return;
+  async function handleSaveBevilling(bevillingId: number, updates: any) {
+    const { hjaelpemiddel_ids, ...bevillingUpdates } = updates;
 
-        try {
+    const bevillingResponse = await fetch(`${API_URL}/bevilling/${bevillingId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(bevillingUpdates)
+    });
 
-            const res = await fetch(
-                `http://localhost:8000/bevilling/${bevilling_id}`,
-                {
-                    method: "DELETE"
-                }
-            );
-
-            if (!res.ok) {
-                alert("Kunne ikke slette bevilling");
-                return;
-            }
-
-            // 👇 remove from UI instantly
-            citizenBevillinger = citizenBevillinger.filter((b: any) => b.bevilling_id !== bevilling_id);
-
-        } catch (err) {
-
-            console.error(err);
-
-            alert("Fejl ved sletning");
-
-        }
-
+    if (!bevillingResponse.ok) {
+      alert("Kunne ikke gemme bevilling");
+      return false;
     }
 
+    const hjaelpemidlerResponse = await fetch(`${API_URL}/bevilling/${bevillingId}/hjaelpemidler`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        hjaelpemiddel_ids: hjaelpemiddel_ids ?? []
+      })
+    });
 
-	function handleEdit(row: any) {
+    if (!hjaelpemidlerResponse.ok) {
+      alert("Bevilling blev gemt, men hjælpemidler kunne ikke gemmes");
+      return false;
+    }
 
-		editingBevillingId = row.bevilling_id;
+    const statusOption = lookupOptions.statuser?.find(
+      (option: any) => option.id === bevillingUpdates.status_id
+    );
 
-		editableBevilling = { ...row };
+    const matrikelOption = lookupOptions.skolematrikler?.find(
+      (option: any) => option.id === bevillingUpdates.matrikel_id
+    );
 
-	}
+    const hjemmelOption = lookupOptions.hjemler?.find(
+      (option: any) => option.id === bevillingUpdates.hjemmel_id
+    );
 
-	function handleCancel() {
+    const afgoerelsesbrevOption = lookupOptions.afgoerelsesbreve?.find(
+      (option: any) => option.id === bevillingUpdates.afgoerelsesbrev_id
+    );
 
-		editingBevillingId = null;
-		editableBevilling = {};
+    const sagsbehandlerOption = lookupOptions.sagsbehandlere?.find(
+      (option: any) => option.id === bevillingUpdates.sagsbehandler_id
+    );
 
-	}
+    const pprSagsbehandlerOption = lookupOptions.pprSagsbehandlere?.find(
+      (option: any) => option.id === bevillingUpdates.ppr_sagsbehandler_id
+    );
 
-	async function handleSave(row: any) {
+    const selectedHjaelpemidler = lookupOptions.hjaelpemidler?.filter(
+      (option: any) => hjaelpemiddel_ids?.includes(option.id)
+    ) ?? [];
 
-		try {
+    const hjaelpemidlerText = selectedHjaelpemidler
+      .map((option: any) => option.label)
+      .join(", ");
 
-			console.log("SENDING:", editableBevilling);
+    const hjaelpemiddelIdsText = selectedHjaelpemidler
+      .map((option: any) => option.id)
+      .join(",");
 
-			const res = await fetch(
-				`http://localhost:8000/bevilling/${row.bevilling_id}`,
-				{
-					method: "PUT",
-					headers: {
-						"Content-Type": "application/json"
-					},
-					body: JSON.stringify(editableBevilling)
-				}
-			);
+    const updatedAt = new Date().toISOString();
 
-			if (!res.ok) {
-				alert("Kunne ikke opdatere");
-				return;
-			}
+    const updatedBevillinger = bevillinger.map((bevilling: any) => {
+      if (bevilling.bevilling_id !== bevillingId) {
+        return bevilling;
+      }
 
-			// update UI
-			citizenBevillinger = citizenBevillinger.map((b: any) =>
-				b.bevilling_id === row.bevilling_id
-					? { ...b, ...editableBevilling }
-					: b
-			);
+      return {
+        ...bevilling,
+        ...bevillingUpdates,
 
-			editingBevillingId = null;
+        updated_at: updatedAt,
 
-		} catch (err) {
+        hjaelpemiddel_ids: hjaelpemiddelIdsText,
+        hjaelpemidler: hjaelpemidlerText,
 
-			console.error(err);
+        status_tekst: statusOption?.label ?? bevilling.status_tekst,
+        matrikel_navn: matrikelOption?.label ?? bevilling.matrikel_navn,
+        hjemmel_tekst: hjemmelOption?.label ?? bevilling.hjemmel_tekst,
+        afgoerelsesbrev_tekst: afgoerelsesbrevOption?.label ?? bevilling.afgoerelsesbrev_tekst,
+        sagsbehandler_tekst: sagsbehandlerOption?.label ?? bevilling.sagsbehandler_tekst,
+        ppr_sagsbehandler_tekst: pprSagsbehandlerOption?.label ?? bevilling.ppr_sagsbehandler_tekst
+      };
+    });
 
-		}
+    bevillinger = updatedBevillinger;
 
-	}
+    const mirroredStatus = getMirroredStamdataStatus(updatedBevillinger);
 
+    stamdata = {
+      ...stamdata,
+      status_tekst: mirroredStatus.status_tekst,
+      bevilling_id: mirroredStatus.bevilling_id
+    };
 
-	function handleInputChange(key: string, value: any) {
+    editableStamdata = {
+      ...editableStamdata,
+      status_tekst: mirroredStatus.status_tekst,
+      bevilling_id: mirroredStatus.bevilling_id
+    };
 
-		editableBevilling = {
-			...editableBevilling,
-			[key]: value
-		};
-
-	}
-
-	function handleStamdataChange(key: string, value: any) {
-
-		editableStamdata = {
-			...editableStamdata,
-			[key]: value
-		};
-
-	}
-
-	function handleNewKoerselsraekkeChange(key: string, value: any) {
-
-		newKoerselsraekke = {
-			...newKoerselsraekke,
-			[key]: value
-		};
-
-	}
-
-
-
-	function handleCreateKoerselsraekke(bevilling_id: number) {
-
-		creatingKoerselsraekkeFor = bevilling_id;
-
-		newKoerselsraekke = {
-			tidspunkt: "",
-			koerselstype: "",
-			koerselstype_tillaeg: "",
-			bevilget_koereafstand_pr_vej: "",
-			dage: "",
-			bevilling_fra: "",
-			bevilling_til: "",
-			taxa_id: "",
-			kommentar: ""
-		};
-
-	}
+    return true;
+  }
 
 
+  // -----------------------------
+  // Kørselsrække handlers
+  // -----------------------------
 
-	async function handleSaveNewKoerselsraekke(bevilling_id: number) {
+  async function handleCreateKoerselsraekke(bevillingId: number, updates: any) {
+    const {
+      tillaeg_ids,
+      dag_ids,
+      ...koerselsraekkeData
+    } = updates;
 
-		try {
+    const response = await fetch(`${API_URL}/bevilling/create_koerselsraekke/${bevillingId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        ...koerselsraekkeData,
+        tillaeg_ids: tillaeg_ids ?? [],
+        dag_ids: dag_ids ?? []
+      })
+    });
 
-			const res = await fetch(
-				`http://localhost:8000/bevilling/create_koerselsraekke/${bevilling_id}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json"
-					},
-					body: JSON.stringify(newKoerselsraekke)
-				}
-			);
+    if (!response.ok) {
+      alert("Kunne ikke oprette kørselsrække");
+      return false;
+    }
 
-			if (!res.ok) {
-				alert("Kunne ikke oprette");
-				return;
-			}
+    await invalidateAll();
 
-			const created = await res.json();
+    activeTab = "bevillinger";
 
-			citizenBevillinger = citizenBevillinger.map((b: any) =>
-				b.bevilling_id === bevilling_id
-					? {
-							...b,
-							koerselsraekker: [
-								...(b.koerselsraekker ?? []),
-								created
-							]
-						}
-					: b
-			);
-
-			creatingKoerselsraekkeFor = null;
-			newKoerselsraekke = {};
-
-		} catch (err) {
-
-			console.error(err);
-
-		}
-
-	}
-
-	function handleCancelNewKoerselsraekke() {
-
-		creatingKoerselsraekkeFor = null;
-		newKoerselsraekke = {};
-
-	}
+    return true;
+  }
 
 
+  async function handleSaveKoerselsraekke(koerselId: number, updates: any) {
+    const {
+      tillaeg_ids,
+      dag_ids,
+      ...koerselsraekkeUpdates
+    } = updates;
 
+    const response = await fetch(`${API_URL}/bevilling/koerselsraekke/${koerselId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(koerselsraekkeUpdates)
+    });
+
+    if (!response.ok) {
+      alert("Kunne ikke gemme kørselsrække");
+      return false;
+    }
+
+    const tillaegResponse = await fetch(`${API_URL}/bevilling/koerselsraekke/${koerselId}/tillaeg`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        tillaeg_ids: tillaeg_ids ?? []
+      })
+    });
+
+    if (!tillaegResponse.ok) {
+      alert("Kørselsrække blev gemt, men kørselstype tillæg kunne ikke gemmes");
+      return false;
+    }
+
+    const dageResponse = await fetch(`${API_URL}/bevilling/koerselsraekke/${koerselId}/dage`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        dag_ids: dag_ids ?? []
+      })
+    });
+
+    if (!dageResponse.ok) {
+      alert("Kørselsrække blev gemt, men dage kunne ikke gemmes");
+      return false;
+    }
+
+    const tidspunktOption = lookupOptions.tidspunkter?.find(
+      (option: any) => option.id === koerselsraekkeUpdates.tidspunkt_id
+    );
+
+    const koerselstypeOption = lookupOptions.koerselstyper?.find(
+      (option: any) => option.id === koerselsraekkeUpdates.befordringstype_id
+    );
+
+    const selectedTillaeg = lookupOptions.koerselstypeTillaeg?.filter(
+      (option: any) => tillaeg_ids?.includes(option.id)
+    ) ?? [];
+
+    const selectedDage = lookupOptions.dage?.filter(
+      (option: any) => dag_ids?.includes(option.id)
+    ) ?? [];
+
+    const tillaegText = selectedTillaeg
+      .map((option: any) => option.label)
+      .join(", ");
+
+    const tillaegIdsText = selectedTillaeg
+      .map((option: any) => option.id)
+      .join(",");
+
+    const dageText = selectedDage
+      .map((option: any) => option.label)
+      .join(", ");
+
+    const dagIdsText = selectedDage
+      .map((option: any) => option.id)
+      .join(",");
+
+    bevillinger = bevillinger.map((bevilling: any) => {
+      return {
+        ...bevilling,
+
+        koerselsraekker: (bevilling.koerselsraekker ?? []).map((koerselsraekke: any) => {
+          if (koerselsraekke.koersel_id !== koerselId) {
+            return koerselsraekke;
+          }
+
+          return {
+            ...koerselsraekke,
+            ...koerselsraekkeUpdates,
+
+            tidspunkt_tekst: tidspunktOption?.label ?? koerselsraekke.tidspunkt_tekst,
+            befordringstype_tekst: koerselstypeOption?.label ?? koerselsraekke.befordringstype_tekst,
+
+            tillaeg_ids: tillaegIdsText,
+            tillaeg_tekst: tillaegText,
+
+            dag_ids: dagIdsText,
+            dage: dageText
+          };
+        })
+      };
+    });
+
+    return true;
+  }
 </script>
 
 
-<!-- TABS -->
-<div class="mb-4 border-b">
-  <button
-    class="mr-4 pb-2"
-    class:font-bold={activeTab === "stamdata"}
-    on:click={() => (activeTab = "stamdata")}
-  >
-    Stamdata
-  </button>
+<section class="bg-white min-h-screen px-10 py-8">
 
-  <button
-    class="pb-2"
-    class:font-bold={activeTab === "bevillinger"}
-    on:click={() => (activeTab = "bevillinger")}
-  >
-    Bevillinger
-  </button>
-</div>
+  <h1 class="text-2xl font-bold mb-28">
+    Forside – Konkret sag -
+    <span class="underline">
+      {activeTab === "stamdata" ? "Stamdata" : "Bevillinger"}
+    </span>
+  </h1>
 
 
-<!-- HEADER -->
-<div class="bg-white p-6 rounded border mb-6">
+  <nav class="flex border border-gray-300 bg-gray-100 mb-6">
 
-  {#if stamdata.navne_adresse_beskyttelse}
-    <div class="bg-red-100 text-red-700 px-3 py-2 mb-4 rounded">
+    <button
+      type="button"
+      class="px-8 py-3 border-r border-gray-300"
+      class:bg-white={activeTab === "stamdata"}
+      class:font-semibold={activeTab === "stamdata"}
+      on:click={() => activeTab = "stamdata"}
+    >
+      Stamdata
+    </button>
+
+    <button
+      type="button"
+      class="px-8 py-3 border-r border-gray-300 text-sky-600"
+      class:bg-white={activeTab === "bevillinger"}
+      class:font-semibold={activeTab === "bevillinger"}
+      class:text-black={activeTab === "bevillinger"}
+      on:click={() => activeTab = "bevillinger"}
+    >
+      Bevillinger
+    </button>
+
+  </nav>
+
+
+  {#if stamdata?.navne_adresse_beskyttelse}
+    <div class="inline-block bg-red-100 text-red-900 px-1 mb-4 text-sm">
       Vær opmærksom på at barnet har navne- og/eller adressebeskyttelse
     </div>
   {/if}
 
-  <h2 class="text-lg font-semibold">
-    {stamdata.barnets_fulde_navn}
-    <span class="ml-2 text-gray-600 font-normal">
-      {stamdata.barnets_cpr}
-    </span>
-  </h2>
 
-</div>
+  <div class="mb-4 flex items-baseline gap-6">
 
-
-
-{#if activeTab === "stamdata"}
-
-  <!-- ACTION BUTTONS -->
-  <div class="mb-4 flex gap-2">
-
-    {#if !isEditing}
-      <button
-        class="bg-blue-500 text-white px-4 py-2 rounded"
-        on:click={() => isEditing = true}
-      >
-        Rediger
-      </button>
-    {:else}
-      <button
-        class="bg-green-500 text-white px-4 py-2 rounded"
-        on:click={save}
-      >
-        Gem
-      </button>
-
-      <button
-        class="bg-gray-300 px-4 py-2 rounded"
-        on:click={() => {
-          isEditing = false;
-          editableStamdata = { ...stamdata };
-        }}
-      >
-        Annuller
-      </button>
-    {/if}
-
-  </div>
-
-  <!-- TABLE -->
-  <DataTable
-		data={[stamdata]}
-		columns={stamdataColumns}
-		filterable={false}
-		editableRow={editableStamdata}
-		isEditing={isEditing}
-	  onInputChange={handleStamdataChange}
-  />
-
-  <!-- PARENTS stays as-is -->
-  <div class="bg-white p-6 rounded border mt-6">
-
-    <h2 class="text-lg font-semibold mb-4">
-      Oplysninger om forældre
+    <h2 class="text-xl font-bold">
+      {stamdata?.adresseringsnavn ?? ""}
     </h2>
 
-    <!-- TABLE -->
+    <span class="text-sm">
+      {stamdata?.cpr ?? ""}
+    </span>
+
+  </div>
+
+
+  {#if activeTab === "stamdata"}
+
     <DataTable
-      data={parents}
-      columns={parentsColumns}
+      data={[stamdata]}
+      columns={stamdataColumns}
       filterable={false}
+      editable={true}
+      editingRowId={editingStamdata ? stamdata.cpr : null}
+      editableRow={editableStamdata}
+      getRowId={(row) => row.cpr}
+      onEdit={handleEditStamdata}
+      onSave={handleSaveStamdata}
+      onCancel={handleCancelStamdata}
+      onInputChange={handleStamdataChange}
     />
 
-  </div>
 
-{/if}
+    <div class="mt-6">
 
+      <h2 class="font-bold mb-3">
+        Oplysninger om forældre
+      </h2>
 
-
-{#if activeTab === "bevillinger"}
-
-  <!-- ACTION BUTTONS -->
-  <div class="mb-4 flex justify-end gap-2">
-
-        <button
-            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            on:click={() => showBevillingModal = true}
-        >
-            + Ny bevilling
-        </button>
-
-  </div>
-
-    <div
-        on:click={handleDeleteClick}
-        role="button"
-        tabindex="0"
-        on:keydown={(e) => e.key === "Enter" && handleDeleteClick(e)}
-    >
-
-        <DataTable
-            data={citizenBevillinger}
-            columns={bevillingColumns}
-            filterable={true}
-            expandable={true}
-						deleteBevilling={deleteBevilling}
-						onEdit={handleEdit}
-						onSave={handleSave}
-						onCancel={handleCancel}
-						editingBevillingId={editingBevillingId}
-						editableRow={editableBevilling}
-						renderExpanded={KoerselsraekkeTable}
-
-						onCreate={handleCreateKoerselsraekke}
-
-						creatingFor={creatingKoerselsraekkeFor}
-						newRow={newKoerselsraekke}
-
-						onInputChange={handleNewKoerselsraekkeChange}
-						onSaveNew={handleSaveNewKoerselsraekke}
-						onCancelNew={handleCancelNewKoerselsraekke}
-
-
-        />
+      <DataTable
+        data={parents}
+        columns={parentColumns}
+        filterable={false}
+      />
 
     </div>
 
 
-    {#if showBevillingModal}
+    <button
+      type="button"
+      class="mt-24 inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-1 text-sm shadow-sm"
+    >
+      🟩 Excel
+    </button>
 
-        <div class="fixed inset-0 bg-black/30 flex items-center justify-center">
-
-            <div class="bg-white p-6 rounded w-[600px] max-h-[80vh] overflow-y-auto">
-
-                <h2 class="text-lg font-semibold mb-4">
-                    Opret bevilling
-                </h2>
-
-                <!-- Example fields -->
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Adresse for bevilling"
-                    bind:value={newBevilling.adresse_for_bevilling}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Skole"
-                    bind:value={newBevilling.skole}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Gåafstand (km)"
-                    bind:value={newBevilling.gaaafstand_km}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Hjælpemidler"
-                    bind:value={newBevilling.hjaelpemidler}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Afstandskriterie dato"
-                    bind:value={newBevilling.afstandskriterie_dato}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Afstandskriterie klassetrin"
-                    bind:value={newBevilling.afstandskriterie_klassetrin}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Ansøger relation"
-                    bind:value={newBevilling.ansoeger_relation}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Revurdering"
-                    bind:value={newBevilling.revurdering}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Befordringsudvalg"
-                    bind:value={newBevilling.befordringsudvalg}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Hjemme"
-                    bind:value={newBevilling.hjemmel}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Afgørelsesbrev"
-                    bind:value={newBevilling.afgoerelsesbrev}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="Sagsbehandler"
-                    bind:value={newBevilling.sagsbehandler}
-                />
-
-                <input
-                    class="border p-2 w-full mb-2"
-                    placeholder="PPR ansvarlig"
-                    bind:value={newBevilling.ppr_ansvarlig}
-                />
+  {/if}
 
 
-                <!-- Add more fields gradually -->
+  {#if activeTab === "bevillinger"}
 
-                <div class="flex justify-end gap-2 mt-4">
+    <div class="mb-4 flex items-center justify-between">
 
-                    <button
-                        class="bg-gray-300 px-4 py-2 rounded"
-                        on:click={() => showBevillingModal = false}
-                    >
-                        Annuller
-                    </button>
+      <h2 class="text-xl font-bold">
+        Bevillinger
+      </h2>
 
-                    <button
-                        class="bg-green-500 text-white px-4 py-2 rounded"
-                        on:click={submitNewBevilling}
-                    >
-                        Gem
-                    </button>
+      <button
+        type="button"
+        class="rounded bg-sky-500 px-4 py-2 text-sm text-white hover:bg-sky-600"
+        on:click={() => showCreateBevillingModal = true}
+      >
+        + Ny bevilling
+      </button>
 
+    </div>
+
+
+    {#if showCreateBevillingModal}
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+
+        <div class="w-[700px] max-h-[80vh] overflow-y-auto bg-white p-6 shadow-lg">
+
+          <h2 class="mb-4 text-lg font-bold">
+            Opret ny bevilling
+          </h2>
+
+          <div class="grid grid-cols-2 gap-4">
+
+            <label class="text-sm col-span-2">
+              Adresse for bevilling
+              <input
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.adresse_for_bevilling}
+              />
+            </label>
+
+            <label class="text-sm">
+              Status
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.status_id}
+              >
+                <option value="">Vælg</option>
+                {#each lookupOptions.statuser ?? [] as option}
+                  <option value={String(option.id)}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="text-sm">
+              Matrikel
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.matrikel_id}
+              >
+                <option value="">Vælg</option>
+                {#each lookupOptions.skolematrikler ?? [] as option}
+                  <option value={String(option.id)}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="text-sm">
+              Hjemmel
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.hjemmel_id}
+              >
+                <option value="">Vælg</option>
+                {#each lookupOptions.hjemler ?? [] as option}
+                  <option value={String(option.id)}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="text-sm">
+              Afgørelsesbrev
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.afgoerelsesbrev_id}
+              >
+                <option value="">Vælg</option>
+                {#each lookupOptions.afgoerelsesbreve ?? [] as option}
+                  <option value={String(option.id)}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="text-sm">
+              Revurdering
+              <input
+                type="date"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.revurderingsdato}
+              />
+            </label>
+
+            <label class="text-sm">
+              Befordringsudvalg
+              <input
+                type="date"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.befordringsudvalg}
+              />
+            </label>
+
+            <label class="text-sm">
+              ESDH-nøgle
+              <input
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.esdh_noegle}
+              />
+            </label>
+
+            <label class="text-sm">
+              Sagsbehandler
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.sagsbehandler_id}
+              >
+                <option value="">Vælg</option>
+                {#each lookupOptions.sagsbehandlere ?? [] as option}
+                  <option value={String(option.id)}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="text-sm">
+              PPR ansvarlig
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.ppr_sagsbehandler_id}
+              >
+                <option value="">Vælg</option>
+                {#each lookupOptions.pprSagsbehandlere ?? [] as option}
+                  <option value={String(option.id)}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="text-sm">
+              Ansøgningsdato
+              <input
+                type="date"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.ansoegningsdato}
+              />
+            </label>
+
+            <label class="text-sm">
+              Sagsbehandlingsdato
+              <input
+                type="date"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.sagsbehandlingsdato}
+              />
+            </label>
+
+            <label class="text-sm">
+              Ansøger relation
+              <input
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.relation_til_barnet}
+              />
+            </label>
+
+            <label class="text-sm">
+              Dato for første kørsel
+              <input
+                type="date"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.foerste_koersel_dato}
+              />
+            </label>
+
+            <label class="text-sm">
+              Ansøgningstype
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.ansoegningstype}
+              >
+                <option value="">Vælg ansøgningstype</option>
+                <option value="Kørsel">Kørsel</option>
+                <option value="Midlertidig kørsel">Midlertidig kørsel</option>
+                <option value="Skolebus">Skolebus</option>
+              </select>
+            </label>
+
+            <label class="text-sm">
+              Afstandskriterie dato
+              <input
+                type="date"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.afstandskriterie_dato}
+              />
+            </label>
+
+            <label class="text-sm">
+              Afstandskriterie klassetrin
+              <input
+                type="number"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={newBevilling.afstandskriterie_klassetrin}
+              />
+            </label>
+
+            <label class="text-sm col-span-2">
+              Begrundelse fra formular
+
+              <div class="mt-1 border p-2">
+
+                <div class="mb-2 flex flex-wrap gap-1.5">
+                  {#each selectedBegrundelser as begrundelse}
+                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2.5 py-1.5 text-sm">
+                      {begrundelse}
+
+                      <button
+                        type="button"
+                        class="ml-1 text-sm font-semibold text-red-600 hover:text-red-800"
+                        on:click={() => removeBegrundelse(begrundelse)}
+                      >
+                        X
+                      </button>
+                    </span>
+                  {/each}
                 </div>
 
-            </div>
+                <select
+                  class="w-full border px-2 py-1"
+                  bind:value={begrundelseSelectValue}
+                  on:change={addBegrundelse}
+                >
+                  <option value="">Tilføj begrundelse</option>
+
+                  {#each begrundelseOptions.filter((option) => !selectedBegrundelser.includes(option)) as option}
+                    <option value={option}>
+                      {option}
+                    </option>
+                  {/each}
+                </select>
+
+              </div>
+            </label>
+
+            <label class="text-sm col-span-2">
+              Noter
+              <textarea
+                class="mt-1 w-full border px-2 py-1"
+                rows="3"
+                bind:value={newBevilling.noter}
+              ></textarea>
+            </label>
+
+          </div>
+
+          <div class="mt-6 flex justify-end gap-2">
+
+            <button
+              type="button"
+              class="border px-4 py-2"
+              on:click={() => {
+                showCreateBevillingModal = false;
+                resetCreateBevillingForm();
+              }}
+            >
+              Annuller
+            </button>
+
+            <button
+              type="button"
+              class="bg-green-600 px-4 py-2 text-white"
+              on:click={handleCreateBevilling}
+            >
+              Opret
+            </button>
+
+          </div>
 
         </div>
 
+      </div>
     {/if}
 
 
-{/if}
+    <BevillingTable
+      bevillinger={bevillinger}
+      lookupOptions={lookupOptions}
+      onSaveBevilling={handleSaveBevilling}
+      onSaveKoerselsraekke={handleSaveKoerselsraekke}
+      onCreateKoerselsraekke={handleCreateKoerselsraekke}
+    />
+
+
+    <button
+      type="button"
+      class="mt-8 inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-1 text-sm shadow-sm"
+    >
+      🟩 Excel
+    </button>
+
+  {/if}
+
+</section>

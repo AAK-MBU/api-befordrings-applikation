@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import bevilling, citizen, overview
+from app.api import bevilling, citizen, overview, lookup
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -27,10 +27,12 @@ app.add_middleware(
 app.include_router(overview.router)
 app.include_router(citizen.router)
 app.include_router(bevilling.router)
+app.include_router(lookup.router)
 
 
 @app.get("/")
 def root():
+    """Root endpoint"""
     return {"message": "Befordrings Application API is running"}
 
 

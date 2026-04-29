@@ -1,76 +1,128 @@
-"""API endpoints for dashboard / front page overview functionality.
+"""API routes for dashboard/front page overview data.
 
 This module exposes endpoints used by the application's front page
-("Forside") to populate the dashboard views seen by caseworkers.
+("Forside") to populate overview tables for caseworkers.
 
-The dashboard provides quick access to:
+The overview currently contains:
 
 - Active bevillinger
+- Non-active bevillinger
 - New applications awaiting processing
-- Cases pending reassessment (revurdering)
-- Links to reports
+- Bevillinger pending reassessment
+- Report links/data
 
-The endpoints in this router return aggregated data structures used
-to populate the tables displayed in the UI.
-
-These endpoints are intended for internal use by the case management
-application frontend.
+These endpoints are intended for the internal frontend application.
 """
-
-import os
 
 from fastapi import APIRouter
 
 from app.services.bevilling_service import BevillingService
-from app.services.citizen_service import CitizenService
 from app.utils import database
+
 
 router = APIRouter(prefix="/overview", tags=["Overview"])
 
-DBCONNECTIONSTRINGDEV = os.getenv("DBCONNECTIONSTRINGDEV")
-DBCONNECTIONSTRINGPROD = os.getenv("DBCONNECTIONSTRINGPROD")
 
+# -----------------------------
+# Helpers
+# -----------------------------
 
-@router.get("/sagsbehandlere")
-def get_sagsbehandlere():
+def map_bevilling_overview_record(bevilling: dict):
+    """Map a raw bevilling record to the frontend overview shape.
+
+    The views used by the overview pages contain more columns than the
+    frontend currently needs. This helper keeps the returned API shape small
+    and consistent across active, non-active and reassessment endpoints.
+
+    Parameters
+    ----------
+    bevilling : dict
+        Raw bevilling record from a database view.
+
+    Returns
+    -------
+    dict
+        Frontend-friendly overview record.
     """
-    Retrieve sagsbehandlere from the database
-    This API endpoint initialises the CitizenService class, that auto initialises a db connection string, defined in the database.py utils file
-    We simply call the class function, get_sagsbehandlere(), which auto runs the desired SQL for fetching sagsbehandlere
-    """
 
-    service = CitizenService()
+    return {
+        "navn": bevilling.get("adresseringsnavn"),
+        "cpr": bevilling.get("cpr_elev"),
+        "status": bevilling.get("status_tekst"),
+        "esdh_noegle": bevilling.get("esdh_noegle"),
+        "sagsbehandler": bevilling.get("sagsbehandler"),
+        "ppr_sagsbehandler": bevilling.get("ppr_sagsbehandler_tekst"),
+        "noter": bevilling.get("noter"),
+    }
 
-    sagsbehandlere = service.get_sagsbehandlere()
 
-    return sagsbehandlere
+def read_overview_table(table_name: str):
+    """Read all records from a dashboard overview table.
 
+    This helper is used for simple dashboard tables/views where the endpoint
+    does not need dynamic filtering.
 
-@router.get("/aktive_bevillinger")
-def get_active_bevillinger():
-    """
-    Retrieve active bevillinger.
+    Important
+    ---------
+    The table name must only come from hardcoded values in this module.
+    Do not pass user input into this function.
 
-    Returns a list of bevillinger that are currently active in the
-    system. These records populate the "Overblik over aktive
-    bevillinger" table on the dashboard.
+    Parameters
+    ----------
+    table_name : str
+        Name of the database table or view to read from.
 
     Returns
     -------
     list[dict]
+        Records from the selected table/view.
+    """
 
-    Example response:
+    sql = f"""
+        SELECT
+            *
+        FROM
+            {table_name}
+    """
 
-    [
-        {
-            "navn": "Kasper Hansentest",
-            "cpr": "230115-5000",
-            "status": "Aktiv",
-            "sags_id": "BOR-123456",
-            "sagsbehandler": "Sofie Elrum",
-            "ppr_ansvarlig": "Klaus"
-        }
-    ]
+    df = database.read_sql(
+        query=sql,
+        params={},
+        conn_string=database.get_db_connection_string()
+    )
+
+    return df.to_dict("records")
+
+
+# -----------------------------
+# Bevilling overview endpoints
+# -----------------------------
+
+@router.get("/aktive_bevillinger")
+def get_active_bevillinger():
+    """Return active bevillinger for the dashboard.
+
+    These records populate the "Overblik over aktive bevillinger" table
+    on the front page.
+
+    Returns
+    -------
+    list[dict]
+        Active bevillinger formatted for the frontend.
+
+        Example response:
+
+        [
+            {
+                "navn": "Kasper Hansentest",
+                "cpr": "2301155000",
+                "status": "Aktiv",
+                "esdh_noegle": "BOR-123456",
+                "sagsbehandler": "Sofie Elrum",
+                "ppr_sagsbehandler": "Klaus",
+                "noter": "Example note"
+            }
+        ]
 
     Example request
     ---------------
@@ -79,95 +131,58 @@ def get_active_bevillinger():
 
     service = BevillingService()
 
-    active_bevillinger = service.get_bevillinger(status="Aktiv", order_by={"key": "created_at", "order_direction": "DESC"})
+    active_bevillinger = service.get_bevillinger(
+        view_name="[befordring_app].[befordring].[view_All_Active_Bevillinger]"
+    )
 
     return [
-        {
-            "Navn": bev.get("navn"),
-            "CPR": bev.get("cpr"),
-            "Status": bev.get("status"),
-            "Sags-ID": bev.get("sags_id"),
-            "Sagsbehandler": bev.get("sagsbehandler"),
-            "PPR ansvarlig": bev.get("ppr_ansvarlig"),
-            "Noter": bev.get("notes"),
-        }
-        for bev in active_bevillinger
+        map_bevilling_overview_record(bevilling)
+        for bevilling in active_bevillinger
     ]
 
 
-@router.get("/new_applications")
-def get_new_applications():
-    """
-    Retrieve new transport applications.
+@router.get("/ikke_aktive_bevillinger")
+def get_non_active_bevillinger():
+    """Return non-active bevillinger for the dashboard.
 
-    Returns a list of newly submitted transport applications that
-    have not yet been processed by a caseworker.
-
-    These records populate the "Nye ansøgninger" table on the
-    dashboard.
+    Non-active bevillinger are retrieved by reading all bevillinger and
+    excluding records where status is "Aktiv".
 
     Returns
     -------
     list[dict]
-
-    Example response:
-
-    [
-        {
-            "navn": "Ulrik Hansentest",
-            "cpr": "251199-0000",
-            "status": "Ny",
-            "sags_id": "BOR-254692",
-            "modtagelsesdato": "2025-11-21",
-            "dato_for_forste_koersel": "2025-12-01",
-            "ansogningstype": "Midlertidig kørsel"
-        }
-    ]
+        Non-active bevillinger formatted for the frontend.
 
     Example request
     ---------------
-    GET /overview/nye_ansogninger
+    GET /overview/ikke_aktive_bevillinger
     """
 
-    sql = """
-        SELECT
-            *
-        FROM
-            DATA_NYE_ANSOEGNINGER
-    """
+    service = BevillingService()
 
-    df = database.read_sql(
-        query=sql,
-        params={},
-        conn_string=DBCONNECTIONSTRINGDEV
+    non_active_bevillinger = service.get_bevillinger(
+        view_name="[befordring_app].[befordring].[view_All_Bevillinger]",
+        exclude_status="Aktiv"
     )
 
-    return df.to_dict("records")
+    return [
+        map_bevilling_overview_record(bevilling)
+        for bevilling in non_active_bevillinger
+    ]
 
 
 @router.get("/revurderinger")
 def get_reassessments():
-    """
-    Retrieve bevillinger pending reassessment.
+    """Return bevillinger pending reassessment.
 
-    Returns cases where a bevilling must be reassessed
-    (revurdering). These cases typically require additional
-    evaluation by a caseworker.
+    These records represent cases where the bevilling status is
+    "Revurdering". They are used by the dashboard to highlight cases that
+    require renewed caseworker evaluation.
 
     Returns
     -------
     list[dict]
-
-    Example response:
-
-    [
-        {
-            "navn": "Example Citizen",
-            "cpr": "120345-6789",
-            "status": "Revurdering",
-            "sags_id": "BOR-654321"
-        }
-    ]
+        Bevillinger with status "Revurdering" formatted for the frontend.
 
     Example request
     ---------------
@@ -176,43 +191,61 @@ def get_reassessments():
 
     service = BevillingService()
 
-    service.get_bevillinger(status="Revurdering")
+    reassessments = service.get_bevillinger(
+        view_name="[befordring_app].[befordring].[view_All_Bevillinger]",
+        status="Revurdering"
+    )
+
+    return [
+        map_bevilling_overview_record(bevilling)
+        for bevilling in reassessments
+    ]
 
 
-@router.get("/reports")
-def get_reports():
-    """
-    Retrieve reports.
+# -----------------------------
+# Other dashboard endpoints
+# -----------------------------
 
-    Returns a list of available reports
+@router.get("/new_applications")
+def get_new_applications():
+    """Return new transport applications.
+
+    These records populate the "Nye ansøgninger" table on the dashboard.
+    They represent applications that have been received but not yet fully
+    processed.
 
     Returns
     -------
     list[dict]
+        New application records.
 
-    Example response:
+    Example request
+    ---------------
+    GET /overview/new_applications
+    """
 
-    Ringetider
-    Antal skoleelever, der har befordring til buskort, taxa/minibus
-    Antal buskort for skoleelever
-    Antal kørsler med taxa/minibus og prisen herfor for skoleelever
+    return read_overview_table(
+        table_name="[befordring_app].[befordring].[DATA_NYE_ANSOEGNINGER]"
+    )
+
+
+@router.get("/reports")
+def get_reports():
+    """Return available dashboard reports.
+
+    The frontend uses this endpoint to display available report links or
+    report metadata.
+
+    Returns
+    -------
+    list[dict]
+        Available report records.
 
     Example request
     ---------------
     GET /overview/reports
     """
 
-    sql = """
-        SELECT
-            *
-        FROM
-            DATA_REPORTS
-    """
-
-    df = database.read_sql(
-        query=sql,
-        params={},
-        conn_string=DBCONNECTIONSTRINGDEV
+    return read_overview_table(
+        table_name="[befordring_app].[befordring].[DATA_REPORTS]"
     )
-
-    return df.to_dict("records")

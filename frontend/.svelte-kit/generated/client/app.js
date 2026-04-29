@@ -8,19 +8,17 @@ export const nodes = [
 	() => import('./nodes/4'),
 	() => import('./nodes/5'),
 	() => import('./nodes/6'),
-	() => import('./nodes/7'),
-	() => import('./nodes/8')
+	() => import('./nodes/7')
 ];
 
 export const server_loads = [];
 
 export const dictionary = {
 		"/": [~2],
-		"/Stamdata": [8],
+		"/Stamdata": [7],
 		"/nye-ansoegninger": [3],
 		"/rapporter": [4],
 		"/revurdering": [5],
-		"/sagsbehandlere": [~7],
 		"/sag/[cpr]": [~6]
 	};
 

@@ -1,229 +1,212 @@
 <script lang="ts">
+  // -----------------------------
+  // Types
+  // -----------------------------
 
-  export let onCreate: (bevilling_id: number) => void = () => {};
+  export type DataTableColumn = {
+    key: string;
+    label: string;
+    filterable?: boolean;
+    editable?: boolean;
+    render?: (row: any) => string;
+    class?: string;
+  };
 
-  export let isEditing: boolean = false;
+
+  // -----------------------------
+  // Props
+  // -----------------------------
+
+  export let data: any[] = [];
+  export let columns: DataTableColumn[] = [];
+
+  export let filterable = true;
+  export let emptyMessage = "Ingen data fundet";
+
+  export let editable = false;
+  export let editingRowId: string | number | null = null;
+  export let editableRow: any = null;
+
+  export let getRowId: (row: any, index: number) => string | number = (_row, index) => index;
 
   export let onEdit: (row: any) => void = () => {};
   export let onSave: (row: any) => void = () => {};
   export let onCancel: () => void = () => {};
-  export let editingBevillingId: number | null = null;
-
-  export let data: any = [];
-  export let columns: any = [];
-
   export let onInputChange: (key: string, value: any) => void = () => {};
 
-  export let deleteBevilling: (id: number) => void = () => {};
 
-  export let filterable = true;
-
-  export let editableRow: any = null;
-
-  export let expandable = false;
-  export let renderExpanded: ((row: any) => string) | null = null;
-
-	export let creatingFor: number | null = null;
-	export let newRow: any = {};
-
-	export let onSaveNew: (bevilling_id: number) => void = () => {};
-	export let onCancelNew: () => void = () => {};
-
+  // -----------------------------
+  // Table state
+  // -----------------------------
 
   let filters: Record<string, string> = {};
 
-  let expandedRows = new Set<number>();
 
-  function toggleRow(index: number) {
-    if (expandedRows.has(index)) {
-      expandedRows.delete(index);
-    } else {
-      expandedRows.add(index);
+  // -----------------------------
+  // Derived data
+  // -----------------------------
+
+  $: filteredData = data.filter((row) => {
+    if (!filterable) {
+      return true;
     }
 
-    expandedRows = new Set(expandedRows);
-  }
+    return columns.every((column) => {
+      if (column.filterable === false) {
+        return true;
+      }
 
-  $: filteredData = data.filter((row: any) => {
-    if (filterable) {
-      return columns.every((col: any) => {
-        const value = String(row[col.key] ?? "").toLowerCase();
-        const filter = filters[col.key]?.toLowerCase() ?? "";
-        return value.includes(filter);
-      });
-    }
-    return true;
+      const rowValue = String(row[column.key] ?? "").toLowerCase();
+      const filterValue = String(filters[column.key] ?? "").toLowerCase();
+
+      return rowValue.includes(filterValue);
+    });
   });
 </script>
 
-<div class="bg-white p-4 rounded-lg shadow-sm border">
 
-  <div class="overflow-x-auto">
+<div class="w-full overflow-x-auto">
 
-    <table class="w-full text-sm text-left border-collapse">
+  <table class="w-full text-sm text-left border-collapse">
 
-      <!-- HEADER -->
-      <thead class="bg-gray-100 text-gray-600 text-xs uppercase tracking-wide">
-        <tr>
-          {#if expandable}
-            <th class="px-4 py-3"></th>
+    <thead>
+
+      <!-- Column headers -->
+      <tr class="bg-gray-100 text-gray-800">
+
+        {#if editable}
+          <th class="px-3 py-2 font-semibold whitespace-nowrap"></th>
+        {/if}
+
+        {#each columns as column}
+          <th class={`px-3 py-2 font-semibold whitespace-normal min-w-36 ${column.class ?? ""}`}>
+            {column.label}
+          </th>
+        {/each}
+
+      </tr>
+
+
+      <!-- Optional filter row -->
+      {#if filterable}
+        <tr class="bg-white">
+
+          {#if editable}
+            <td class="px-2 py-1 border-b border-gray-200"></td>
           {/if}
 
-          {#each columns as col}
-            <th class="px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">
-              {col.label}
-            </th>
+          {#each columns as column}
+            <td class="px-2 py-1 border-b border-gray-200">
+
+              {#if column.filterable !== false}
+                <input
+                  type="text"
+                  class="w-full border border-gray-300 px-2 py-1 text-sm"
+                  bind:value={filters[column.key]}
+                />
+              {/if}
+
+            </td>
           {/each}
+
+        </tr>
+      {/if}
+
+    </thead>
+
+
+    <tbody>
+
+      {#if filteredData.length === 0}
+
+        <tr>
+          <td
+            colspan={columns.length + (editable ? 1 : 0)}
+            class="px-3 py-6 text-center text-gray-500"
+          >
+            {emptyMessage}
+          </td>
         </tr>
 
-        <!-- FILTER ROW -->
-        {#if filterable}
-          <tr>
-            {#if expandable}
-              <td></td>
-            {/if}
-
-            {#each columns as col}
-              <td class="px-4 py-3">
-
-                {#if col.filterable === false}
-                  <!-- empty cell -->
-                {:else}
-                  <input
-                    type="text"
-                    placeholder={`Søg`}
-                    class="border rounded px-2 py-1 w-full text-sm"
-                    value={filters[col.key] ?? ""}
-                    on:input={(e) => {
-                      const target = e.target as HTMLInputElement;
-                      filters = {
-                        ...filters,
-                        [col.key]: target.value
-                      };
-                    }}
-                  />
-                {/if}
-
-              </td>
-            {/each}
-          </tr>
-        {/if}
-      </thead>
-
-      <!-- BODY -->
-      <tbody class="divide-y divide-gray-100">
+      {:else}
 
         {#each filteredData as row, index}
 
-          <!-- MAIN ROW -->
-          <tr
-            class="hover:bg-gray-50 transition border border-gray-200 border-b-0"
-          >
+          {@const rowId = getRowId(row, index)}
+          {@const isEditing = editingRowId === rowId}
 
-            {#if expandable}
-              <td class="px-4 py-4 align-top">
-                <button
-                  class="text-blue-600 text-xs font-medium hover:underline"
-                  on:click={() => toggleRow(index)}
-                >
-                  {expandedRows.has(index) ? "Skjul detaljer" : "Vis detaljer"}
-                </button>
-              </td>
-            {/if}
+          <tr class="border-b border-gray-100 hover:bg-gray-50">
 
-            {#each columns as col}
-              <td class="px-4 py-5 whitespace-nowrap text-gray-800">
+            {#if editable}
+              <td class="px-3 py-2 whitespace-nowrap">
 
-                {#if col.component}
+                {#if isEditing}
+                  <button
+                    type="button"
+                    class="text-green-600 hover:underline mr-2"
+                    on:click={() => onSave(row)}
+                  >
+                    Gem
+                  </button>
 
-                  <svelte:component
-                    this={col.component}
-                    {row}
-
-                    onDelete={deleteBevilling}
-                    onEdit={onEdit}
-                    onSave={onSave}
-                    onCancel={onCancel}
-
-                    newRow={newRow}
-
-                    onInputChange={onInputChange}
-                    onSaveNew={onSaveNew}
-                    onCancelNew={onCancelNew}
-
-                    isEditing={editingBevillingId === row.bevilling_id}
-
-                  />
-
-                {:else if (isEditing || editingBevillingId === row.bevilling_id) && col.key !== "actions" && col.editable !== false}
-                  <input
-                    class="border px-2 py-1 w-full"
-                    value={editableRow?.[col.key] ?? row[col.key]}
-                    on:input={(e) => {
-                      const target = e.target as HTMLInputElement;
-
-                      onInputChange(col.key, target.value);
-                    }}
-                  />
-
-                {:else if col.render}
-                  {@html col.render(row)}
-
-
+                  <button
+                    type="button"
+                    class="text-red-500 hover:underline"
+                    on:click={onCancel}
+                  >
+                    Annullér
+                  </button>
                 {:else}
-                  {row[col.key]}
+                  <button
+                    type="button"
+                    class="text-sky-600 hover:underline"
+                    on:click={() => onEdit(row)}
+                  >
+                    Redigér
+                  </button>
                 {/if}
 
               </td>
+            {/if}
+
+
+            {#each columns as column}
+
+              <td class={`px-3 py-2 whitespace-nowrap ${column.class ?? ""}`}>
+
+                {#if isEditing && column.editable === true}
+
+                  <input
+                    class="min-w-44 w-full border border-gray-300 px-2 py-1 text-sm"
+                    value={editableRow?.[column.key] ?? ""}
+                    on:input={(event) => {
+                      const target = event.target as HTMLInputElement;
+                      onInputChange(column.key, target.value);
+                    }}
+                  />
+
+                {:else if column.render}
+
+                  {@html column.render(row)}
+
+                {:else}
+
+                  {row[column.key] ?? ""}
+
+                {/if}
+
+              </td>
+
             {/each}
 
           </tr>
 
-          <!-- EXPANDED ROW -->
-          {#if expandable && expandedRows.has(index)}
-
-            <tr>
-                <td colspan={columns.length + (expandable ? 1 : 0)} class="bg-gray-50">
-
-                <div class="ml-6 mr-4 mb-3 mt-1 p-3 bg-white border border-gray-200 rounded-md shadow-sm">
-
-                    <div class="ml-4 border-l-2 border-gray-300 pl-4">
-
-                    {#if renderExpanded}
-                      <svelte:component
-                        this={renderExpanded}
-                        {row}
-
-                        onCreate={onCreate}
-
-                        creatingFor={creatingFor}
-                        newRow={newRow}
-
-                        onInputChange={onInputChange}
-                        onSaveNew={onSaveNew}
-                        onCancelNew={onCancelNew}
-                      />
-                    {:else}
-                        <div class="text-sm text-gray-500">
-                        No expanded content
-                        </div>
-                    {/if}
-
-                    </div>
-
-                </div>
-
-                </td>
-            </tr>
-
-          {/if}
-
         {/each}
 
-      </tbody>
+      {/if}
 
-    </table>
+    </tbody>
 
-  </div>
+  </table>
 
 </div>
