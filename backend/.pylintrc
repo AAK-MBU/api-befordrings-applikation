@@ -11,4 +11,3 @@ disable =
   R0916, # Too many boolean expressions in if statement
   R0917, # Too many positional arguments
   W1203, # F-string interpolation in logging
-  C0413 # Import "..." should be placed at the top of the module

@@ -1,7 +1,13 @@
 <script lang="ts">
   import KoerselsraekkeTable from "$lib/components/KoerselsraekkeTable.svelte";
-  import { getStatusBadgeClass } from "$lib/tableColumnConfig";
 
+  import {
+    getStatusBadgeClass,
+    tablePrimaryActionButtonClass,
+    tableSaveActionButtonClass,
+    tableCancelActionButtonClass,
+    tableIconButtonClass
+  } from "$lib/tableColumnConfig";
 
   // -----------------------------
   // Props
@@ -77,6 +83,14 @@
     }
 
     return Number(value);
+  }
+
+  function emptyToNull(value: string) {
+    if (value === "") {
+      return null;
+    }
+
+    return value;
   }
 
 
@@ -258,11 +272,16 @@
             <td class="px-2 py-2 align-top">
               <button
                 type="button"
-                class="text-yellow-600 hover:scale-110"
+                class={tableIconButtonClass}
                 on:click={() => toggleRow(bevilling.bevilling_id)}
-                aria-label="Vis kørselsrækker"
+                aria-label={expandedRows.has(bevilling.bevilling_id)
+                  ? "Skjul kørselsrækker"
+                  : "Vis kørselsrækker"}
+                title={expandedRows.has(bevilling.bevilling_id)
+                  ? "Skjul kørselsrækker"
+                  : "Vis kørselsrækker"}
               >
-                {isExpanded ? "📂" : "📁"}
+                {expandedRows.has(bevilling.bevilling_id) ? "📂" : "📁"}
               </button>
             </td>
 
@@ -271,7 +290,7 @@
               {#if isEditing}
                 <button
                   type="button"
-                  class="text-green-700 hover:underline mr-2"
+                  class={tableSaveActionButtonClass}
                   on:click={() => saveEdit(bevilling)}
                 >
                   Gem
@@ -279,7 +298,7 @@
 
                 <button
                   type="button"
-                  class="text-red-600 hover:underline"
+                  class={tableCancelActionButtonClass}
                   on:click={cancelEdit}
                 >
                   Annullér
@@ -287,7 +306,7 @@
               {:else}
                 <button
                   type="button"
-                  class="text-sky-600 hover:underline"
+                  class={tablePrimaryActionButtonClass}
                   on:click={() => startEdit(bevilling)}
                 >
                   Redigér
@@ -325,7 +344,7 @@
                   type="date"
                   class={inputClass}
                   value={editableBevilling.sagsbehandlingsdato ?? ""}
-                  on:change={(e) => updateField("sagsbehandlingsdato", e.currentTarget.value)}
+                  on:change={(e) => updateField("sagsbehandlingsdato", emptyToNull(e.currentTarget.value))}
                 />
               {:else}
                 {bevilling.sagsbehandlingsdato ?? ""}
@@ -417,7 +436,7 @@
                   type="date"
                   class={inputClass}
                   value={editableBevilling.afstandskriterie_dato ?? ""}
-                  on:change={(e) => updateField("afstandskriterie_dato", e.currentTarget.value)}
+                  on:change={(e) => updateField("afstandskriterie_dato", emptyToNull(e.currentTarget.value))}
                 />
               {:else}
                 {bevilling.afstandskriterie_dato ?? ""}
@@ -431,7 +450,7 @@
                   type="number"
                   class={`${inputClass} w-28`}
                   value={editableBevilling.afstandskriterie_klassetrin ?? ""}
-                  on:change={(e) => updateField("afstandskriterie_klassetrin", e.currentTarget.value)}
+                  on:change={(e) => updateField("afstandskriterie_klassetrin", numberOrNull(e.currentTarget.value))}
                 />
               {:else}
                 {bevilling.afstandskriterie_klassetrin ?? ""}
@@ -458,7 +477,8 @@
                   type="date"
                   class={inputClass}
                   value={editableBevilling.revurderingsdato ?? ""}
-                  on:change={(e) => updateField("revurderingsdato", e.currentTarget.value)}
+                  on:change={(e) => updateField("revurderingsdato", emptyToNull(e.currentTarget.value))}
+                  
                 />
               {:else}
                 {bevilling.revurderingsdato ?? ""}
@@ -472,7 +492,7 @@
                   type="date"
                   class={inputClass}
                   value={editableBevilling.befordringsudvalg ?? ""}
-                  on:change={(e) => updateField("befordringsudvalg", e.currentTarget.value)}
+                  on:change={(e) => updateField("befordringsudvalg", emptyToNull(e.currentTarget.value))}
                 />
               {:else}
                 {bevilling.befordringsudvalg ?? ""}

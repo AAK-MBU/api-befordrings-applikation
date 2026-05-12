@@ -1,77 +1,155 @@
-"""Service layer for bevilling-related database operations.
+"""Service layer for bevilling-related business logic.
 
-This service contains the database logic for:
+This module contains the main business logic for bevillinger, koerselsraekker,
+hjaelpemidler, status calculation, and letter data retrieval.
 
-- Reading bevillinger
-- Creating bevillinger
-- Updating bevillinger
-- Creating and updating kørselsrækker
-- Updating many-to-many link tables
+The service layer sits between the API routers and the database models/views.
 
-The API layer should stay thin and mostly handle request/response concerns.
-This service contains the business/database rules.
+General responsibilities:
+
+- Read bevilling data from SQL views
+- Create and update bevillinger
+- Create and update koerselsraekker
+- Update many-to-many link tables
+- Calculate and update bevilling status
+- Validate business rules
+- Prepare letter data for the letter-generation flow
+
+The router should stay thin and delegate most logic to this service.
 """
 
-import pandas as pd
+from datetime import date
 
 from fastapi import HTTPException
+from sqlalchemy import delete, select, text
+from sqlalchemy.orm import Session
 
-from app.utils import database
+from app.models.bevilling import (
+    Bevilling,
+    BevillingHjaelpemiddelLink,
+    Koersel,
+    KoerselKoerselstypeTillaegLink,
+    KoerselUgedagLink,
+)
+from app.models.lookup import Status
 
 
 class BevillingService:
-    """Service for bevilling and kørselsrække operations."""
+    """Service class for bevilling-related operations.
 
-    def __init__(self):
-        """Initialize the database connection string."""
+    Args:
+        db:
+            SQLAlchemy database session.
 
-        self.conn_string = database.get_db_connection_string()
+    Notes:
+        This service owns the transaction logic for write operations.
+        Most create/update methods commit directly unless they receive
+        commit=False from another service method.
+    """
 
-    # -----------------------------
-    # Shared helpers
-    # -----------------------------
+    def __init__(self, db: Session):
+        """Initialize the service with a database session."""
 
-    def _records_from_dataframe(self, df):
-        """Convert a dataframe to JSON-safe records.
+        self.db = db
 
-        Pandas uses NaN for missing values. FastAPI/JSON does not handle NaN
-        well, so missing values are converted to None before returning records.
 
-        Parameters
-        ----------
-        df : pandas.DataFrame
-            Dataframe returned by database.read_sql.
+    def _get_status_result_for_bevilling(
+        self,
+        rows: list[dict],
+        bevilling_id: int,
+    ):
+        """Find the status procedure result for one specific bevilling."""
 
-        Returns
-        -------
-        list[dict]
-            JSON-safe records.
+        for row in rows:
+            if int(row["bevilling_id"]) == bevilling_id:
+                return row
+
+        raise HTTPException(
+            status_code=404,
+            detail=f"Bevilling not found in status result: {bevilling_id}",
+        )
+
+
+    def _execute_recalculate_status_procedure(
+        self,
+        bevilling_id: int | None = None,
+        today: date | None = None,
+        dry_run: bool = False,
+    ):
+        """Run the SQL Server status recalculation procedure.
+
+        Args:
+            bevilling_id:
+                Optional bevilling ID.
+
+                If provided, only that bevilling is recalculated.
+                If None, all bevillinger are recalculated.
+
+            today:
+                Optional test date.
+
+                Normally this should be None, so SQL Server uses today's date.
+
+            dry_run:
+                If True, the procedure only shows what would happen.
+                If False, the procedure updates Bevilling.status_id.
+
+        Returns:
+            A list of dictionaries returned by the stored procedure.
         """
 
-        df = df.astype(object).where(pd.notnull(df), None)
+        sql = text("""
+            EXEC [befordring].[usp_recalculate_bevilling_status]
+                @bevilling_id = :bevilling_id,
+                @today = :today,
+                @dry_run = :dry_run
+        """)
 
-        return df.to_dict("records")
+        result = self.db.execute(
+            sql,
+            {
+                "bevilling_id": bevilling_id,
+                "today": today,
+                "dry_run": int(dry_run),
+            },
+        )
+
+        return self._rows_to_dicts(result)
+
+
+    def _rows_to_dicts(self, result):
+        """
+        Convert SQLAlchemy result rows into normal dictionaries.
+        """
+
+        return [dict(row) for row in result.mappings().all()]
+
+
+    def _to_date(self, value):
+        """Normalize datetime-like values to date objects.
+
+        Notes:
+            SQL Server / SQLAlchemy may return either date or datetime objects
+            depending on the column type and query. This helper makes date
+            comparison logic more predictable.
+        """
+
+        if value is None:
+            return None
+
+        if hasattr(value, "date"):
+            return value.date()
+
+        return value
+
 
     def _validate_int_list(self, values: list[int], field_name: str):
-        """Validate and deduplicate a list of integer IDs.
+        """
+        Validate and de-duplicate a list of integer IDs.
 
-        Parameters
-        ----------
-        values : list[int]
-            IDs to validate.
-
-        field_name : str
-            Name used in error messages.
-
-        Returns
-        -------
-        list[int]
-            Deduplicated list of IDs.
-
-        Raises
-        ------
-        HTTPException
-            Raised if one or more values are not integers.
+        Notes:
+            dict.fromkeys(...) is used as a simple way to remove duplicates
+            while keeping the original order.
         """
 
         unique_values = list(dict.fromkeys(values))
@@ -79,196 +157,53 @@ class BevillingService:
         if any(not isinstance(value, int) for value in unique_values):
             raise HTTPException(
                 status_code=400,
-                detail=f"All {field_name} must be integers"
+                detail=f"All {field_name} must be integers",
             )
 
         return unique_values
 
-    def _insert_and_return_id(
-        self,
-        table_name: str,
-        data: dict,
-        id_column: str
-    ):
-        """Insert a row and return the inserted ID.
 
-        This helper is only intended for hardcoded table/column names from
-        service methods. Do not pass user input as table or column names.
+    def _validate_koerselsraekke_dates(self, data: dict):
+        """Validate that gyldig_fra is not after gyldig_til.
 
-        Parameters
-        ----------
-        table_name : str
-            Fully qualified table name.
-
-        data : dict
-            Column/value pairs to insert.
-
-        id_column : str
-            Identity column returned through OUTPUT INSERTED.
-
-        Returns
-        -------
-        int
-            Newly inserted identity value.
+        Notes:
+            If one of the dates is missing, validation is skipped.
+            This makes the helper usable for both create and partial update.
         """
 
-        columns = ", ".join(data.keys())
-        values = ", ".join(
-            f":{key}"
-            for key in data.keys()
-        )
+        gyldig_fra = self._to_date(data.get("gyldig_fra"))
+        gyldig_til = self._to_date(data.get("gyldig_til"))
 
-        sql = f"""
-            INSERT INTO {table_name}
-                ({columns})
-            OUTPUT INSERTED.{id_column}
-            VALUES
-                ({values})
-        """
+        if gyldig_fra is None or gyldig_til is None:
+            return
 
-        created = database.read_sql(
-            query=sql,
-            params=data,
-            conn_string=self.conn_string
-        )
-
-        return int(created.iloc[0][id_column])
-
-    def _replace_link_rows(
-        self,
-        table_name: str,
-        parent_column: str,
-        child_column: str,
-        parent_id: int,
-        child_ids: list[int],
-        child_field_name: str
-    ):
-        """Replace all rows in a many-to-many link table.
-
-        Existing rows for the parent ID are deleted. New rows are then inserted
-        for each supplied child ID.
-
-        This pattern is used for:
-
-        - Bevilling -> Hjælpemiddel
-        - Koersel -> KørselstypeTillæg
-        - Koersel -> Ugedag
-
-        Parameters
-        ----------
-        table_name : str
-            Fully qualified link table name.
-
-        parent_column : str
-            Column name containing the parent ID.
-
-        child_column : str
-            Column name containing the linked child ID.
-
-        parent_id : int
-            ID of the parent record.
-
-        child_ids : list[int]
-            New complete list of child IDs.
-
-        child_field_name : str
-            Name used in validation errors.
-
-        Returns
-        -------
-        dict
-            Metadata about the replacement operation.
-        """
-
-        unique_child_ids = self._validate_int_list(
-            values=child_ids,
-            field_name=child_field_name
-        )
-
-        delete_sql = f"""
-            DELETE FROM
-                {table_name}
-            WHERE
-                {parent_column} = :parent_id
-        """
-
-        database.execute_sql(
-            query=delete_sql,
-            params={"parent_id": parent_id},
-            conn_string=self.conn_string
-        )
-
-        inserted_rows = 0
-
-        for child_id in unique_child_ids:
-            insert_sql = f"""
-                INSERT INTO {table_name}
-                (
-                    {parent_column},
-                    {child_column}
-                )
-                VALUES
-                (
-                    :parent_id,
-                    :child_id
-                )
-            """
-
-            inserted_rows += database.execute_sql(
-                query=insert_sql,
-                params={
-                    "parent_id": parent_id,
-                    "child_id": child_id
+        if gyldig_fra > gyldig_til:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Gyldig fra kan ikke være efter gyldig til",
                 },
-                conn_string=self.conn_string
             )
 
-        return {
-            "parent_id": parent_id,
-            child_field_name: unique_child_ids,
-            "rows_inserted": inserted_rows
-        }
 
-    def get_default_status_id(self):
-        """Return the status_id for active status.
+    def get_status_id_by_text(self, status_text: str):
+        """Get an active status ID from its text value."""
 
-        Used when creating a kørselsrække without an explicit status_id.
-
-        Returns
-        -------
-        int
-            The status_id where status_tekst is "Aktiv".
-
-        Raises
-        ------
-        ValueError
-            Raised if no active "Aktiv" status exists.
-        """
-
-        sql = """
-            SELECT TOP 1
-                status_id
-            FROM
-                [befordring_app].[befordring].[Status]
-            WHERE
-                LOWER(status_tekst) = 'aktiv'
-                AND aktiv = 1
-        """
-
-        df = database.read_sql(
-            query=sql,
-            params={},
-            conn_string=self.conn_string
+        statement = (
+            select(Status.status_id)
+            .where(Status.status_tekst == status_text)
+            .where(Status.aktiv == True)
         )
 
-        if df.empty:
-            raise ValueError("Could not find default status 'Aktiv'")
+        status_id = self.db.execute(statement).scalar_one_or_none()
 
-        return int(df.iloc[0]["status_id"])
+        if status_id is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Status does not exist: {status_text}",
+            )
 
-    # -----------------------------
-    # Reads
-    # -----------------------------
+        return int(status_id)
 
     def get_bevillinger(
         self,
@@ -276,36 +211,44 @@ class BevillingService:
         status: str | None = None,
         exclude_status: str | None = None,
         cpr: str | None = None,
-        order_by: dict | None = None
+        order_by: dict | None = None,
     ):
-        """Retrieve bevillinger from an allowed view.
+        """Get bevillinger from an allowed SQL view.
 
-        Parameters
-        ----------
-        view_name : str
-            Fully qualified view name. Must be one of the allowed views.
+        Args:
+            view_name:
+                Name of the SQL view to query.
 
-        status : str | None
-            Optional exact status filter.
+            status:
+                Optional status text filter.
 
-        exclude_status : str | None
-            Optional status value to exclude.
+            exclude_status:
+                Optional status text to exclude.
 
-        cpr : str | None
-            Optional CPR filter.
+            cpr:
+                Optional CPR filter.
 
-        order_by : dict | None
-            Optional ordering config, for example:
+            order_by:
+                Optional sorting config.
 
-            {
-                "key": "created_at",
-                "order_direction": "DESC"
-            }
+                Example:
+                    {
+                        "key": "created_at",
+                        "order_direction": "DESC",
+                    }
 
-        Returns
-        -------
-        list[dict]
-            Bevilling records.
+        Returns:
+            A list of bevilling dictionaries.
+
+        Raises:
+            HTTPException:
+                400 if the requested view, order column, or order direction is
+                not allowed.
+
+        Notes:
+            The view name and ORDER BY values cannot be parameterized like
+            normal SQL values. Therefore they are validated against allow-lists
+            before being inserted into the SQL string.
         """
 
         allowed_views = {
@@ -317,7 +260,7 @@ class BevillingService:
         if view_name not in allowed_views:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid bevilling view: {view_name}"
+                detail=f"Invalid bevilling view: {view_name}",
             )
 
         sql = f"""
@@ -348,12 +291,12 @@ class BevillingService:
                 "status_tekst",
                 "cpr_elev",
                 "created_at",
-                "updated_at"
+                "updated_at",
             }
 
             allowed_directions = {
                 "ASC",
-                "DESC"
+                "DESC",
             }
 
             key = order_by.get("key")
@@ -362,76 +305,68 @@ class BevillingService:
             if key not in allowed_columns:
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid order_by column"
+                    detail="Invalid order_by column",
                 )
 
             if direction not in allowed_directions:
                 raise HTTPException(
                     status_code=400,
-                    detail="Invalid order direction"
+                    detail="Invalid order direction",
                 )
 
             sql += f" ORDER BY {key} {direction}"
 
-        df = database.read_sql(
-            query=sql,
-            params=params,
-            conn_string=self.conn_string
-        )
+        result = self.db.execute(text(sql), params)
 
-        return self._records_from_dataframe(df)
+        return self._rows_to_dicts(result)
+
 
     def get_bevilling(self, bevilling_id: int):
-        """Retrieve a single bevilling by ID.
+        """Get one bevilling by ID.
 
-        Parameters
-        ----------
-        bevilling_id : int
-            Unique ID of the bevilling.
+        Args:
+            bevilling_id:
+                ID of the bevilling.
 
-        Returns
-        -------
-        dict | None
-            Matching bevilling record, or None if not found.
+        Returns:
+            A bevilling dictionary if found.
+            Otherwise None.
         """
 
-        sql = """
+        sql = text("""
             SELECT
                 *
             FROM
                 [befordring_app].[befordring].[view_All_Bevillinger]
             WHERE
                 bevilling_id = :bevilling_id
-        """
+        """)
 
-        df = database.read_sql(
-            query=sql,
-            params={"bevilling_id": bevilling_id},
-            conn_string=self.conn_string
+        result = self.db.execute(
+            sql,
+            {"bevilling_id": bevilling_id},
         )
 
-        records = self._records_from_dataframe(df)
+        records = self._rows_to_dicts(result)
 
         if not records:
             return None
 
         return records[0]
 
+
     def get_student_bevillinger(self, cpr: str):
-        """Retrieve all bevillinger for a citizen.
+        """Get all bevillinger connected to a citizen.
 
-        Parameters
-        ----------
-        cpr : str
-            CPR number identifying the citizen.
+        Args:
+            cpr:
+                Citizen CPR.
 
-        Returns
-        -------
-        list[dict]
-            Bevillinger connected to the citizen.
+        Returns:
+            A list of bevillinger from view_Student_Bevillinger.
         """
 
-        sql = """
+        sql = text("""
             SELECT
                 *
             FROM
@@ -439,33 +374,27 @@ class BevillingService:
             WHERE
                 cpr = :cpr
             ORDER BY
-                status_tekst ASC,
-                sagsbehandlingsdato DESC
-        """
+                sagsbehandlingsdato DESC,
+                status_tekst ASC
+        """)
 
-        df = database.read_sql(
-            query=sql,
-            params={"cpr": cpr},
-            conn_string=self.conn_string
-        )
+        result = self.db.execute(sql, {"cpr": cpr})
 
-        return self._records_from_dataframe(df)
+        return self._rows_to_dicts(result)
+
 
     def get_bevilling_koerselsraekker(self, bevilling_id: int):
-        """Retrieve kørselsrækker for a bevilling.
+        """Get all koerselsraekker for a bevilling.
 
-        Parameters
-        ----------
-        bevilling_id : int
-            Unique ID of the bevilling.
+        Args:
+            bevilling_id:
+                ID of the bevilling.
 
-        Returns
-        -------
-        list[dict]
-            Kørselsrækker connected to the bevilling.
+        Returns:
+            A list of koerselsraekker from view_Bevilling_Koerselsraekker.
         """
 
-        sql = """
+        sql = text("""
             SELECT
                 *
             FROM
@@ -474,510 +403,670 @@ class BevillingService:
                 bevilling_id = :bevilling_id
             ORDER BY
                 tidspunkt_tekst DESC
-        """
+        """)
 
-        df = database.read_sql(
-            query=sql,
-            params={"bevilling_id": bevilling_id},
-            conn_string=self.conn_string
+        result = self.db.execute(
+            sql,
+            {"bevilling_id": bevilling_id},
         )
 
-        return self._records_from_dataframe(df)
+        return self._rows_to_dicts(result)
 
-    # -----------------------------
-    # Creates
-    # -----------------------------
 
-    def create_bevilling(self, cpr: str, new_bevilling_data: dict):
+    def create_bevilling(
+        self,
+        cpr: str,
+        new_bevilling_data: dict,
+        status_text: str = "Ny",
+    ):
         """Create a new bevilling.
 
-        Parameters
-        ----------
-        cpr : str
-            CPR number identifying the citizen.
+        Args:
+            cpr:
+                Citizen CPR.
 
-        new_bevilling_data : dict
-            Data used to create the bevilling. The optional
-            hjaelpemiddel_ids list is removed from the main insert and handled
-            through the link table after creation.
+            new_bevilling_data:
+                Dictionary with fields for the Bevilling model.
 
-        Returns
-        -------
-        dict
-            Metadata about the inserted bevilling.
+                May optionally contain hjaelpemiddel_ids. These are removed
+                from the dictionary before creating the Bevilling object,
+                because they belong in a link table.
+
+            status_text:
+                Initial status text. Defaults to "Ny".
+
+        Returns:
+            Dictionary containing created bevilling ID, status text, and row
+            count.
+
+        Notes:
+            This method manages its own transaction.
+
+            self.db.flush() is used before committing so SQLAlchemy generates
+            the new bevilling_id. That ID is needed when inserting rows in the
+            hjaelpemiddel link table.
         """
 
+        # hjaelpemiddel_ids are not columns on Bevilling itself.
+        # They are handled separately through the link table.
         hjaelpemiddel_ids = new_bevilling_data.pop("hjaelpemiddel_ids", [])
 
-        allowed_fields = {
-            "adresse_for_bevilling",
-            "status_id",
-            "matrikel_id",
-            "hjemmel_id",
-            "afgoerelsesbrev_id",
-            "revurderingsdato",
-            "befordringsudvalg",
-            "esdh_noegle",
-            "sagsbehandler_id",
-            "ppr_sagsbehandler_id",
-            "ansoegningsdato",
-            "sagsbehandlingsdato",
-            "relation_til_barnet",
-            "foerste_koersel_dato",
-            "ansoegningstype",
-            "afstandskriterie_dato",
-            "afstandskriterie_klassetrin",
-            "begrundelse_fra_formular",
-            "noter",
-        }
-
-        filtered_data = {
-            key: value
-            for key, value in new_bevilling_data.items()
-            if key in allowed_fields
-        }
-
-        filtered_data["cpr_elev"] = cpr
-        filtered_data["aktiv"] = 1
-        filtered_data["created_by"] = "system"
-        filtered_data["updated_by"] = "system"
-
-        bevilling_id = self._insert_and_return_id(
-            table_name="[befordring_app].[befordring].[Bevilling]",
-            data=filtered_data,
-            id_column="bevilling_id"
-        )
-
-        if hjaelpemiddel_ids:
-            self.update_bevilling_hjaelpemidler(
-                bevilling_id=bevilling_id,
-                hjaelpemiddel_ids=hjaelpemiddel_ids
+        try:
+            bevilling = Bevilling(
+                **new_bevilling_data,
+                cpr_elev=cpr,
+                status_id=self.get_status_id_by_text(status_text),
+                aktiv=True,
+                created_by="system",
+                updated_by="system",
             )
 
-        return {
-            "bevilling_id": bevilling_id,
-            "rows_inserted": 1
-        }
+            self.db.add(bevilling)
+
+            # Flush so bevilling.bevilling_id is available before commit.
+            self.db.flush()
+
+            if hjaelpemiddel_ids:
+                self.update_bevilling_hjaelpemidler(
+                    bevilling_id=bevilling.bevilling_id,
+                    hjaelpemiddel_ids=hjaelpemiddel_ids,
+                    commit=False,
+                )
+
+            status_result = self.recalculate_bevilling_status(
+                bevilling_id=bevilling.bevilling_id,
+                commit=False,
+            )
+
+            self.db.commit()
+            self.db.refresh(bevilling)
+
+            return {
+                "bevilling_id": bevilling.bevilling_id,
+                "status_text": status_result["status_text"],
+                "status_reason": status_result.get("status_reason"),
+                "rows_inserted": 1,
+                "status": status_result,
+            }
+
+        except Exception:
+            self.db.rollback()
+            raise
+
 
     def create_koerselsraekke(
         self,
         bevilling_id: int,
-        new_koerselsraekke_data: dict
+        new_koerselsraekke_data: dict,
     ):
-        """Create a new kørselsrække for a bevilling.
+        """Create a new koerselsraekke for a bevilling.
 
-        Parameters
-        ----------
-        bevilling_id : int
-            ID of the bevilling the kørselsrække belongs to.
+        Args:
+            bevilling_id:
+                ID of the bevilling the row belongs to.
 
-        new_koerselsraekke_data : dict
-            Data used to create the Koersel row. Optional tillaeg_ids and
-            dag_ids are handled through link tables after the row is created.
+            new_koerselsraekke_data:
+                Dictionary with fields for the Koersel model.
 
-        Returns
-        -------
-        dict
-            Metadata about the inserted kørselsrække.
+                May optionally contain:
+                - tillaeg_ids
+                - dag_ids
 
-        Raises
-        ------
-        ValueError
-            Raised if required fields are missing.
+        Returns:
+            Dictionary containing created koersel_id and row count.
+
+        Notes:
+            This method also recalculates the bevilling status after creating
+            the koerselsraekke.
+
+            The link tables for tillaeg and dage are updated inside the same
+            transaction by passing commit=False.
         """
 
+        # These values belong to link tables, not directly on the Koersel model.
         tillaeg_ids = new_koerselsraekke_data.pop("tillaeg_ids", [])
         dag_ids = new_koerselsraekke_data.pop("dag_ids", [])
 
-        required_fields = [
-            "gyldig_fra",
-            "gyldig_til",
-            "tidspunkt_id",
-            "befordringstype_id",
-            "bevilget_koereafstand_pr_vej",
-        ]
+        self._validate_koerselsraekke_dates(new_koerselsraekke_data)
 
-        missing_fields = [
-            field
-            for field in required_fields
-            if field not in new_koerselsraekke_data
-            or new_koerselsraekke_data[field] is None
-        ]
+        try:
+            koerselsraekke_values = {
+                **new_koerselsraekke_data,
+                "bevilling_id": bevilling_id,
+                "kommentar": new_koerselsraekke_data.get("kommentar") or "",
+                "final": new_koerselsraekke_data.get("final") or False,
+            }
 
-        if missing_fields:
-            raise ValueError(
-                f"Missing required fields: {', '.join(missing_fields)}"
+            koersel = Koersel(**koerselsraekke_values)
+
+            self.db.add(koersel)
+
+            # Flush so koersel.koersel_id is available for link-table inserts.
+            self.db.flush()
+
+            if tillaeg_ids:
+                self.update_koerselsraekke_tillaeg(
+                    koersel_id=koersel.koersel_id,
+                    tillaeg_ids=tillaeg_ids,
+                    commit=False,
+                )
+
+            if dag_ids:
+                self.update_koerselsraekke_dage(
+                    koersel_id=koersel.koersel_id,
+                    dag_ids=dag_ids,
+                    commit=False,
+                )
+
+            status_result = self.recalculate_bevilling_status(
+                bevilling_id=bevilling_id,
+                commit=False,
             )
 
-        allowed_fields = {
-            "gyldig_fra",
-            "gyldig_til",
-            "tidspunkt_id",
-            "befordringstype_id",
-            "bevilget_koereafstand_pr_vej",
-            "taxa_id",
-            "kommentar",
-            "status_id",
-            "final",
-        }
+            self.db.commit()
+            self.db.refresh(koersel)
 
-        filtered_data = {
-            key: value
-            for key, value in new_koerselsraekke_data.items()
-            if key in allowed_fields
-        }
+            return {
+                "koersel_id": koersel.koersel_id,
+                "rows_inserted": 1,
+                "status": status_result,
+            }
 
-        filtered_data["bevilling_id"] = bevilling_id
+        except Exception:
+            self.db.rollback()
+            raise
 
-        if "status_id" not in filtered_data:
-            filtered_data["status_id"] = self.get_default_status_id()
-
-        if "kommentar" not in filtered_data:
-            filtered_data["kommentar"] = ""
-
-        if "final" not in filtered_data:
-            filtered_data["final"] = 0
-
-        koersel_id = self._insert_and_return_id(
-            table_name="[befordring_app].[befordring].[Koersel]",
-            data=filtered_data,
-            id_column="koersel_id"
-        )
-
-        if tillaeg_ids:
-            self.update_koerselsraekke_tillaeg(
-                koersel_id=koersel_id,
-                tillaeg_ids=tillaeg_ids
-            )
-
-        if dag_ids:
-            self.update_koerselsraekke_dage(
-                koersel_id=koersel_id,
-                dag_ids=dag_ids
-            )
-
-        return {
-            "koersel_id": koersel_id,
-            "rows_inserted": 1
-        }
-
-    # -----------------------------
-    # Updates
-    # -----------------------------
 
     def update_bevilling(self, bevilling_id: int, bevilling_data: dict):
-        """Update editable fields on a bevilling.
+        """Update an existing bevilling.
 
-        Parameters
-        ----------
-        bevilling_id : int
-            Unique ID of the bevilling.
+        Args:
+            bevilling_id:
+                ID of the bevilling to update.
 
-        bevilling_data : dict
-            Fields and values to update.
+            bevilling_data:
+                Dictionary containing only the fields that should be updated.
 
-        Returns
-        -------
-        dict
-            Update metadata.
+        Returns:
+            Dictionary containing row count and updated field names.
 
-        Raises
-        ------
-        HTTPException
-            Raised if no fields are provided or if a field is not allowed.
+        Raises:
+            HTTPException:
+                400 if no fields were provided.
+                404 if the bevilling does not exist.
+
+        Notes:
+            After updating the bevilling, the status is recalculated because
+            fields such as dates, sagsbehandler, or related values may affect
+            the current status.
         """
 
         if not bevilling_data:
             raise HTTPException(
                 status_code=400,
-                detail="No fields provided for update"
+                detail="No fields provided for update",
             )
 
-        allowed_fields = {
-            "status_id": "status_id",
-            "matrikel_id": "matrikel_id",
-            "sagsbehandlingsdato": "sagsbehandlingsdato",
-            "adresse_for_bevilling": "adresse_for_bevilling",
-            "afstandskriterie_dato": "afstandskriterie_dato",
-            "afstandskriterie_klassetrin": "afstandskriterie_klassetrin",
-            "relation_til_barnet": "relation_til_barnet",
-            "revurderingsdato": "revurderingsdato",
-            "befordringsudvalg": "befordringsudvalg",
-            "hjemmel_id": "hjemmel_id",
-            "afgoerelsesbrev_id": "afgoerelsesbrev_id",
-            "sagsbehandler_id": "sagsbehandler_id",
-            "ppr_sagsbehandler_id": "ppr_sagsbehandler_id",
-        }
+        bevilling = self.db.get(Bevilling, bevilling_id)
 
-        updates = {}
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
 
-        for frontend_key, value in bevilling_data.items():
-            if frontend_key not in allowed_fields:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Field cannot be updated on bevilling: {frontend_key}"
-                )
+        try:
+            for field_name, value in bevilling_data.items():
+                setattr(bevilling, field_name, value)
 
-            database_column = allowed_fields[frontend_key]
-            updates[database_column] = value
+            bevilling.updated_by = "frontend"
 
-        set_clause = ", ".join(
-            f"{column} = :{column}"
-            for column in updates
-        )
+            self.db.flush()
 
-        sql = f"""
-            UPDATE
-                [befordring_app].[befordring].[Bevilling]
-            SET
-                {set_clause},
-                updated_at = SYSDATETIME(),
-                updated_by = :updated_by
-            WHERE
-                bevilling_id = :bevilling_id
-        """
+            status_result = self.recalculate_bevilling_status(
+                bevilling_id=bevilling_id,
+                commit=False,
+            )
 
-        params = {
-            **updates,
-            "bevilling_id": bevilling_id,
-            "updated_by": "frontend"
-        }
+            self.db.commit()
 
-        rows_updated = database.execute_sql(
-            query=sql,
-            params=params,
-            conn_string=self.conn_string
-        )
+            return {
+                "rows_updated": 1,
+                "updated_fields": list(bevilling_data.keys()),
+                "status": status_result,
+            }
 
-        return {
-            "rows_updated": rows_updated,
-            "updated_fields": list(bevilling_data.keys())
-        }
+        except Exception:
+            self.db.rollback()
+            raise
+
 
     def update_koerselsraekke(
         self,
         koersel_id: int,
-        koerselsraekke_data: dict
+        koerselsraekke_data: dict,
     ):
-        """Update editable fields on a kørselsrække.
+        """Update an existing koerselsraekke.
 
-        Parameters
-        ----------
-        koersel_id : int
-            Unique ID of the Koersel row.
+        Args:
+            koersel_id:
+                ID of the koerselsraekke to update.
 
-        koerselsraekke_data : dict
-            Fields and values to update.
+            koerselsraekke_data:
+                Dictionary containing only the fields to update.
 
-        Returns
-        -------
-        dict
-            Update metadata.
+        Returns:
+            Dictionary containing koersel_id, row count, and updated fields.
+
+        Raises:
+            HTTPException:
+                404 if the koerselsraekke does not exist.
+
+        Notes:
+            If no fields are provided, no update is performed and rows_updated
+            is returned as 0.
         """
-
-        allowed_fields = {
-            "tidspunkt_id",
-            "befordringstype_id",
-            "bevilget_koereafstand_pr_vej",
-            "gyldig_fra",
-            "gyldig_til",
-            "taxa_id",
-            "kommentar",
-        }
-
-        invalid_fields = [
-            key
-            for key in koerselsraekke_data
-            if key not in allowed_fields
-        ]
-
-        if invalid_fields:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Fields cannot be updated on koerselsraekke: {invalid_fields}"
-            )
 
         if not koerselsraekke_data:
             return {
                 "koersel_id": koersel_id,
                 "rows_updated": 0,
-                "updated_fields": []
+                "updated_fields": [],
             }
 
-        set_clause = ", ".join(
-            f"{column} = :{column}"
-            for column in koerselsraekke_data
-        )
+        koersel = self.db.get(Koersel, koersel_id)
 
-        sql = f"""
-            UPDATE
-                [befordring_app].[befordring].[Koersel]
-            SET
-                {set_clause}
-            WHERE
-                koersel_id = :koersel_id
-        """
+        if koersel is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Kørselsrække not found: {koersel_id}",
+            )
 
-        params = {
-            **koerselsraekke_data,
-            "koersel_id": koersel_id
+        # Validate the final date range by combining existing dates with any
+        # new date values supplied in the update payload.
+        dates_to_validate = {
+            "gyldig_fra": koerselsraekke_data.get("gyldig_fra", koersel.gyldig_fra),
+            "gyldig_til": koerselsraekke_data.get("gyldig_til", koersel.gyldig_til),
         }
 
-        rows_updated = database.execute_sql(
-            query=sql,
-            params=params,
-            conn_string=self.conn_string
-        )
+        self._validate_koerselsraekke_dates(dates_to_validate)
 
-        return {
-            "koersel_id": koersel_id,
-            "rows_updated": rows_updated,
-            "updated_fields": list(koerselsraekke_data.keys())
-        }
+        try:
+            for field_name, value in koerselsraekke_data.items():
+                setattr(koersel, field_name, value)
 
-    # -----------------------------
-    # Link table updates
-    # -----------------------------
+            self.db.flush()
+
+            status_result = self.recalculate_bevilling_status(
+                bevilling_id=koersel.bevilling_id,
+                commit=False,
+            )
+
+            self.db.commit()
+
+            return {
+                "koersel_id": koersel_id,
+                "rows_updated": 1,
+                "updated_fields": list(koerselsraekke_data.keys()),
+                "status": status_result,
+            }
+
+        except Exception:
+            self.db.rollback()
+            raise
+
 
     def update_bevilling_hjaelpemidler(
         self,
         bevilling_id: int,
-        hjaelpemiddel_ids: list[int]
+        hjaelpemiddel_ids: list[int],
+        commit: bool = True,
     ):
-        """Replace all hjælpemiddel links for a bevilling.
+        """Replace hjaelpemiddel links for a bevilling.
 
-        Parameters
-        ----------
-        bevilling_id : int
-            Unique ID of the bevilling.
+        Args:
+            bevilling_id:
+                ID of the bevilling.
 
-        hjaelpemiddel_ids : list[int]
-            Complete list of selected hjælpemiddel IDs.
+            hjaelpemiddel_ids:
+                New list of hjaelpemiddel IDs.
 
-        Returns
-        -------
-        dict
-            Link-table update metadata.
+            commit:
+                Whether this method should commit immediately.
+
+        Returns:
+            Dictionary containing bevilling_id, inserted IDs, and row count.
+
+        Notes:
+            This method replaces all existing links:
+
+            1. Delete existing links for the bevilling.
+            2. Insert the new set of links.
+
+            Passing an empty list is valid and means all hjaelpemidler are
+            removed from the bevilling.
         """
 
-        result = self._replace_link_rows(
-            table_name="[befordring_app].[befordring].[Bevilling_Hjaelpemiddel_LINK]",
-            parent_column="bevilling_id",
-            child_column="hjaelpemiddel_id",
-            parent_id=bevilling_id,
-            child_ids=hjaelpemiddel_ids,
-            child_field_name="hjaelpemiddel_ids"
+        unique_ids = self._validate_int_list(
+            values=hjaelpemiddel_ids,
+            field_name="hjaelpemiddel_ids",
         )
+
+        self.db.execute(
+            delete(BevillingHjaelpemiddelLink)
+            .where(BevillingHjaelpemiddelLink.bevilling_id == bevilling_id)
+        )
+
+        for hjaelpemiddel_id in unique_ids:
+            self.db.add(
+                BevillingHjaelpemiddelLink(
+                    bevilling_id=bevilling_id,
+                    hjaelpemiddel_id=hjaelpemiddel_id,
+                )
+            )
+
+        if commit:
+            self.db.commit()
 
         return {
             "bevilling_id": bevilling_id,
-            "hjaelpemiddel_ids": result["hjaelpemiddel_ids"],
-            "rows_inserted": result["rows_inserted"]
+            "hjaelpemiddel_ids": unique_ids,
+            "rows_inserted": len(unique_ids),
         }
+
 
     def update_koerselsraekke_tillaeg(
         self,
         koersel_id: int,
-        tillaeg_ids: list[int]
+        tillaeg_ids: list[int],
+        commit: bool = True,
     ):
-        """Replace all tillæg links for a kørselsrække.
+        """Replace tillaeg links for a koerselsraekke.
 
-        Parameters
-        ----------
-        koersel_id : int
-            Unique ID of the Koersel row.
+        Args:
+            koersel_id:
+                ID of the koerselsraekke.
 
-        tillaeg_ids : list[int]
-            Complete list of selected tillæg IDs.
+            tillaeg_ids:
+                New list of tillaeg IDs.
 
-        Returns
-        -------
-        dict
-            Link-table update metadata.
+            commit:
+                Whether this method should commit immediately.
+
+        Returns:
+            Dictionary containing koersel_id, inserted IDs, and row count.
         """
 
-        result = self._replace_link_rows(
-            table_name="[befordring_app].[befordring].[Koersel_KoerselstypeTillaeg_LINK]",
-            parent_column="koersel_id",
-            child_column="tillaeg_id",
-            parent_id=koersel_id,
-            child_ids=tillaeg_ids,
-            child_field_name="tillaeg_ids"
+        unique_ids = self._validate_int_list(
+            values=tillaeg_ids,
+            field_name="tillaeg_ids",
         )
+
+        self.db.execute(
+            delete(KoerselKoerselstypeTillaegLink)
+            .where(KoerselKoerselstypeTillaegLink.koersel_id == koersel_id)
+        )
+
+        for tillaeg_id in unique_ids:
+            self.db.add(
+                KoerselKoerselstypeTillaegLink(
+                    koersel_id=koersel_id,
+                    tillaeg_id=tillaeg_id,
+                )
+            )
+
+        if commit:
+            self.db.commit()
 
         return {
             "koersel_id": koersel_id,
-            "tillaeg_ids": result["tillaeg_ids"],
-            "rows_inserted": result["rows_inserted"]
+            "tillaeg_ids": unique_ids,
+            "rows_inserted": len(unique_ids),
         }
+
 
     def update_koerselsraekke_dage(
         self,
         koersel_id: int,
-        dag_ids: list[int]
+        dag_ids: list[int],
+        commit: bool = True,
     ):
-        """Replace all weekday links for a kørselsrække.
+        """Replace weekday links for a koerselsraekke.
 
-        Parameters
-        ----------
-        koersel_id : int
-            Unique ID of the Koersel row.
+        Args:
+            koersel_id:
+                ID of the koerselsraekke.
 
-        dag_ids : list[int]
-            Complete list of selected weekday IDs.
+            dag_ids:
+                New list of weekday IDs.
 
-        Returns
-        -------
-        dict
-            Link-table update metadata.
+            commit:
+                Whether this method should commit immediately.
+
+        Returns:
+            Dictionary containing koersel_id, inserted IDs, and row count.
         """
 
-        result = self._replace_link_rows(
-            table_name="[befordring_app].[befordring].[Koersel_Ugedag_LINK]",
-            parent_column="koersel_id",
-            child_column="dag_id",
-            parent_id=koersel_id,
-            child_ids=dag_ids,
-            child_field_name="dag_ids"
+        unique_ids = self._validate_int_list(
+            values=dag_ids,
+            field_name="dag_ids",
         )
+
+        self.db.execute(
+            delete(KoerselUgedagLink)
+            .where(KoerselUgedagLink.koersel_id == koersel_id)
+        )
+
+        for dag_id in unique_ids:
+            self.db.add(
+                KoerselUgedagLink(
+                    koersel_id=koersel_id,
+                    dag_id=dag_id,
+                )
+            )
+
+        if commit:
+            self.db.commit()
 
         return {
             "koersel_id": koersel_id,
-            "dag_ids": result["dag_ids"],
-            "rows_inserted": result["rows_inserted"]
+            "dag_ids": unique_ids,
+            "rows_inserted": len(unique_ids),
         }
 
-    # -----------------------------
-    # Deletes
-    # -----------------------------
 
     def delete_bevilling(self, bevilling_id: int):
-        """Delete a bevilling by ID.
+        """Delete a bevilling.
 
-        Parameters
-        ----------
-        bevilling_id : int
-            Unique ID of the bevilling to delete.
+        Args:
+            bevilling_id:
+                ID of the bevilling to delete.
 
-        Returns
-        -------
-        dict
-            Delete metadata.
+        Returns:
+            Dictionary containing deleted row count.
+
+        Raises:
+            HTTPException:
+                404 if the bevilling does not exist.
+
+        Notes:
+            This currently performs a hard delete using self.db.delete(...).
+            If the system should keep history, this should probably be changed
+            to a soft delete by setting aktiv=False instead.
         """
 
-        sql = """
-            DELETE FROM
-                [befordring_app].[befordring].[Bevilling]
-            WHERE
-                bevilling_id = :bevilling_id
-        """
+        bevilling = self.db.get(Bevilling, bevilling_id)
 
-        rows_deleted = database.execute_sql(
-            query=sql,
-            params={"bevilling_id": bevilling_id},
-            conn_string=self.conn_string
-        )
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        self.db.delete(bevilling)
+        self.db.commit()
 
         return {
-            "rows_deleted": rows_deleted
+            "rows_deleted": 1,
         }
+
+
+    def calculate_bevilling_status_id(self, bevilling_id: int):
+        """Calculate the correct status ID for a bevilling using the SQL procedure."""
+
+        if self.db.get(Bevilling, bevilling_id) is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        rows = self._execute_recalculate_status_procedure(
+            bevilling_id=bevilling_id,
+            dry_run=True,
+        )
+
+        result = self._get_status_result_for_bevilling(
+            rows=rows,
+            bevilling_id=bevilling_id,
+        )
+
+        return int(result["calculated_status_id"])
+
+
+    def recalculate_bevilling_status(self, bevilling_id: int, commit: bool = True,):
+        """Recalculate and save the status for a bevilling.
+
+        Notes:
+            The actual status logic lives in the SQL stored procedure.
+
+            This method is mainly responsible for:
+                - calling the procedure for one bevilling
+                - preserving Python-side error handling
+                - optionally committing the transaction
+        """
+
+        if self.db.get(Bevilling, bevilling_id) is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        try:
+            rows = self._execute_recalculate_status_procedure(
+                bevilling_id=bevilling_id,
+                dry_run=False,
+            )
+
+            result = self._get_status_result_for_bevilling(
+                rows=rows,
+                bevilling_id=bevilling_id,
+            )
+
+            new_status_id = int(result["calculated_status_id"])
+
+            if commit:
+                self.db.commit()
+
+            return {
+                "bevilling_id": bevilling_id,
+                "status_id": new_status_id,
+                "status_text": result["calculated_status_text"],
+                "status_reason": result.get("status_reason"),
+                "rows_updated": int(result["status_will_change"]),
+
+                # Optional, but useful:
+                # shows other bevillinger for same CPR that were recalculated too.
+                "status_results": rows,
+            }
+
+        except Exception:
+            if commit:
+                self.db.rollback()
+
+            raise
+
+
+    def get_letter_data(self, bevilling_id: int):
+        """Get all data needed for letter generation.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling.
+
+        Returns:
+            A dictionary with main letter data and a nested list of
+            koerselsraekker.
+
+        Raises:
+            HTTPException:
+                404 if no letter data exists for the bevilling.
+
+        Notes:
+            The result is prepared for the letter-generation worker.
+
+            The main data comes from view_Letter_BevillingData.
+            The nested koerselsraekker come from view_Letter_Koerselsraekker.
+        """
+
+        main_sql = text("""
+            SELECT
+                *
+            FROM
+                [befordring_app].[befordring].[view_Letter_BevillingData]
+            WHERE
+                bevilling_id = :bevilling_id
+        """)
+
+        main_result = self.db.execute(
+            main_sql,
+            {"bevilling_id": bevilling_id},
+        )
+
+        main_records = self._rows_to_dicts(main_result)
+
+        if not main_records:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        letter_data = main_records[0]
+
+        koersel_sql = text("""
+            SELECT
+                *
+            FROM
+                [befordring_app].[befordring].[view_Letter_Koerselsraekker]
+            WHERE
+                bevilling_id = :bevilling_id
+            ORDER BY
+                koersel_id
+        """)
+
+        koersel_result = self.db.execute(
+            koersel_sql,
+            {"bevilling_id": bevilling_id},
+        )
+
+        koersel_records = self._rows_to_dicts(koersel_result)
+
+        # Nest the related koerselsraekker inside the main letter data object.
+        # This makes the payload easier for the letter worker/template engine
+        # to consume.
+        letter_data["koerselsraekker"] = [
+            {
+                "koersel_id": row.get("koersel_id"),
+                "koerselstype_key": row.get("koerselstype_key"),
+                "koerselstype": row.get("koerselstype"),
+                "dage": row.get("dage"),
+                "taxa_id": row.get("taxa_id"),
+                "tidspunkt": row.get("tidspunkt"),
+                "bevilling_fra": row.get("bevilling_fra"),
+                "bevilling_til": row.get("bevilling_til"),
+                "koerselstype_tillaeg": row.get("koerselstype_tillaeg"),
+                "bevilget_koereafstand_pr_vej": row.get("bevilget_koereafstand_pr_vej"),
+            }
+            for row in koersel_records
+        ]
+
+        return letter_data

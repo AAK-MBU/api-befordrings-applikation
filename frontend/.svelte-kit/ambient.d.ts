@@ -38,6 +38,7 @@
  * The above values will be the same _even if_ different values for `ENVIRONMENT` or `PUBLIC_BASE_URL` are set at runtime, as they are statically replaced in your code with their build time values.
  */
 declare module '$env/static/private' {
+	export const BEFORDRING_API_KEY: string;
 	export const AAK_PASSWORD: string;
 	export const ALLUSERSPROFILE: string;
 	export const API_ADMIN_TOKEN: string;
@@ -61,6 +62,7 @@ declare module '$env/static/private' {
 	export const DADJ_FULL_NAME: string;
 	export const DADJ_GO_ID: string;
 	export const DADJ_SSN: string;
+	export const DBCONNECTIONSTRINGBEFORDRING: string;
 	export const DBCONNECTIONSTRINGDEV: string;
 	export const DBCONNECTIONSTRINGFAELLESSQL: string;
 	export const DBCONNECTIONSTRINGPROCESSDASHBOARDDEV: string;
@@ -156,14 +158,11 @@ declare module '$env/static/private' {
 	export const USERDOMAIN_ROAMINGPROFILE: string;
 	export const USERNAME: string;
 	export const USERPROFILE: string;
-	export const VIRTUAL_ENV: string;
-	export const VIRTUAL_ENV_PROMPT: string;
 	export const windir: string;
 	export const WSLENV: string;
 	export const WT_PROFILE_ID: string;
 	export const WT_SESSION: string;
 	export const ZES_ENABLE_SYSMAN: string;
-	export const _OLD_VIRTUAL_PATH: string;
 }
 
 /**
@@ -250,6 +249,7 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		BEFORDRING_API_KEY: string;
 		AAK_PASSWORD: string;
 		ALLUSERSPROFILE: string;
 		API_ADMIN_TOKEN: string;
@@ -273,6 +273,7 @@ declare module '$env/dynamic/private' {
 		DADJ_FULL_NAME: string;
 		DADJ_GO_ID: string;
 		DADJ_SSN: string;
+		DBCONNECTIONSTRINGBEFORDRING: string;
 		DBCONNECTIONSTRINGDEV: string;
 		DBCONNECTIONSTRINGFAELLESSQL: string;
 		DBCONNECTIONSTRINGPROCESSDASHBOARDDEV: string;
@@ -368,14 +369,11 @@ declare module '$env/dynamic/private' {
 		USERDOMAIN_ROAMINGPROFILE: string;
 		USERNAME: string;
 		USERPROFILE: string;
-		VIRTUAL_ENV: string;
-		VIRTUAL_ENV_PROMPT: string;
 		windir: string;
 		WSLENV: string;
 		WT_PROFILE_ID: string;
 		WT_SESSION: string;
 		ZES_ENABLE_SYSMAN: string;
-		_OLD_VIRTUAL_PATH: string;
 		[key: `PUBLIC_${string}`]: undefined;
 		[key: `${string}`]: string | undefined;
 	}

@@ -3,6 +3,12 @@
   // Props
   // -----------------------------
 
+  import {
+    tablePrimaryActionButtonClass,
+    tableSaveActionButtonClass,
+    tableCancelActionButtonClass,
+  } from "$lib/tableColumnConfig";
+
   export let rows: any[] = [];
 
   export let lookupOptions: any = {
@@ -87,8 +93,8 @@
   // Small helpers
   // -----------------------------
 
-  function numberOrNull(value: string) {
-    if (value === "") {
+  function numberOrNull(value: string | number | null | undefined) {
+    if (value === "" || value === null || value === undefined) {
       return null;
     }
 
@@ -265,7 +271,7 @@
     const updates = {
       tidspunkt_id: editableKoerselsraekke.tidspunkt_id,
       befordringstype_id: editableKoerselsraekke.befordringstype_id,
-      bevilget_koereafstand_pr_vej: Number(editableKoerselsraekke.bevilget_koereafstand_pr_vej),
+      bevilget_koereafstand_pr_vej: numberOrNull(editableKoerselsraekke.bevilget_koereafstand_pr_vej),
       gyldig_fra: editableKoerselsraekke.gyldig_fra,
       gyldig_til: editableKoerselsraekke.gyldig_til,
       taxa_id: editableKoerselsraekke.taxa_id,
@@ -327,11 +333,6 @@
 
     if (!newKoerselsraekke.befordringstype_id) {
       alert("Kørselstype skal udfyldes");
-      return false;
-    }
-
-    if (!newKoerselsraekke.bevilget_koereafstand_pr_vej) {
-      alert("Bevilget køreafstand skal udfyldes");
       return false;
     }
 
@@ -416,7 +417,7 @@
           {#if isEditing}
             <button
               type="button"
-              class="text-green-700 hover:underline mr-2"
+              class={tableSaveActionButtonClass}
               on:click={() => saveEdit(row)}
             >
               Gem
@@ -424,7 +425,7 @@
 
             <button
               type="button"
-              class="text-red-600 hover:underline"
+              class={tableCancelActionButtonClass}
               on:click={cancelEdit}
             >
               Annullér
@@ -432,7 +433,7 @@
           {:else}
             <button
               type="button"
-              class="text-sky-600 hover:underline"
+              class={tablePrimaryActionButtonClass}
               on:click={() => startEdit(row)}
             >
               Redigér
@@ -640,7 +641,7 @@
         <td class="px-3 py-2 whitespace-nowrap">
           <button
             type="button"
-            class="text-green-700 hover:underline mr-2"
+            class={tableSaveActionButtonClass}
             on:click={saveNew}
           >
             Gem
@@ -648,7 +649,7 @@
 
           <button
             type="button"
-            class="text-red-600 hover:underline"
+            class={tableCancelActionButtonClass}
             on:click={cancelCreate}
           >
             Annullér

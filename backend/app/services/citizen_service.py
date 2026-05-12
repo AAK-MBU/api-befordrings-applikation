@@ -1,116 +1,112 @@
-"""Service layer for citizen-related database operations.
+"""Service layer for citizen-related business logic.
 
-The CitizenService handles retrieval and updates of citizen data used by the
-frontend citizen case page.
+This module contains database operations related to citizens/students.
 
-The service currently works with:
+The service is responsible for:
 
-- view_Stamdata
-- view_ParentData
-- Elev
+- Fetching citizen stamdata
+- Fetching parent/guardian data
+- Updating editable citizen stamdata fields
 
-The frontend mostly reads from views, while editable stamdata fields are written
-back to the underlying Elev table.
+The API router should stay thin and delegate this logic to CitizenService.
 """
 
-from fastapi.exceptions import HTTPException
+from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from app.utils import database
+from app.models.citizen import Elev
 
 
 class CitizenService:
-    """Service for retrieving and updating citizen data."""
+    """Service class for citizen-related operations.
 
-    def __init__(self):
-        """Initialize database connection strings.
+    Args:
+        db:
+            SQLAlchemy database session.
+    """
 
-        Attributes
-        ----------
-        conn_string : str
-            Connection string for the main befordring database.
+    def __init__(self, db: Session):
+        """Initialize the service with a database session."""
 
-        lis_conn_string : str
-            Connection string for LIS/masterdata. It is currently not used in
-            this service, but is kept available in case future citizen data
-            needs to be fetched from LIS.
+        self.db = db
+
+
+    def _rows_to_dicts(self, result):
+        """Convert SQLAlchemy result rows into normal dictionaries.
+
+        Args:
+            result:
+                SQLAlchemy result object.
+
+        Returns:
+            A list of dictionaries.
+
+        Notes:
+            This is useful when reading from SQL views using raw SQL.
         """
 
-        self.conn_string = database.get_db_connection_string()
-        self.lis_conn_string = database.get_lis_db_connection_string()
+        return [dict(row) for row in result.mappings().all()]
+
 
     def get_stamdata(self, cpr: str):
-        """Retrieve stamdata for a citizen.
+        """Get stamdata for a citizen/student.
 
-        Stamdata is read from the `view_Stamdata` database view. The view
-        combines citizen, school, status and case-related information into one
-        frontend-friendly record.
+        Args:
+            cpr:
+                CPR number of the citizen/student.
 
-        Parameters
-        ----------
-        cpr : str
-            CPR number identifying the citizen.
+        Returns:
+            A dictionary containing stamdata if found.
+            Otherwise None.
 
-        Returns
-        -------
-        dict | None
-            The stamdata record if one exists. If no matching CPR is found,
-            None is returned.
-
-        Notes
-        -----
-        The API endpoint expects one citizen record, so this method returns the
-        first matching record rather than a list.
+        Notes:
+            Data is read from view_Stamdata, not directly from the Elev table.
+            This means the returned object may contain joined/calculated fields
+            that are not present directly on the Elev model.
         """
 
-        sql = """
+        sql = text("""
             SELECT
                 *
             FROM
                 [befordring_app].[befordring].[view_Stamdata]
             WHERE
                 cpr = :cpr
-        """
+        """)
 
-        df = database.read_sql(
-            query=sql,
-            params={"cpr": cpr},
-            conn_string=self.conn_string
-        )
+        result = self.db.execute(sql, {"cpr": cpr})
+        records = self._rows_to_dicts(result)
 
-        records = df.to_dict("records")
-
+        # No stamdata was found for this CPR.
         if not records:
             return None
 
+        # CPR should identify one citizen/student, so return the first row.
         return records[0]
 
+
     def get_parent_data(self, cpr: str):
-        """Retrieve parent/guardian data for a child.
+        """Get parent/guardian data for a citizen/student.
 
-        Parent data is read from `view_ParentData`. The result is ordered so
-        the most relevant parent/guardian roles are shown first, followed by
-        name.
+        Args:
+            cpr:
+                CPR number of the citizen/student.
 
-        Parameters
-        ----------
-        cpr : str
-            CPR number identifying the child.
+        Returns:
+            A list of parent/guardian records.
 
-        Returns
-        -------
-        list[dict]
-            Parent/guardian records connected to the child.
+        Notes:
+            Data is read from view_ParentData.
 
-            Each record contains:
+            The result is ordered by:
+            1. foraelderrolle_sortering
+            2. adresseringsnavn
 
-            - adresseringsnavn
-            - cpr_foraelder
-            - adresse_tekst
-            - foraeldremyndighed
-            - navne_adresse_beskyttelse
+            This gives the frontend a stable and predictable display order.
         """
 
-        sql = """
+        sql = text("""
             SELECT
                 adresseringsnavn,
                 cpr_foraelder,
@@ -124,117 +120,72 @@ class CitizenService:
             ORDER BY
                 foraelderrolle_sortering,
                 adresseringsnavn
-        """
+        """)
 
-        df = database.read_sql(
-            query=sql,
-            params={"cpr": cpr},
-            conn_string=self.conn_string
-        )
+        result = self.db.execute(sql, {"cpr": cpr})
 
-        return df.to_dict("records")
+        return self._rows_to_dicts(result)
+
 
     def update_citizen_stamdata(self, cpr: str, stamdata: dict):
-        """Update editable stamdata fields for a citizen.
+        """Update editable stamdata fields for a citizen/student.
 
-        The frontend sends field names based on `view_Stamdata`, but the actual
-        update is performed on the underlying `Elev` table.
+        Args:
+            cpr:
+                CPR number of the citizen/student.
 
-        To avoid accidental or unsafe updates, this method uses an explicit
-        allowlist. Only fields listed in `allowed_elev_fields` can be updated.
+            stamdata:
+                Dictionary containing the fields that should be updated.
 
-        Parameters
-        ----------
-        cpr : str
-            CPR number identifying the citizen/elev record to update.
+        Returns:
+            A dictionary containing:
+            - number of updated rows
+            - list of updated field names
 
-        stamdata : dict
-            Dictionary of fields and values to update.
+        Raises:
+            HTTPException:
+                404 if no citizen/student exists with the provided CPR.
 
-            Example:
+        Notes:
+            This updates the Elev table directly through the SQLAlchemy model.
 
-            {
-                "skoleafstand": 5.7,
-                "klasseart": "Specialklasse",
-                "elevklassetrin": 4
-            }
-
-        Returns
-        -------
-        dict
-            Result metadata from the update operation.
-
-            Example:
-
-            {
-                "rows_updated": 1,
-                "updated_fields": [
-                    "skoleafstand",
-                    "klasseart",
-                    "elevklassetrin"
-                ]
-            }
-
-        Raises
-        ------
-        HTTPException
-            Raised with status code 400 if the frontend attempts to update a
-            field that is not explicitly allowed.
+            The router should pass a dictionary created with
+            exclude_unset=True, so only fields explicitly sent by the frontend
+            are updated.
         """
 
-        allowed_elev_fields = {
-            "skoleafstand": "skoleafstand",
-            "klasseart": "klasseart",
-            "elevklassetrin": "elevklassetrin",
-            "klassebetegnelse": "klassebetegnelse",
-            "sfo": "sfo",
-            "bopaelsdistrikt": "bopaelsdistrikt",
-        }
-
-        elev_updates = {}
-
-        for frontend_key, value in stamdata.items():
-            if frontend_key not in allowed_elev_fields:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Field cannot be updated through stamdata: {frontend_key}"
-                )
-
-            database_column = allowed_elev_fields[frontend_key]
-            elev_updates[database_column] = value
-
-        if not elev_updates:
+        # If no fields were provided, there is nothing to update.
+        # This is treated as a harmless no-op.
+        if not stamdata:
             return {
                 "rows_updated": 0,
-                "updated_fields": []
+                "updated_fields": [],
             }
 
-        set_clause = ", ".join(
-            f"{column} = :{column}"
-            for column in elev_updates
-        )
+        # Fetch the Elev row by primary key.
+        # This assumes CPR is the primary key on the Elev model.
+        elev = self.db.get(Elev, cpr)
 
-        sql = f"""
-            UPDATE
-                [befordring_app].[befordring].[Elev]
-            SET
-                {set_clause}
-            WHERE
-                cpr = :cpr
-        """
+        if elev is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Citizen not found: {cpr}",
+            )
 
-        params = {
-            **elev_updates,
-            "cpr": cpr
-        }
+        # Dynamically update only the fields provided in the request.
+        #
+        # Example:
+        # stamdata = {"klasse": "3A", "sfo": True}
+        #
+        # This will update:
+        # elev.klasse
+        # elev.sfo
+        for field_name, value in stamdata.items():
+            setattr(elev, field_name, value)
 
-        rows_updated = database.execute_sql(
-            query=sql,
-            params=params,
-            conn_string=self.conn_string
-        )
+        self.db.commit()
 
         return {
-            "rows_updated": rows_updated,
-            "updated_fields": list(stamdata.keys())
+            "rows_updated": 1,
+            "updated_fields": list(stamdata.keys()),
         }

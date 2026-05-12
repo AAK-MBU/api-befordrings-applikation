@@ -29,20 +29,24 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/Stamdata" | "/nye-ansoegninger" | "/rapporter" | "/revurdering" | "/sag" | "/sag/[cpr]";
+		RouteId(): "/" | "/Stamdata" | "/api" | "/api/backend" | "/api/backend/[...path]" | "/nye-ansoegninger" | "/rapporter" | "/revurdering" | "/sag" | "/sag/[cpr]";
 		RouteParams(): {
+			"/api/backend/[...path]": { path: string };
 			"/sag/[cpr]": { cpr: string }
 		};
 		LayoutParams(): {
-			"/": { cpr?: string };
+			"/": { path?: string; cpr?: string };
 			"/Stamdata": Record<string, never>;
+			"/api": { path?: string };
+			"/api/backend": { path?: string };
+			"/api/backend/[...path]": { path: string };
 			"/nye-ansoegninger": Record<string, never>;
 			"/rapporter": Record<string, never>;
 			"/revurdering": Record<string, never>;
 			"/sag": { cpr?: string };
 			"/sag/[cpr]": { cpr: string }
 		};
-		Pathname(): "/" | "/Stamdata" | "/nye-ansoegninger" | "/rapporter" | "/revurdering" | `/sag/${string}` & {};
+		Pathname(): "/" | "/Stamdata" | `/api/backend/${string}` & {} | "/nye-ansoegninger" | "/rapporter" | "/revurdering" | `/sag/${string}` & {};
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): "/robots.txt" | string & {};
 	}

@@ -1,394 +1,285 @@
-"""Service layer for lookup/dropdown data.
+"""Service layer for lookup/reference data.
 
-The LookupService contains read-only helper methods for fetching values
-used by frontend dropdowns.
+This module contains read-only lookup methods used by the frontend.
 
-All public methods return the same simple shape:
+Lookup data is typically used for dropdowns, select fields, filters, and other
+UI options.
 
-[
+The service returns lookup records in a shared format:
+
     {
-        "id": 1,
-        "label": "Display text"
+        "id": ...,
+        "label": ...
     }
-]
 
-Keeping this shape consistent makes the Svelte components simpler,
-because all lookup lists can be rendered the same way.
+This keeps the frontend simpler because most lookup endpoints return the same
+basic structure.
 """
 
-from app.utils import database
+from sqlalchemy import select, true
+from sqlalchemy.orm import Session
+
+from app.models.lookup import (
+    Afgoerelsesbrev,
+    Befordringstype,
+    Hjaelpemiddel,
+    Hjemmel,
+    KoerselstypeTillaeg,
+    PPRSagsbehandler,
+    Sagsbehandler,
+    Skolematrikel,
+    Status,
+    Tidspunkt,
+    Ugedag,
+)
 
 
 class LookupService:
-    """Service for retrieving lookup values from the database.
+    """Service class for lookup-related database reads.
 
-    The service reads from small lookup/reference tables in the
-    befordring schema. These tables are used to populate dropdowns in the
-    frontend when creating or editing bevillinger and kørselsrækker.
+    Args:
+        db:
+            SQLAlchemy database session.
     """
 
-    def __init__(self):
-        """Initialize database connection strings.
+    def __init__(self, db: Session):
+        """Initialize the service with a database session."""
 
-        Attributes
-        ----------
-        conn_string : str
-            Connection string for the main befordring database.
+        self.db = db
 
-        lis_conn_string : str
-            Connection string for LIS/masterdata. It is currently not used
-            in this service, but is kept here in case future lookup data
-            needs to come from LIS.
-        """
-
-        self.conn_string = database.get_db_connection_string()
-        self.lis_conn_string = database.get_lis_db_connection_string()
 
     def _get_lookup_records(
         self,
-        table_name: str,
-        id_column: str,
-        label_column: str,
+        model,
+        id_column,
+        label_column,
         only_active: bool = True,
-        order_by: str | None = None
+        order_column=None,
     ):
-        """Fetch generic lookup records from a lookup table.
+        """Get lookup records from a model in a shared id/label format.
 
-        This helper prevents repeated SQL boilerplate across all lookup
-        methods. The method expects a table name and the columns that
-        should be returned as `id` and `label`.
+        Args:
+            model:
+                SQLAlchemy model class to query.
 
-        Parameters
-        ----------
-        table_name : str
-            Fully qualified SQL table name, for example:
-            "[befordring_app].[befordring].[Status]".
+            id_column:
+                Column used as the returned "id" value.
 
-        id_column : str
-            Name of the ID column in the lookup table.
+            label_column:
+                Column used as the returned "label" value.
 
-        label_column : str
-            Name of the display text column in the lookup table.
+            only_active:
+                Whether to only return active records.
 
-        only_active : bool, optional
-            If True, the query adds `WHERE aktiv = 1`.
-            Defaults to True.
+                If True and the model has an "aktiv" column, only rows where
+                aktiv is True are returned.
 
-        order_by : str | None, optional
-            Column used for ordering. If omitted, the label column is used.
+            order_column:
+                Optional column used for sorting.
 
-        Returns
-        -------
-        list[dict]
-            A list of lookup records formatted as:
+                If not provided, the label column is used for sorting.
 
-            [
-                {
-                    "id": <id value>,
-                    "label": <label value>
-                }
-            ]
+        Returns:
+            A list of dictionaries in this format:
+
+                [
+                    {
+                        "id": 1,
+                        "label": "Some value",
+                    }
+                ]
+
+        Notes:
+            This helper keeps the individual lookup methods very small.
+
+            It also makes the frontend easier to work with because all lookup
+            endpoints return the same field names: id and label.
         """
 
-        order_column = order_by or label_column
+        # Default sorting is by the visible label text.
+        order_column = order_column or label_column
 
-        where_clause = ""
-
-        if only_active:
-            where_clause = "WHERE aktiv = 1"
-
-        sql = f"""
-            SELECT
-                {id_column} AS id,
-                {label_column} AS label
-            FROM
-                {table_name}
-            {where_clause}
-            ORDER BY
-                {order_column}
-        """
-
-        df = database.read_sql(
-            query=sql,
-            params={},
-            conn_string=self.conn_string
+        # Select only the two fields the frontend needs.
+        #
+        # The columns are labelled as "id" and "label" so all lookup endpoints
+        # return the same structure, even though the database column names are
+        # different.
+        statement = select(
+            id_column.label("id"),
+            label_column.label("label"),
         )
 
-        return df.to_dict("records")
+        # Many lookup tables have an "aktiv" column.
+        #
+        # hasattr(model, "aktiv") makes this helper reusable for models that
+        # have the column and models that do not.
+        if only_active and hasattr(model, "aktiv"):
+            statement = statement.where(model.aktiv == true())
+
+        statement = statement.order_by(order_column)
+
+        rows = self.db.execute(statement).mappings().all()
+
+        return [dict(row) for row in rows]
+
 
     def get_hjemler(self):
-        """Return active hjemmel options.
+        """Get available hjemler.
 
-        Hjemler represent the legal basis/home authority connected to a
-        bevilling.
-
-        Returns
-        -------
-        list[dict]
-            Active hjemler formatted as:
-
-            [
-                {
-                    "id": hjemmel_id,
-                    "label": hjemmel_tekst
-                }
-            ]
+        Returns:
+            A list of hjemmel records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Hjemmel]",
-            id_column="hjemmel_id",
-            label_column="hjemmel_tekst"
+            model=Hjemmel,
+            id_column=Hjemmel.hjemmel_id,
+            label_column=Hjemmel.hjemmel_tekst,
         )
+
 
     def get_afgoerelsesbreve(self):
-        """Return active afgørelsesbrev options.
+        """Get available afgørelsesbreve.
 
-        Afgørelsesbreve represent the decision-letter templates that can
-        be attached to a bevilling.
-
-        Returns
-        -------
-        list[dict]
-            Active afgørelsesbreve formatted as:
-
-            [
-                {
-                    "id": afgoerelsesbrev_id,
-                    "label": afgoerelsesbrev_tekst
-                }
-            ]
+        Returns:
+            A list of afgørelsesbrev records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Afgoerelsesbrev]",
-            id_column="afgoerelsesbrev_id",
-            label_column="afgoerelsesbrev_tekst"
+            model=Afgoerelsesbrev,
+            id_column=Afgoerelsesbrev.afgoerelsesbrev_id,
+            label_column=Afgoerelsesbrev.afgoerelsesbrev_tekst,
         )
+
 
     def get_sagsbehandlere(self):
-        """Return active sagsbehandler options.
+        """Get available sagsbehandlere.
 
-        Used for selecting the primary caseworker on a bevilling.
-
-        Returns
-        -------
-        list[dict]
-            Active sagsbehandlere formatted as:
-
-            [
-                {
-                    "id": sagsbehandler_id,
-                    "label": sagsbehandler_tekst
-                }
-            ]
+        Returns:
+            A list of sagsbehandler records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Sagsbehandler]",
-            id_column="sagsbehandler_id",
-            label_column="sagsbehandler_tekst"
+            model=Sagsbehandler,
+            id_column=Sagsbehandler.sagsbehandler_id,
+            label_column=Sagsbehandler.sagsbehandler_tekst,
         )
+
 
     def get_ppr_sagsbehandlere(self):
-        """Return active PPR sagsbehandler options.
+        """Get available PPR sagsbehandlere.
 
-        Used for selecting the PPR responsible caseworker on a bevilling.
-
-        Returns
-        -------
-        list[dict]
-            Active PPR sagsbehandlere formatted as:
-
-            [
-                {
-                    "id": ppr_sagsbehandler_id,
-                    "label": ppr_sagsbehandler_tekst
-                }
-            ]
+        Returns:
+            A list of PPR sagsbehandler records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[PPR_Sagsbehandler]",
-            id_column="ppr_sagsbehandler_id",
-            label_column="ppr_sagsbehandler_tekst"
+            model=PPRSagsbehandler,
+            id_column=PPRSagsbehandler.ppr_sagsbehandler_id,
+            label_column=PPRSagsbehandler.ppr_sagsbehandler_tekst,
         )
+
 
     def get_status(self):
-        """Return active status options.
+        """Get available status values.
 
-        Status values are used for bevillinger and may also be used
-        internally for kørselsrækker.
-
-        Returns
-        -------
-        list[dict]
-            Active statuses formatted as:
-
-            [
-                {
-                    "id": status_id,
-                    "label": status_tekst
-                }
-            ]
+        Returns:
+            A list of status records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Status]",
-            id_column="status_id",
-            label_column="status_tekst"
+            model=Status,
+            id_column=Status.status_id,
+            label_column=Status.status_tekst,
         )
+
 
     def get_skolematrikel(self):
-        """Return skolematrikel options.
+        """Get available skolematrikler.
 
-        Skolematrikler represent the school/matrikel connected to a
-        bevilling.
+        Returns:
+            A list of skolematrikel records as id/label dictionaries.
 
-        Unlike most lookup tables, this method does not filter on
-        `aktiv = 1`, because the current Skolematrikel table is used as a
-        full reference list.
+        Notes:
+            only_active=False means both active and inactive school locations
+            are returned.
 
-        Returns
-        -------
-        list[dict]
-            Skolematrikler formatted as:
-
-            [
-                {
-                    "id": matrikel_id,
-                    "label": matrikel_navn
-                }
-            ]
+            This can be useful if old bevillinger reference skolematrikler
+            that are no longer active.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Skolematrikel]",
-            id_column="matrikel_id",
-            label_column="matrikel_navn",
-            only_active=False
+            model=Skolematrikel,
+            id_column=Skolematrikel.matrikel_id,
+            label_column=Skolematrikel.matrikel_navn,
+            only_active=False,
         )
+
 
     def get_hjaelpemidler(self):
-        """Return active hjælpemiddel options.
+        """Get available hjælpemidler.
 
-        Hjælpemidler can be attached to bevillinger through the
-        Bevilling_Hjaelpemiddel link table.
-
-        Returns
-        -------
-        list[dict]
-            Active hjælpemidler formatted as:
-
-            [
-                {
-                    "id": hjaelpemiddel_id,
-                    "label": hjaelpemiddel_tekst
-                }
-            ]
+        Returns:
+            A list of hjælpemiddel records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Hjaelpemiddel]",
-            id_column="hjaelpemiddel_id",
-            label_column="hjaelpemiddel_tekst"
+            model=Hjaelpemiddel,
+            id_column=Hjaelpemiddel.hjaelpemiddel_id,
+            label_column=Hjaelpemiddel.hjaelpemiddel_tekst,
         )
+
 
     def get_tidspunkter(self):
-        """Return active tidspunkt options.
+        """Get available tidspunkter.
 
-        Tidspunkter describe when a kørselsrække applies, for example
-        morning, afternoon, or both.
-
-        Returns
-        -------
-        list[dict]
-            Active tidspunkter formatted as:
-
-            [
-                {
-                    "id": tidspunkt_id,
-                    "label": tidspunkt_tekst
-                }
-            ]
+        Returns:
+            A list of tidspunkt records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Tidspunkt]",
-            id_column="tidspunkt_id",
-            label_column="tidspunkt_tekst"
+            model=Tidspunkt,
+            id_column=Tidspunkt.tidspunkt_id,
+            label_column=Tidspunkt.tidspunkt_tekst,
         )
+
 
     def get_koerselstyper(self):
-        """Return active kørselstype options.
+        """Get available kørselstyper/befordringstyper.
 
-        Kørselstyper describe the transport type on a kørselsrække.
-
-        Returns
-        -------
-        list[dict]
-            Active kørselstyper formatted as:
-
-            [
-                {
-                    "id": befordringstype_id,
-                    "label": befordringstype_tekst
-                }
-            ]
+        Returns:
+            A list of befordringstype records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Befordringstype]",
-            id_column="befordringstype_id",
-            label_column="befordringstype_tekst"
+            model=Befordringstype,
+            id_column=Befordringstype.befordringstype_id,
+            label_column=Befordringstype.befordringstype_tekst,
         )
+
 
     def get_koerselstype_tillaeg(self):
-        """Return active kørselstype-tillæg options.
+        """Get available kørselstype tillæg.
 
-        Kørselstype-tillæg can be attached to kørselsrækker through the
-        Koersel_KoerselstypeTillaeg_LINK table.
-
-        Returns
-        -------
-        list[dict]
-            Active tillæg formatted as:
-
-            [
-                {
-                    "id": tillaeg_id,
-                    "label": tillaeg_tekst
-                }
-            ]
+        Returns:
+            A list of kørselstype tillæg records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[KoerselstypeTillaeg]",
-            id_column="tillaeg_id",
-            label_column="tillaeg_tekst"
+            model=KoerselstypeTillaeg,
+            id_column=KoerselstypeTillaeg.tillaeg_id,
+            label_column=KoerselstypeTillaeg.tillaeg_tekst,
         )
 
+
     def get_dage(self):
-        """Return active weekday options.
+        """Get available weekdays/days.
 
-        Weekdays can be attached to kørselsrækker through the
-        Koersel_Ugedag_LINK table.
-
-        Returns
-        -------
-        list[dict]
-            Active weekdays formatted as:
-
-            [
-                {
-                    "id": dag_id,
-                    "label": dag_tekst
-                }
-            ]
+        Returns:
+            A list of weekday records as id/label dictionaries.
         """
 
         return self._get_lookup_records(
-            table_name="[befordring_app].[befordring].[Ugedag]",
-            id_column="dag_id",
-            label_column="dag_tekst"
+            model=Ugedag,
+            id_column=Ugedag.dag_id,
+            label_column=Ugedag.dag_tekst,
         )

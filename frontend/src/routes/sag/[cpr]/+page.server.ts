@@ -1,7 +1,14 @@
-import { env as publicEnv } from "$env/dynamic/public";
+import { backendApiFetch } from "$lib/server/backendApi";
+
+import type { PageServerLoad } from "./$types";
 
 
-// Small helper to keep response checks consistent
+type BevillingRecord = Record<string, any> & {
+  bevilling_id: number;
+};
+
+
+// Small helper to keep response checks consistent.
 async function assertResponseOk(response: Response, errorMessage: string) {
   if (response.ok) {
     return;
@@ -17,13 +24,9 @@ async function assertResponseOk(response: Response, errorMessage: string) {
 }
 
 
-export async function load({ params, fetch }) {
+export const load: PageServerLoad = async ({ params, fetch }) => {
   const { cpr } = params;
 
-  const API_URL = publicEnv.PUBLIC_API_BASE_URL;
-
-
-  // Fetch primary citizen data and lookup lists in parallel
   const [
     stamdataRes,
     parentsRes,
@@ -40,25 +43,23 @@ export async function load({ params, fetch }) {
     koerselstypeTillaegRes,
     dageRes
   ] = await Promise.all([
-    fetch(`${API_URL}/citizen/stamdata/${cpr}`),
-    fetch(`${API_URL}/citizen/stamdata/${cpr}/parents`),
-    fetch(`${API_URL}/bevilling/get_student_bevillinger/${cpr}`),
+    backendApiFetch(fetch, `/citizen/stamdata/${cpr}`),
+    backendApiFetch(fetch, `/citizen/stamdata/${cpr}/parents`),
+    backendApiFetch(fetch, `/bevilling/get_student_bevillinger/${cpr}`),
 
-    fetch(`${API_URL}/lookup/status`),
-    fetch(`${API_URL}/lookup/skolematrikel`),
-    fetch(`${API_URL}/lookup/hjemler`),
-    fetch(`${API_URL}/lookup/afgoerelsesbreve`),
-    fetch(`${API_URL}/lookup/sagsbehandlere`),
-    fetch(`${API_URL}/lookup/ppr_sagsbehandlere`),
-    fetch(`${API_URL}/lookup/hjaelpemidler`),
-    fetch(`${API_URL}/lookup/tidspunkter`),
-    fetch(`${API_URL}/lookup/koerselstyper`),
-    fetch(`${API_URL}/lookup/koerselstype_tillaeg`),
-    fetch(`${API_URL}/lookup/dage`)
+    backendApiFetch(fetch, "/lookup/status"),
+    backendApiFetch(fetch, "/lookup/skolematrikel"),
+    backendApiFetch(fetch, "/lookup/hjemler"),
+    backendApiFetch(fetch, "/lookup/afgoerelsesbreve"),
+    backendApiFetch(fetch, "/lookup/sagsbehandlere"),
+    backendApiFetch(fetch, "/lookup/ppr_sagsbehandlere"),
+    backendApiFetch(fetch, "/lookup/hjaelpemidler"),
+    backendApiFetch(fetch, "/lookup/tidspunkter"),
+    backendApiFetch(fetch, "/lookup/koerselstyper"),
+    backendApiFetch(fetch, "/lookup/koerselstype_tillaeg"),
+    backendApiFetch(fetch, "/lookup/dage")
   ]);
 
-
-  // Fail early if any required request failed
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
   await assertResponseOk(parentsRes, "Failed to fetch parents");
   await assertResponseOk(bevillingerRes, "Failed to fetch bevillinger");
@@ -75,11 +76,9 @@ export async function load({ params, fetch }) {
   await assertResponseOk(koerselstypeTillaegRes, "Failed to fetch koerselstype tillaeg");
   await assertResponseOk(dageRes, "Failed to fetch dage");
 
-
-  // Parse response data
   const stamdataResponse = await stamdataRes.json();
   const parents = await parentsRes.json();
-  const bevillinger = await bevillingerRes.json();
+  const bevillinger: BevillingRecord[] = await bevillingerRes.json();
 
   const statuser = await statusRes.json();
   const skolematrikler = await skolematriklerRes.json();
@@ -93,16 +92,15 @@ export async function load({ params, fetch }) {
   const koerselstypeTillaeg = await koerselstypeTillaegRes.json();
   const dage = await dageRes.json();
 
-
-  // Each bevilling has its own nested kørselsrækker
   const bevillingerWithKoerselsraekker = await Promise.all(
-    bevillinger.map(async (bevilling: any) => {
-      const koerselsraekkerRes = await fetch(
-        `${API_URL}/bevilling/get_bevilling_koerselsraekker/${bevilling.bevilling_id}`
+    bevillinger.map(async (bevilling) => {
+      const koerselsraekkerRes = await backendApiFetch(
+        fetch,
+        `/bevilling/get_bevilling_koerselsraekker/${bevilling.bevilling_id}`
       );
 
       if (!koerselsraekkerRes.ok) {
-        console.error("Failed to fetch kørselsrækker");
+        console.error("Failed to fetch koerselsraekker");
         console.error("Bevilling ID:", bevilling.bevilling_id);
         console.error("Status:", koerselsraekkerRes.status);
         console.error("Response:", await koerselsraekkerRes.text());
@@ -122,12 +120,9 @@ export async function load({ params, fetch }) {
     })
   );
 
-
-  // Backend sometimes returns stamdata as a list and sometimes as an object
   const stamdata = Array.isArray(stamdataResponse)
     ? stamdataResponse[0]
     : stamdataResponse;
-
 
   return {
     cpr,
@@ -149,4 +144,4 @@ export async function load({ params, fetch }) {
       dage
     }
   };
-}
+};

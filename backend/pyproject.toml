@@ -1,0 +1,59 @@
+[project]
+name = "api-befordrings-applikation"
+version = "0.0.1"
+description = "API for the befordrings application"
+authors = [
+    {name = "MBU", email = "dadj@aarhus.dk"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["fastapi", "befordrings-api", "api"]
+
+dependencies = [
+    "automation-server-client @ git+https://github.com/odense-rpa/automation-server-client.git",
+    "beautifulsoup4",
+    "cryptography >= 43.0.0",
+    "fastapi>=0.109.0",
+    "fastapi-pagination>=0.14.3",
+    "mbu-dev-shared-components >= 0.4.1",
+    "office365-rest-python-client",
+    "openpyxl >= 3.1.2",
+    "pandas",
+    "Pillow == 11.0",
+    "portalocker",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "pyodbc>=5.0.1",
+    "python-dateutil == 2.9.*",
+    "python-dotenv>=1.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.6",
+    "requests_ntlm >= 1.2.0",
+    "sqlalchemy>=2.0.25",
+    "sqlmodel>=0.0.14",
+    "uvicorn[standard]>=0.27.0",
+]
+
+[tool.uv.sources]
+automation-server-client = { git = "https://github.com/odense-rpa/automation-server-client.git", tag = "v0.2.1" }
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]

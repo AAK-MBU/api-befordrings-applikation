@@ -3,6 +3,12 @@
   // Types
   // -----------------------------
 
+  import {
+    tablePrimaryActionButtonClass,
+    tableSaveActionButtonClass,
+    tableCancelActionButtonClass
+  } from "$lib/tableColumnConfig";
+
   export type DataTableColumn = {
     key: string;
     label: string;
@@ -11,7 +17,6 @@
     render?: (row: any) => string;
     class?: string;
   };
-
 
   // -----------------------------
   // Props
@@ -143,7 +148,7 @@
                 {#if isEditing}
                   <button
                     type="button"
-                    class="text-green-600 hover:underline mr-2"
+                    class={tableSaveActionButtonClass}
                     on:click={() => onSave(row)}
                   >
                     Gem
@@ -151,7 +156,7 @@
 
                   <button
                     type="button"
-                    class="text-red-500 hover:underline"
+                    class={tableCancelActionButtonClass}
                     on:click={onCancel}
                   >
                     Annullér
@@ -159,7 +164,7 @@
                 {:else}
                   <button
                     type="button"
-                    class="text-sky-600 hover:underline"
+                    class={tablePrimaryActionButtonClass}
                     on:click={() => onEdit(row)}
                   >
                     Redigér

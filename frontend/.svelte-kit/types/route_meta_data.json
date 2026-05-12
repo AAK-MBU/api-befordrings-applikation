@@ -8,6 +8,9 @@
 		"src/routes/Stamdata/+page.ts",
 		"src/routes/+layout.ts"
 	],
+	"/api/backend/[...path]": [
+		"src/routes/api/backend/[...path]/+server.ts"
+	],
 	"/nye-ansoegninger": [
 		"src/routes/+layout.ts"
 	],

@@ -1,42 +1,47 @@
-import { env as publicEnv } from "$env/dynamic/public";
+import { backendApiFetch } from "$lib/server/backendApi";
+
+
+async function assertResponseOk(response, errorMessage) {
+  if (response.ok) {
+    return;
+  }
+
+  const errorText = await response.text();
+
+  console.error(errorMessage);
+  console.error("Status:", response.status);
+  console.error("Response:", errorText);
+
+  throw new Error(`${errorMessage}: ${response.status}`);
+}
+
 
 export async function load({ fetch }) {
-  const API_URL = publicEnv.PUBLIC_API_BASE_URL;
+  const activeBevillingerRes = await backendApiFetch(
+    fetch,
+    "/overview/aktive_bevillinger"
+  );
 
-  const active_url = `${API_URL}/overview/aktive_bevillinger`;
-  const not_active_url = `${API_URL}/overview/ikke_aktive_bevillinger`;
+  const notActiveBevillingerRes = await backendApiFetch(
+    fetch,
+    "/overview/ikke_aktive_bevillinger"
+  );
 
-  console.log("Fetching active bevillinger from:", active_url);
-  console.log("Fetching not active bevillinger from:", not_active_url);
+  await assertResponseOk(
+    activeBevillingerRes,
+    "Failed to fetch active bevillinger"
+  );
 
-  const activeBevillingerRes = await fetch(active_url);
-  const notActiveBevillingerRes = await fetch(not_active_url);
-
-  if (!activeBevillingerRes.ok) {
-    const errorText = await activeBevillingerRes.text();
-
-    console.error("Failed to fetch active bevillinger");
-    console.error("Status:", activeBevillingerRes.status);
-    console.error("Response:", errorText);
-
-    throw new Error(`Failed to fetch active bevillinger: ${activeBevillingerRes.status}`);
-  }
-
-  if (!notActiveBevillingerRes.ok) {
-    const errorText = await notActiveBevillingerRes.text();
-
-    console.error("Failed to fetch active bevillinger");
-    console.error("Status:", notActiveBevillingerRes.status);
-    console.error("Response:", errorText);
-
-    throw new Error(`Failed to fetch active bevillinger: ${notActiveBevillingerRes.status}`);
-  }
+  await assertResponseOk(
+    notActiveBevillingerRes,
+    "Failed to fetch not active bevillinger"
+  );
 
   const activeBevillinger = await activeBevillingerRes.json();
   const notActiveBevillinger = await notActiveBevillingerRes.json();
 
   return {
     activeBevillinger,
-    notActiveBevillinger,
+    notActiveBevillinger
   };
 }

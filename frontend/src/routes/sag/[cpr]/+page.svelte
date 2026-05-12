@@ -1,19 +1,40 @@
 <script lang="ts">
-  import { env as publicEnv } from "$env/dynamic/public";
   import { invalidateAll } from "$app/navigation";
+
+  import { backendFetch } from "$lib/client/backendFetch";
 
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import BevillingTable from "$lib/components/BevillingTable.svelte";
-  import { getStatusBadgeClass } from "$lib/tableColumnConfig";
+  import {
+    getStatusBadgeClass,
+  } from "$lib/tableColumnConfig";
 
   export let data;
-
-  const API_URL = publicEnv.PUBLIC_API_BASE_URL;
 
 
   // -----------------------------
   // Page state
   // -----------------------------
+
+  let letterType = "";
+  let befordringsudvalgResultat = "";
+
+  let creatingLetter = false;
+  let showCreateLetterModal = false;
+  let selectedLetterBevillingId = "";
+  let ophoersdato = "";
+
+  $: selectedLetterBevilling = bevillinger.find(
+    (bevilling: any) => String(bevilling.bevilling_id) === selectedLetterBevillingId
+  );
+
+  $: selectedLetterBevillingHasBefordringsudvalg =
+    selectedLetterBevilling?.befordringsudvalg !== null &&
+    selectedLetterBevilling?.befordringsudvalg !== undefined &&
+    selectedLetterBevilling?.befordringsudvalg !== "";
+
+  $: selectedLetterBevillingIsOphoert =
+    selectedLetterBevilling?.status_tekst == "Ophørt";
 
   let { stamdata, parents, bevillinger, lookupOptions } = data;
 
@@ -41,16 +62,15 @@
 
   function getEmptyBevilling() {
     return {
-      status_id: "38",
       adresse_for_bevilling: "Testvej 123, 8000 Aarhus C",
-      matrikel_id: "13",
-      hjemmel_id: "26",
-      afgoerelsesbrev_id: "30",
+      matrikel_id: "1",
+      hjemmel_id: "1",
+      afgoerelsesbrev_id: "1",
       revurderingsdato: "2026-06-30",
       befordringsudvalg: "2026-06-20",
       esdh_noegle: "ESDH-TEST-010",
-      sagsbehandler_id: "19",
-      ppr_sagsbehandler_id: "19",
+      sagsbehandler_id: "1",
+      ppr_sagsbehandler_id: "1",
       ansoegningsdato: "2026-01-01",
       sagsbehandlingsdato: "2026-01-10",
       relation_til_barnet: "Mor",
@@ -59,7 +79,6 @@
       afstandskriterie_dato: "2026-06-30",
       afstandskriterie_klassetrin: "3",
       begrundelse_fra_formular: "",
-      noter: "Her kan man skrive en test note",
       hjaelpemiddel_ids: []
     };
   }
@@ -175,6 +194,25 @@
   // Small helpers
   // -----------------------------
 
+  function getStatusReason(result: any) {
+    return (
+      result?.status?.status_reason ??
+      result?.status_reason ??
+      null
+    );
+  }
+
+
+  function showStatusReasonIfAny(result: any) {
+    const statusReason = getStatusReason(result);
+
+    if (!statusReason) {
+      return;
+    }
+
+    alert(statusReason);
+  }
+
   function emptyToNull(value: any) {
     if (value === "") {
       return null;
@@ -193,42 +231,18 @@
   }
 
 
+  function resetCreateLetterForm() {
+    selectedLetterBevillingId = "";
+    letterType = "";
+    befordringsudvalgResultat = "";
+  }
+
+
   function resetCreateBevillingForm() {
     newBevilling = getEmptyBevilling();
 
     selectedBegrundelser = [];
     begrundelseSelectValue = "";
-  }
-
-
-  function getMirroredStamdataStatus(updatedBevillinger: any[]) {
-    const activeBevilling = updatedBevillinger.find((bevilling: any) =>
-      String(bevilling.status_tekst ?? "").toLowerCase() === "aktiv"
-    );
-
-    if (activeBevilling) {
-      return {
-        status_tekst: activeBevilling.status_tekst,
-        bevilling_id: activeBevilling.bevilling_id
-      };
-    }
-
-    const latestUpdatedBevilling = [...updatedBevillinger].sort((a: any, b: any) => {
-      const aDate = new Date(
-        a.updated_at ?? a.created_at ?? a.sagsbehandlingsdato ?? 0
-      ).getTime();
-
-      const bDate = new Date(
-        b.updated_at ?? b.created_at ?? b.sagsbehandlingsdato ?? 0
-      ).getTime();
-
-      return bDate - aDate;
-    })[0];
-
-    return {
-      status_tekst: latestUpdatedBevilling?.status_tekst ?? "",
-      bevilling_id: latestUpdatedBevilling?.bevilling_id ?? null
-    };
   }
 
 
@@ -297,7 +311,7 @@
       bopaelsdistrikt: editableStamdata.bopaelsdistrikt
     };
 
-    const response = await fetch(`${API_URL}/citizen/stamdata/${stamdata.cpr}`, {
+    const response = await backendFetch(`/citizen/stamdata/${stamdata.cpr}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json"
@@ -334,7 +348,6 @@
   async function handleCreateBevilling() {
     const payload = {
       adresse_for_bevilling: emptyToNull(newBevilling.adresse_for_bevilling),
-      status_id: numberOrNull(newBevilling.status_id),
       matrikel_id: numberOrNull(newBevilling.matrikel_id),
       hjemmel_id: numberOrNull(newBevilling.hjemmel_id),
       afgoerelsesbrev_id: numberOrNull(newBevilling.afgoerelsesbrev_id),
@@ -355,23 +368,44 @@
       afstandskriterie_dato: emptyToNull(newBevilling.afstandskriterie_dato),
       afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
       begrundelse_fra_formular: emptyToNull(newBevilling.begrundelse_fra_formular),
-      noter: emptyToNull(newBevilling.noter),
 
       hjaelpemiddel_ids: newBevilling.hjaelpemiddel_ids ?? []
     };
 
-    const response = await fetch(`${API_URL}/bevilling/create_bevilling/${stamdata.cpr}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
+    const statusText = encodeURIComponent("Påbegyndt");
+
+    const response = await backendFetch(
+      `/bevilling/create_bevilling/${stamdata.cpr}?status_text=${statusText}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      }
+    );
 
     if (!response.ok) {
-      alert("Kunne ikke oprette bevilling");
+      let message = "Kunne ikke oprette bevilling";
+
+      try {
+        const errorData = await response.json();
+
+        message =
+          errorData?.detail?.message ??
+          errorData?.detail ??
+          message;
+      } catch {
+        // If backend does not return JSON, keep the fallback message
+      }
+
+      alert(message);
       return;
     }
+
+    const result = await response.json();
+
+    showStatusReasonIfAny(result);
 
     await invalidateAll();
 
@@ -381,10 +415,88 @@
   }
 
 
+  async function handleCreateLetter() {
+    if (!selectedLetterBevillingId) {
+      alert("Vælg en bevilling");
+      return;
+    }
+
+    if (!letterType) {
+      alert("Vælg hvad brevet er i forbindelse med");
+      return;
+    }
+
+    if (selectedLetterBevillingHasBefordringsudvalg && !befordringsudvalgResultat) {
+      alert("Vælg resultat af befordringsudvalgsmøde");
+      return;
+    }
+
+    if (selectedLetterBevillingIsOphoert && !ophoersdato) {
+      alert("Vælg ophørsdato");
+      return;
+    }
+
+    creatingLetter = true;
+
+    const payload = {
+      brev_i_forbindelse_med: letterType,
+
+      befordringsudvalg_resultat: selectedLetterBevillingHasBefordringsudvalg
+        ? befordringsudvalgResultat
+        : null,
+
+      ophoersdato: selectedLetterBevillingIsOphoert
+        ? ophoersdato
+        : null
+    };
+
+    try {
+      const response = await backendFetch(
+        `/bevilling/create_letter/${stamdata.cpr}/${selectedLetterBevillingId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        }
+      );
+
+      if (!response.ok) {
+        let message = "Kunne ikke oprette brev";
+
+        try {
+          const errorData = await response.json();
+
+          message =
+            errorData?.detail?.message ??
+            errorData?.detail ??
+            message;
+        } catch {
+          // Keep fallback message
+        }
+
+        alert(message);
+        return;
+      }
+
+      const result = await response.json();
+
+      alert(`Brev er sat i kø. Reference: ${result.reference}`);
+
+      showCreateLetterModal = false;
+      resetCreateLetterForm();
+
+    } finally {
+      creatingLetter = false;
+    }
+  }
+
+
   async function handleSaveBevilling(bevillingId: number, updates: any) {
     const { hjaelpemiddel_ids, ...bevillingUpdates } = updates;
 
-    const bevillingResponse = await fetch(`${API_URL}/bevilling/${bevillingId}`, {
+    const bevillingResponse = await backendFetch(`/bevilling/${bevillingId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -393,101 +505,49 @@
     });
 
     if (!bevillingResponse.ok) {
-      alert("Kunne ikke gemme bevilling");
+      let message = "Kunne ikke gemme bevilling";
+
+      try {
+        const errorData = await bevillingResponse.json();
+
+        message =
+          errorData?.detail?.message ??
+          errorData?.detail ??
+          message;
+      } catch {
+        // Keep fallback message if backend response is not JSON
+      }
+
+      alert(message);
+
       return false;
     }
 
-    const hjaelpemidlerResponse = await fetch(`${API_URL}/bevilling/${bevillingId}/hjaelpemidler`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        hjaelpemiddel_ids: hjaelpemiddel_ids ?? []
-      })
-    });
+    const bevillingResult = await bevillingResponse.json();
+
+    const hjaelpemidlerResponse = await backendFetch(
+      `/bevilling/${bevillingId}/hjaelpemidler`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          hjaelpemiddel_ids: hjaelpemiddel_ids ?? []
+        })
+      }
+    );
 
     if (!hjaelpemidlerResponse.ok) {
       alert("Bevilling blev gemt, men hjælpemidler kunne ikke gemmes");
       return false;
     }
 
-    const statusOption = lookupOptions.statuser?.find(
-      (option: any) => option.id === bevillingUpdates.status_id
-    );
+    showStatusReasonIfAny(bevillingResult);
 
-    const matrikelOption = lookupOptions.skolematrikler?.find(
-      (option: any) => option.id === bevillingUpdates.matrikel_id
-    );
+    await invalidateAll();
 
-    const hjemmelOption = lookupOptions.hjemler?.find(
-      (option: any) => option.id === bevillingUpdates.hjemmel_id
-    );
-
-    const afgoerelsesbrevOption = lookupOptions.afgoerelsesbreve?.find(
-      (option: any) => option.id === bevillingUpdates.afgoerelsesbrev_id
-    );
-
-    const sagsbehandlerOption = lookupOptions.sagsbehandlere?.find(
-      (option: any) => option.id === bevillingUpdates.sagsbehandler_id
-    );
-
-    const pprSagsbehandlerOption = lookupOptions.pprSagsbehandlere?.find(
-      (option: any) => option.id === bevillingUpdates.ppr_sagsbehandler_id
-    );
-
-    const selectedHjaelpemidler = lookupOptions.hjaelpemidler?.filter(
-      (option: any) => hjaelpemiddel_ids?.includes(option.id)
-    ) ?? [];
-
-    const hjaelpemidlerText = selectedHjaelpemidler
-      .map((option: any) => option.label)
-      .join(", ");
-
-    const hjaelpemiddelIdsText = selectedHjaelpemidler
-      .map((option: any) => option.id)
-      .join(",");
-
-    const updatedAt = new Date().toISOString();
-
-    const updatedBevillinger = bevillinger.map((bevilling: any) => {
-      if (bevilling.bevilling_id !== bevillingId) {
-        return bevilling;
-      }
-
-      return {
-        ...bevilling,
-        ...bevillingUpdates,
-
-        updated_at: updatedAt,
-
-        hjaelpemiddel_ids: hjaelpemiddelIdsText,
-        hjaelpemidler: hjaelpemidlerText,
-
-        status_tekst: statusOption?.label ?? bevilling.status_tekst,
-        matrikel_navn: matrikelOption?.label ?? bevilling.matrikel_navn,
-        hjemmel_tekst: hjemmelOption?.label ?? bevilling.hjemmel_tekst,
-        afgoerelsesbrev_tekst: afgoerelsesbrevOption?.label ?? bevilling.afgoerelsesbrev_tekst,
-        sagsbehandler_tekst: sagsbehandlerOption?.label ?? bevilling.sagsbehandler_tekst,
-        ppr_sagsbehandler_tekst: pprSagsbehandlerOption?.label ?? bevilling.ppr_sagsbehandler_tekst
-      };
-    });
-
-    bevillinger = updatedBevillinger;
-
-    const mirroredStatus = getMirroredStamdataStatus(updatedBevillinger);
-
-    stamdata = {
-      ...stamdata,
-      status_tekst: mirroredStatus.status_tekst,
-      bevilling_id: mirroredStatus.bevilling_id
-    };
-
-    editableStamdata = {
-      ...editableStamdata,
-      status_tekst: mirroredStatus.status_tekst,
-      bevilling_id: mirroredStatus.bevilling_id
-    };
+    activeTab = "bevillinger";
 
     return true;
   }
@@ -504,22 +564,29 @@
       ...koerselsraekkeData
     } = updates;
 
-    const response = await fetch(`${API_URL}/bevilling/create_koerselsraekke/${bevillingId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        ...koerselsraekkeData,
-        tillaeg_ids: tillaeg_ids ?? [],
-        dag_ids: dag_ids ?? []
-      })
-    });
+    const response = await backendFetch(
+      `/bevilling/create_koerselsraekke/${bevillingId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ...koerselsraekkeData,
+          tillaeg_ids: tillaeg_ids ?? [],
+          dag_ids: dag_ids ?? []
+        })
+      }
+    );
 
     if (!response.ok) {
       alert("Kunne ikke oprette kørselsrække");
       return false;
     }
+
+    const result = await response.json();
+
+    showStatusReasonIfAny(result);
 
     await invalidateAll();
 
@@ -536,7 +603,7 @@
       ...koerselsraekkeUpdates
     } = updates;
 
-    const response = await fetch(`${API_URL}/bevilling/koerselsraekke/${koerselId}`, {
+    const response = await backendFetch(`/bevilling/koerselsraekke/${koerselId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
@@ -545,97 +612,66 @@
     });
 
     if (!response.ok) {
-      alert("Kunne ikke gemme kørselsrække");
+      let message = "Kunne ikke gemme kørselsrække";
+
+      try {
+        const errorData = await response.json();
+
+        message =
+          errorData?.detail?.message ??
+          errorData?.detail ??
+          message;
+      } catch {
+        // Keep fallback message
+      }
+
+      alert(message);
       return false;
     }
 
-    const tillaegResponse = await fetch(`${API_URL}/bevilling/koerselsraekke/${koerselId}/tillaeg`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        tillaeg_ids: tillaeg_ids ?? []
-      })
-    });
+    const koerselsraekkeResult = await response.json();
+
+    const tillaegResponse = await backendFetch(
+      `/bevilling/koerselsraekke/${koerselId}/tillaeg`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          tillaeg_ids: tillaeg_ids ?? []
+        })
+      }
+    );
 
     if (!tillaegResponse.ok) {
       alert("Kørselsrække blev gemt, men kørselstype tillæg kunne ikke gemmes");
       return false;
     }
 
-    const dageResponse = await fetch(`${API_URL}/bevilling/koerselsraekke/${koerselId}/dage`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        dag_ids: dag_ids ?? []
-      })
-    });
+    const dageResponse = await backendFetch(
+      `/bevilling/koerselsraekke/${koerselId}/dage`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          dag_ids: dag_ids ?? []
+        })
+      }
+    );
 
     if (!dageResponse.ok) {
       alert("Kørselsrække blev gemt, men dage kunne ikke gemmes");
       return false;
     }
 
-    const tidspunktOption = lookupOptions.tidspunkter?.find(
-      (option: any) => option.id === koerselsraekkeUpdates.tidspunkt_id
-    );
+    showStatusReasonIfAny(koerselsraekkeResult);
 
-    const koerselstypeOption = lookupOptions.koerselstyper?.find(
-      (option: any) => option.id === koerselsraekkeUpdates.befordringstype_id
-    );
+    await invalidateAll();
 
-    const selectedTillaeg = lookupOptions.koerselstypeTillaeg?.filter(
-      (option: any) => tillaeg_ids?.includes(option.id)
-    ) ?? [];
-
-    const selectedDage = lookupOptions.dage?.filter(
-      (option: any) => dag_ids?.includes(option.id)
-    ) ?? [];
-
-    const tillaegText = selectedTillaeg
-      .map((option: any) => option.label)
-      .join(", ");
-
-    const tillaegIdsText = selectedTillaeg
-      .map((option: any) => option.id)
-      .join(",");
-
-    const dageText = selectedDage
-      .map((option: any) => option.label)
-      .join(", ");
-
-    const dagIdsText = selectedDage
-      .map((option: any) => option.id)
-      .join(",");
-
-    bevillinger = bevillinger.map((bevilling: any) => {
-      return {
-        ...bevilling,
-
-        koerselsraekker: (bevilling.koerselsraekker ?? []).map((koerselsraekke: any) => {
-          if (koerselsraekke.koersel_id !== koerselId) {
-            return koerselsraekke;
-          }
-
-          return {
-            ...koerselsraekke,
-            ...koerselsraekkeUpdates,
-
-            tidspunkt_tekst: tidspunktOption?.label ?? koerselsraekke.tidspunkt_tekst,
-            befordringstype_tekst: koerselstypeOption?.label ?? koerselsraekke.befordringstype_tekst,
-
-            tillaeg_ids: tillaegIdsText,
-            tillaeg_tekst: tillaegText,
-
-            dag_ids: dagIdsText,
-            dage: dageText
-          };
-        })
-      };
-    });
+    activeTab = "bevillinger";
 
     return true;
   }
@@ -742,19 +778,31 @@
 
   {#if activeTab === "bevillinger"}
 
-    <div class="mb-4 flex items-center justify-between">
+    <div class="mb-4 flex items-start justify-between">
 
       <h2 class="text-xl font-bold">
         Bevillinger
       </h2>
 
-      <button
-        type="button"
-        class="rounded bg-sky-500 px-4 py-2 text-sm text-white hover:bg-sky-600"
-        on:click={() => showCreateBevillingModal = true}
-      >
-        + Ny bevilling
-      </button>
+      <div class="flex flex-col gap-2">
+
+        <button
+          type="button"
+          class="rounded bg-sky-500 px-4 py-2 text-sm text-white hover:bg-sky-600"
+          on:click={() => showCreateBevillingModal = true}
+        >
+          + Ny bevilling
+        </button>
+
+        <button
+          type="button"
+          class="rounded bg-sky-500 px-4 py-2 text-sm text-white hover:bg-sky-600"
+          on:click={() => showCreateLetterModal = true}
+        >
+          + Opret brev
+        </button>
+
+      </div>
 
     </div>
 
@@ -776,19 +824,6 @@
                 class="mt-1 w-full border px-2 py-1"
                 bind:value={newBevilling.adresse_for_bevilling}
               />
-            </label>
-
-            <label class="text-sm">
-              Status
-              <select
-                class="mt-1 w-full border px-2 py-1"
-                bind:value={newBevilling.status_id}
-              >
-                <option value="">Vælg</option>
-                {#each lookupOptions.statuser ?? [] as option}
-                  <option value={String(option.id)}>{option.label}</option>
-                {/each}
-              </select>
             </label>
 
             <label class="text-sm">
@@ -949,7 +984,7 @@
             </label>
 
             <label class="text-sm col-span-2">
-              Begrundelse fra formular
+              Begrundelse
 
               <div class="mt-1 border p-2">
 
@@ -986,15 +1021,6 @@
               </div>
             </label>
 
-            <label class="text-sm col-span-2">
-              Noter
-              <textarea
-                class="mt-1 w-full border px-2 py-1"
-                rows="3"
-                bind:value={newBevilling.noter}
-              ></textarea>
-            </label>
-
           </div>
 
           <div class="mt-6 flex justify-end gap-2">
@@ -1007,7 +1033,7 @@
                 resetCreateBevillingForm();
               }}
             >
-              Annuller
+              Annullér
             </button>
 
             <button
@@ -1024,6 +1050,111 @@
 
       </div>
     {/if}
+
+
+    {#if showCreateLetterModal}
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+
+        <div class="w-[600px] bg-white p-6 shadow-lg">
+
+          <h2 class="mb-4 text-lg font-bold">
+            Opret brev
+          </h2>
+
+          <label class="text-sm">
+            Vælg bevilling
+
+            <select
+              class="mt-1 w-full border px-2 py-1"
+              bind:value={selectedLetterBevillingId}
+            >
+              <option value="">Vælg bevilling</option>
+
+              {#each bevillinger ?? [] as bevilling}
+                <option value={String(bevilling.bevilling_id)}>
+                  {bevilling.status_tekst ?? "Ukendt status"}
+                  -
+                  {bevilling.adresse_for_bevilling ?? "Ingen adresse"}
+                </option>
+              {/each}
+            </select>
+          </label>
+
+          <label class="mt-4 block text-sm">
+            Brevet er i forbindelse med en:
+
+            <select
+              class="mt-1 w-full border px-2 py-1"
+              bind:value={letterType}
+            >
+              <option value="">Vælg</option>
+              <option value="ansøgning">Ansøgning</option>
+              <option value="revurdering">Revurdering</option>
+              <option value="midlertidig kørsel">Midlertidig kørsel</option>
+            </select>
+          </label>
+
+          {#if selectedLetterBevillingHasBefordringsudvalg}
+            <label class="text-sm">
+              Resultat af befordringsudvalgsmøde
+
+              <select
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={befordringsudvalgResultat}
+              >
+                <option value="">Vælg</option>
+                <option value="Befordringsudvalg: Afslag / fastholdelse">
+                  Befordringsudvalg: Afslag / fastholdelse
+                </option>
+                <option value="Befordringsudvalg: Ændring i bevilling">
+                  Befordringsudvalg: Ændring i bevilling
+                </option>
+              </select>
+            </label>
+          {/if}
+
+          {#if selectedLetterBevillingIsOphoert}
+            <label class="text-sm">
+              Ophørsdato
+
+              <input
+                type="date"
+                class="mt-1 w-full border px-2 py-1"
+                bind:value={ophoersdato}
+              />
+            </label>
+          {/if}
+
+          <div class="mt-6 flex justify-end gap-2">
+
+            <button
+              type="button"
+              class="border px-4 py-2"
+              on:click={() => {
+                showCreateLetterModal = false;
+                selectedLetterBevillingId = "";
+                letterType = "";
+              }}
+            >
+              Annullér
+            </button>
+
+            <button
+              type="button"
+              class="bg-green-600 px-4 py-2 text-white disabled:opacity-50"
+              disabled={creatingLetter}
+              on:click={handleCreateLetter}
+            >
+              {creatingLetter ? "Opretter..." : "Opret brev"}
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+    {/if}
+
 
 
     <BevillingTable

@@ -1,6 +1,8 @@
 <script lang="ts">
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
-  import { getStatusBadgeClass } from "$lib/tableColumnConfig";
+  import {
+    getStatusBadgeClass,
+  } from "$lib/tableColumnConfig";
 
   export let data;
 
@@ -49,10 +51,6 @@
     {
       key: "ppr_sagsbehandler",
       label: "PPR ansvarlig"
-    },
-    {
-      key: "noter",
-      label: "Noter"
     }
   ];
 </script>
