@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Float, Integer, String
+from sqlalchemy import Boolean, Float, Integer, String, Unicode
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -81,8 +81,8 @@ class Skolematrikel(Base):
     matrikel_adresse: Mapped[str] = mapped_column(String, nullable=False)
     skolekode: Mapped[int] = mapped_column(Integer, nullable=False)
     er_matrikel_hovedadresse: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Hjaelpemiddel(Base):
@@ -133,6 +133,17 @@ class KoerselstypeTillaeg(Base):
     tillaeg_tekst: Mapped[str] = mapped_column(String, nullable=False)
     beskrivelse: Mapped[str | None] = mapped_column(String, nullable=True)
     aktiv: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class Ungdomsuddannelse(Base):
+    __tablename__ = "Ungdomsuddannelse"
+    __table_args__ = {"schema": DB_SCHEMA}
+
+    ungdomsuddannelse_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ungdomsuddannelse_navn: Mapped[str] = mapped_column(Unicode, nullable=False)
+    ungdomsuddannelse_adresse: Mapped[str] = mapped_column(String, nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Ugedag(Base):

@@ -34,6 +34,8 @@ from app.schemas.bevilling import (
 )
 from app.services.bevilling_service import BevillingService
 from app.utils.ats import fetch_workqueue
+from app.utils.distance import driving_distance
+from app.utils.geocoding import geocode_address
 
 
 # All routes in this file are grouped under /bevilling.
@@ -91,7 +93,7 @@ def get_bevillinger(
         }
 
     return service.get_bevillinger(
-        view_name="[befordring_app].[befordring].[view_All_Active_Bevillinger]",
+        view_name="[befordring_app].[befordring].[view_All_Bevillinger]",
         status=status,
         cpr=cpr,
         order_by=order_config,
@@ -525,4 +527,65 @@ def create_letter(
     return {
         "status": "queued",
         "reference": reference,
+    }
+
+
+@router.get("/calculate_driving_distance")
+def calculate_driving_distance(
+    lat1: float = Query(...),
+    lon1: float = Query(...),
+    lat2: float = Query(...),
+    lon2: float = Query(...),
+):
+    """Calculate driving distance and duration between two coordinates.
+
+    Args:
+        lat1, lon1: Origin coordinates (latitude, longitude).
+        lat2, lon2: Destination coordinates (latitude, longitude).
+
+    Returns:
+        distance_km:
+            Driving distance in kilometres.
+        duration_minutes:
+            Estimated driving duration in minutes.
+    """
+
+    try:
+        distance_km, duration_minutes = driving_distance(lat1, lon1, lat2, lon2)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Distance API error: {e}")
+
+    return {
+        "distance_km": round(distance_km, 1),
+        "duration_minutes": round(duration_minutes, 1),
+    }
+
+
+@router.get("/geocode_address")
+def geocode_address_endpoint(
+    address: str = Query(..., description="Full Danish address, e.g. 'Bjørnshøjvej 1, 8380 Trige'"),
+):
+    """Geocode a full Danish address to latitude and longitude.
+
+    Args:
+        address:
+            Full address string in the format "Road Name 12, 8000 City".
+
+    Returns:
+        latitude:
+            WGS84 latitude.
+        longitude:
+            WGS84 longitude.
+    """
+
+    try:
+        latitude, longitude = geocode_address(address)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Geocoding API error: {e}")
+
+    return {
+        "latitude": latitude,
+        "longitude": longitude,
     }

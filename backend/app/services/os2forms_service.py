@@ -15,17 +15,15 @@ The API router should only pass the raw request into this service.
 
 from urllib.parse import parse_qs
 
-from fastapi import Request
+from fastapi import HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.lookup import Hjaelpemiddel, Skolematrikel, Ungdomsuddannelse
 from app.schemas.bevilling import BevillingCreateRequest
 from app.services.bevilling_service import BevillingService
-from app.utils.date_utils import parse_os2forms_timestamp
-from app.utils.os2forms_mapping import (
-    get_adresse_for_bevilling,
-    get_ansoegningstype,
-    get_relation_til_barnet,
-)
+from app.utils import date_utils
+from app.utils import os2forms_mapping
 
 
 class OS2FormsService:
@@ -100,6 +98,103 @@ class OS2FormsService:
         }
 
 
+    def _resolve_matrikel_id(self, school_name: str) -> int | None:
+        """Look up matrikel_id from Skolematrikel by name. Returns None if not found."""
+
+        return self.db.execute(
+            select(Skolematrikel.matrikel_id).where(
+                Skolematrikel.matrikel_navn == school_name
+            )
+        ).scalar_one_or_none()
+
+
+    def _resolve_ungdomsuddannelse_id(self, school_name: str) -> int | None:
+        """Look up ungdomsuddannelse_id from Ungdomsuddannelse by name. Returns None if not found."""
+
+        return self.db.execute(
+            select(Ungdomsuddannelse.ungdomsuddannelse_id).where(
+                Ungdomsuddannelse.ungdomsuddannelse_navn == school_name
+            )
+        ).scalar_one_or_none()
+
+
+    def _resolve_school(self, payload: dict) -> dict:
+        """Resolve the school field from an OS2Forms payload.
+
+        Args:
+            payload:
+                Parsed OS2Forms submission data.
+
+        Returns:
+            A dict with exactly one of matrikel_id or ungdomsuddannelse_id set,
+            and the other as None.
+
+        Raises:
+            HTTPException 422 if no school field is populated, or if the name
+            does not match any row in the expected table.
+
+        Notes:
+            Three payload fields are checked in order, each with a fixed
+            destination table:
+
+            barnets_skole       → Skolematrikel   (regular school application)
+            barnets_folkeskole  → Skolematrikel   (folkeskole application)
+            ungdomsuddannelse   → Ungdomsuddannelse
+        """
+
+        barnets_skole = (payload.get("barnets_skole") or "").strip()
+        barnets_folkeskole = (payload.get("barnets_folkeskole") or "").strip()
+        ungdomsuddannelse = (payload.get("ungdomsuddannelse") or "").strip()
+
+        if barnets_skole or barnets_folkeskole:
+            name = barnets_skole or barnets_folkeskole
+            matrikel_id = self._resolve_matrikel_id(name)
+            if matrikel_id is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"'{name}' did not match any school in Skolematrikel.",
+                )
+            return {"matrikel_id": matrikel_id, "ungdomsuddannelse_id": None}
+
+        if ungdomsuddannelse:
+            ungdomsuddannelse_id = self._resolve_ungdomsuddannelse_id(ungdomsuddannelse)
+            if ungdomsuddannelse_id is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"'{ungdomsuddannelse}' did not match any institution in Ungdomsuddannelse.",
+                )
+            return {"matrikel_id": None, "ungdomsuddannelse_id": ungdomsuddannelse_id}
+
+        raise HTTPException(
+            status_code=422,
+            detail="No school field found in submission (barnets_skole, barnets_folkeskole, or ungdomsuddannelse).",
+        )
+
+
+    def _resolve_hjaelpemiddel_ids(self, names: list[str]) -> list[int]:
+        """Look up hjaelpemiddel_ids from Hjaelpemiddel by name.
+
+        Args:
+            names:
+                List of hjaelpemiddel names from the OS2Forms payload.
+
+        Returns:
+            List of matching hjaelpemiddel_ids. Names that do not match
+            any row in the Hjaelpemiddel table are silently skipped.
+        """
+
+        if not names:
+            return []
+
+        rows = self.db.execute(
+            select(Hjaelpemiddel.hjaelpemiddel_id, Hjaelpemiddel.hjaelpemiddel_tekst).where(
+                Hjaelpemiddel.hjaelpemiddel_tekst.in_(names)
+            )
+        ).all()
+
+        return [row.hjaelpemiddel_id for row in rows]
+
+
     def map_submission_to_bevilling(self, payload: dict) -> BevillingCreateRequest:
         """Map an OS2Forms payload to a BevillingCreateRequest.
 
@@ -115,17 +210,27 @@ class OS2FormsService:
             This method is where OS2Forms-specific field names are translated
             into the internal API schema.
 
-            More complex mapping logic is delegated to helper functions in
-            app.utils.os2forms_mapping.
+            Pure payload transformations (no DB) are delegated to helper
+            functions in app.utils.os2forms_mapping.
+
+            Fields that require a database lookup to resolve (e.g. a name
+            to an ID) are handled by _resolve_* private methods on this
+            class, since they need access to self.db.
         """
 
+        hjaelpemiddel_names = os2forms_mapping.get_hjaelpemiddel_names(payload)
+        school = self._resolve_school(payload)
+
         return BevillingCreateRequest(
-            adresse_for_bevilling=get_adresse_for_bevilling(payload),
-            ansoegningsdato=parse_os2forms_timestamp(payload.get("completed")),
-            relation_til_barnet=get_relation_til_barnet(payload),
+            adresse_for_bevilling=os2forms_mapping.get_adresse_for_bevilling(payload),
+            matrikel_id=school["matrikel_id"],
+            ungdomsuddannelse_id=school["ungdomsuddannelse_id"],
+            ansoegningsdato=date_utils.parse_os2forms_timestamp(payload.get("completed")),
+            relation_til_barnet=os2forms_mapping.get_relation_til_barnet(payload),
             foerste_koersel_dato=payload.get("dato_for_foerste_koersel"),
-            ansoegningstype=get_ansoegningstype(payload),
-            begrundelse_fra_formular=payload.get("begrundelse_for_ansoegning"),
+            ansoegningstype=os2forms_mapping.get_ansoegningstype(payload),
+            begrundelse_fra_formular=os2forms_mapping.get_begrundelse(payload),
+            hjaelpemiddel_ids=self._resolve_hjaelpemiddel_ids(hjaelpemiddel_names),
         )
 
 
@@ -156,6 +261,8 @@ class OS2FormsService:
 
         # Parse the raw OS2Forms request into a normal dictionary.
         payload = await self.parse_payload(request)
+
+        print(f"parsed_payload:\n{payload}")
 
         # Convert OS2Forms field names/values into the internal API schema.
         bevilling_request = self.map_submission_to_bevilling(payload)

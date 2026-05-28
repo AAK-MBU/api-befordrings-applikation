@@ -1,10 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.api.dependencies import DbSession
 from app.services.overview_service import OverviewService
 
 
 router = APIRouter(prefix="/overview", tags=["Overview"])
+
+
+@router.get("/search")
+def search_bevillinger(db: DbSession, q: str = Query(default="", min_length=0)):
+    return OverviewService(db=db).search_bevillinger(q)
 
 
 @router.get("/aktive_bevillinger")
@@ -18,8 +23,8 @@ def get_non_active_bevillinger(db: DbSession):
 
 
 @router.get("/revurderinger")
-def get_reassessments(db: DbSession):
-    return OverviewService(db=db).get_reassessments()
+def get_revurderinger(db: DbSession):
+    return OverviewService(db=db).get_revurderinger()
 
 
 @router.get("/new_applications")

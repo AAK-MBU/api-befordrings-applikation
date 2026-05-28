@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import Boolean, Float, ForeignKey, String
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -44,7 +44,17 @@ class Elev(Base):
         nullable=False,
     )
 
-    skolematrikel: Mapped[str | None] = mapped_column(String, nullable=True)
+    matrikel_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Skolematrikel.matrikel_id"),
+        nullable=True,
+    )
+
+    ungdomsuddannelse_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Ungdomsuddannelse.ungdomsuddannelse_id"),
+        nullable=True,
+    )
 
     skoleafstand: Mapped[float] = mapped_column(Float, nullable=False)
     klasseart: Mapped[str] = mapped_column(String, nullable=False)
@@ -81,6 +91,7 @@ class Foraelder(Base):
 
     navne_adresse_beskyttelse: Mapped[bool] = mapped_column(Boolean, nullable=False)
     foraeldremyndighed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    maa_vide_barns_adresse: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     elev = relationship("Elev")
     adresse = relationship("Adresse")

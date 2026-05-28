@@ -58,10 +58,95 @@
 
 /* DENNE FARVE BESTEMMER BAGGRUNDEN FOR HELE SIDEN */
 body {
-  /* background-color: #f5f5f5; din farve */
-  background-color: #fafafa; /* din farve */
+  background-color: #dde3ec;
   margin: 0;
+  color: #1f2937;
 }
+
+/* =============================================================================
+   DARK MODE — to revert: delete everything between these two comments,
+   and remove the toggle button + script additions from +layout.svelte
+   ============================================================================= */
+html.dark {
+  color-scheme: dark;
+
+  /*
+   * NOTE: --color-white is intentionally NOT remapped here.
+   * Both `bg-white` and `text-white` resolve to --color-white.
+   * Remapping it would break text-white on all colored buttons, modals, etc.
+   * Instead, bg-white is overridden explicitly below via a class rule.
+   */
+
+  /* Remap gray scale (backgrounds + text) */
+  --color-gray-50:  #161b27;
+  --color-gray-100: #1c2333;
+  --color-gray-200: #2d3a4f;
+  --color-gray-300: #3f5068;
+  --color-gray-400: #6b7280;
+  --color-gray-500: #8b9eb4;
+  --color-gray-600: #adbdd4;
+  --color-gray-700: #c8d6e5;
+  --color-gray-800: #dde8f0;
+  --color-gray-900: #eef4f9;
+  --color-gray-950: #f7fbff;
+
+  /* Tone down sky/blue used for links */
+  --color-sky-700: #38bdf8;
+
+  /* Tone down amber used for warnings */
+  --color-amber-600: #fbbf24;
+}
+
+/* bg-white → dark card surface (separate from --color-white so text-white stays white) */
+html.dark .bg-white { background-color: #1c2333; }
+
+/* bg-slate-100 chips/tags — inherit light body text against light bg = invisible */
+html.dark .bg-slate-100 { background-color: #2d3a4f; color: #eef4f9; }
+
+/* Light-tinted form panels */
+html.dark .bg-blue-50  { background-color: #162236; border-color: #2d4a6e; }
+html.dark .bg-gray-50  { background-color: #161b27; }
+html.dark .bg-red-50   { background-color: #2a1a1a; }
+
+/* Ghost/outline buttons (no bg-* class) — browser default is light gray; make dark */
+html.dark button:not([class*="bg-"]) {
+  background-color: #1c2333;
+  color: #eef4f9;
+  border-color: #3f5068;
+}
+
+html.dark body {
+  background-color: #0d1117;
+  color: #eef4f9;
+}
+
+html.dark tbody tr:nth-child(odd)  { background-color: #161b27; }
+html.dark tbody tr:nth-child(even) { background-color: #1c2333; }
+html.dark tbody tr:hover           { background-color: #1e3a5f !important; }
+
+html.dark td,
+html.dark th { border-color: #2d3a4f; }
+
+/* Form fields — browser default is white; override globally */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #1c2333;
+  color: #eef4f9;
+  border-color: #3f5068;
+  color-scheme: dark;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #6b7280;
+}
+
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+/* ============================================================================= */
+
 
 /* Datatable styling */
 .datatable-pagination .datatable-active a,
@@ -70,12 +155,14 @@ body {
 .datatable-pagination .datatable-active button,
 .datatable-pagination .datatable-active button:focus,
 .datatable-pagination .datatable-active button:hover {
-  background-color: #ffe4de;
+  background-color: #dbeafe;
+  color: #0369a1;
   cursor: default;
+  font-weight: 500;
 }
 
 .datatable-wrapper .datatable-table tbody tr.selected {
-  background-color: #fff1ee !important;
+  background-color: #eff6ff !important;
 }
 
 /* Fjerner Flowbite table's uppercase visning af headers: */
@@ -85,43 +172,56 @@ th {
 
 /* Gør alle datatable-celler synlige */
 td, th {
-  border: 1px solid #d1d5db; /* gray-300 */
-  padding: 0.5rem 0.75rem;   /* px-3 py-2 */
+  border: 1px solid #e5e7eb; /* gray-200 */
+  padding: 0.75rem;   /* Better padding */
   text-align: left;
   max-width: 20rem;
 }
 
+/* Table rows with better hover */
+tbody tr {
+  transition: background-color 0.2s ease;
+}
 
-/* table.datatable-input{ */
-  /* padding: 0;                    fjerner den centrerende luft */
-  /* margin: 0;                    ingen ekstra afstand */
-  /* line-height: normal;          matcher table tekst linjehøjde */
-  /* height: auto;                 drop tvungen højde */
-  /* vertical-align: top;          så den følger cellens top alignment */
-  /* box-sizing: border-box;       sikrer korrekt kontrol over bredde */
-/* } */
+tbody tr:hover {
+  background-color: #eff6ff !important;
+}
+
+/* Alternating row colors for better readability */
+tbody tr:nth-child(odd) {
+  background-color: #f8fafc;
+}
+
+tbody tr:nth-child(even) {
+  background-color: #ffffff;
+}
 
 .datatable-input {
   padding: 0;
-  /* 0.5rem 0.75rem  samme som td/th */
-  /* line-height: inherit; */
-  /* height: 100%; */
 }
 
 .datatable-input::placeholder {
-  color: #6b7280; /* Tailwind gray-500 */
+  color: #9ca3af; /* Tailwind gray-400 */
   font-style: italic;
-  opacity: 1; /* Nødvendig i Chrome hvis du vil have fuld farve */
+  opacity: 1;
 }
 
 table.dataTable th {
-  background-color: #5c81a5; /* gray-50 */
+  color: white;
+  font-weight: 600;
 }
 
+.search-filtering-row input {
+  width: 100%;
+  padding: 0.6rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  transition: border-color 0.2s ease;
+  font-size: 0.875rem;
+}
 
-.search-filtering-row input{
-width:100%;
-padding:0.4rem;
-border:1px solid #d1d5db;
-border-radius:4px;
+.search-filtering-row input:focus {
+  border-color: #0369a1;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.1);
 }

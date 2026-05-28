@@ -16,6 +16,8 @@
     editable?: boolean;
     render?: (row: any) => string;
     class?: string;
+    selectOptions?: { value: string | number; label: string }[];
+    inputType?: string;
   };
 
   // -----------------------------
@@ -38,6 +40,8 @@
   export let onSave: (row: any) => void = () => {};
   export let onCancel: () => void = () => {};
   export let onInputChange: (key: string, value: any) => void = () => {};
+
+  export let rowStyle: ((row: any) => string) | null = null;
 
 
   // -----------------------------
@@ -72,19 +76,19 @@
 
 <div class="w-full overflow-x-auto">
 
-  <table class="w-full text-sm text-left border-collapse">
+  <table class="w-full text-sm text-gray-700 border-collapse">
 
     <thead>
 
       <!-- Column headers -->
-      <tr class="bg-gray-100 text-gray-800">
+      <tr class="text-white" style="background-color: #032A42;">
 
         {#if editable}
-          <th class="px-3 py-2 font-semibold whitespace-nowrap"></th>
+          <th class="px-4 py-3 font-semibold whitespace-nowrap text-left sticky left-0 z-10" style="background-color: #032A42;"></th>
         {/if}
 
         {#each columns as column}
-          <th class={`px-3 py-2 font-semibold whitespace-normal min-w-36 ${column.class ?? ""}`}>
+          <th class={`px-4 py-3 font-semibold whitespace-normal min-w-36 text-left ${column.class ?? ""}`}>
             {column.label}
           </th>
         {/each}
@@ -94,19 +98,20 @@
 
       <!-- Optional filter row -->
       {#if filterable}
-        <tr class="bg-white">
+        <tr class="bg-gray-100 border-b border-gray-300">
 
           {#if editable}
-            <td class="px-2 py-1 border-b border-gray-200"></td>
+            <td class="px-3 py-2 sticky left-0 z-10 bg-gray-100"></td>
           {/if}
 
           {#each columns as column}
-            <td class="px-2 py-1 border-b border-gray-200">
+            <td class="px-3 py-2">
 
               {#if column.filterable !== false}
                 <input
                   type="text"
-                  class="w-full border border-gray-300 px-2 py-1 text-sm"
+                  placeholder="Søg..."
+                  class="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:border-blue-400 focus:ring-0 transition-colors bg-white"
                   bind:value={filters[column.key]}
                 />
               {/if}
@@ -127,7 +132,7 @@
         <tr>
           <td
             colspan={columns.length + (editable ? 1 : 0)}
-            class="px-3 py-6 text-center text-gray-500"
+            class="px-4 py-8 text-center text-gray-500 bg-gray-50"
           >
             {emptyMessage}
           </td>
@@ -139,11 +144,12 @@
 
           {@const rowId = getRowId(row, index)}
           {@const isEditing = editingRowId === rowId}
+          {@const rowBg = index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
 
-          <tr class="border-b border-gray-100 hover:bg-gray-50">
+          <tr class={`group border-b border-gray-200 hover:bg-blue-50 transition-colors ${rowBg}`} style={rowStyle ? rowStyle(row) : ""}>
 
             {#if editable}
-              <td class="px-3 py-2 whitespace-nowrap">
+              <td class={`px-4 py-3 whitespace-nowrap sticky left-0 z-10 ${rowBg} group-hover:bg-blue-50 transition-colors`}>
 
                 {#if isEditing}
                   <button
@@ -177,18 +183,36 @@
 
             {#each columns as column}
 
-              <td class={`px-3 py-2 whitespace-nowrap ${column.class ?? ""}`}>
+              <td class={`px-4 py-3 whitespace-nowrap ${column.class ?? ""}`}>
 
                 {#if isEditing && column.editable === true}
 
-                  <input
-                    class="min-w-44 w-full border border-gray-300 px-2 py-1 text-sm"
-                    value={editableRow?.[column.key] ?? ""}
-                    on:input={(event) => {
-                      const target = event.target as HTMLInputElement;
-                      onInputChange(column.key, target.value);
-                    }}
-                  />
+                  {#if column.selectOptions}
+                    <select
+                      class="min-w-44 border-2 border-gray-300 rounded px-2 py-1 text-sm focus:border-blue-500 focus:ring-0 bg-white"
+                      value={editableRow?.[column.key] ?? ""}
+                      on:change={(event) => {
+                        const target = event.target as HTMLSelectElement;
+                        const val = target.value === "" ? null : Number(target.value);
+                        onInputChange(column.key, val);
+                      }}
+                    >
+                      <option value="">— Vælg —</option>
+                      {#each column.selectOptions as opt}
+                        <option value={opt.value}>{opt.label}</option>
+                      {/each}
+                    </select>
+                  {:else}
+                    <input
+                      type={column.inputType ?? "text"}
+                      class="min-w-44 w-full border-2 border-gray-300 rounded px-2 py-1 text-sm focus:border-blue-500 focus:ring-0"
+                      value={editableRow?.[column.key] ?? ""}
+                      on:input={(event) => {
+                        const target = event.target as HTMLInputElement;
+                        onInputChange(column.key, target.value || null);
+                      }}
+                    />
+                  {/if}
 
                 {:else if column.render}
 

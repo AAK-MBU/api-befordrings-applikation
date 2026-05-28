@@ -31,6 +31,7 @@ from app.models.lookup import (
     Status,
     Tidspunkt,
     Ugedag,
+    Ungdomsuddannelse,
 )
 
 
@@ -268,6 +269,67 @@ class LookupService:
             model=KoerselstypeTillaeg,
             id_column=KoerselstypeTillaeg.tillaeg_id,
             label_column=KoerselstypeTillaeg.tillaeg_tekst,
+        )
+
+
+    def get_skolematrikel_coordinates(self, matrikel_id: int):
+        """Get latitude and longitude for a single skolematrikel.
+
+        Args:
+            matrikel_id:
+                Primary key of the skolematrikel to look up.
+
+        Returns:
+            A dictionary with matrikel_id, latitude, and longitude,
+            or None if no matching row exists.
+        """
+
+        row = self.db.execute(
+            select(
+                Skolematrikel.matrikel_id,
+                Skolematrikel.latitude,
+                Skolematrikel.longitude,
+            ).where(Skolematrikel.matrikel_id == matrikel_id)
+        ).mappings().one_or_none()
+
+        return dict(row) if row else None
+
+
+    def get_ungdomsuddannelse_coordinates(self, ungdomsuddannelse_id: int):
+        """Get latitude and longitude for a single ungdomsuddannelse.
+
+        Args:
+            ungdomsuddannelse_id:
+                Primary key of the ungdomsuddannelse to look up.
+
+        Returns:
+            A dictionary with ungdomsuddannelse_id, latitude, and longitude,
+            or None if no matching row exists.
+        """
+
+        row = self.db.execute(
+            select(
+                Ungdomsuddannelse.ungdomsuddannelse_id,
+                Ungdomsuddannelse.latitude,
+                Ungdomsuddannelse.longitude,
+            ).where(Ungdomsuddannelse.ungdomsuddannelse_id == ungdomsuddannelse_id)
+        ).mappings().one_or_none()
+
+        return dict(row) if row else None
+
+
+    def get_ungdomsuddannelser(self):
+        """Get available ungdomsuddannelser.
+
+        Returns:
+            A list of ungdomsuddannelse records as id/label dictionaries.
+        """
+
+        return self._get_lookup_records(
+            model=Ungdomsuddannelse,
+            id_column=Ungdomsuddannelse.ungdomsuddannelse_id,
+            label_column=Ungdomsuddannelse.ungdomsuddannelse_navn,
+            only_active=False,
         )
 
 

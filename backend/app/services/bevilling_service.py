@@ -192,7 +192,7 @@ class BevillingService:
         statement = (
             select(Status.status_id)
             .where(Status.status_tekst == status_text)
-            .where(Status.aktiv == True)
+            .where(Status.aktiv)
         )
 
         status_id = self.db.execute(statement).scalar_one_or_none()
@@ -255,6 +255,7 @@ class BevillingService:
             "[befordring_app].[befordring].[view_All_Bevillinger]",
             "[befordring_app].[befordring].[view_All_Active_Bevillinger]",
             "[befordring_app].[befordring].[view_Student_Bevillinger]",
+            "[befordring_app].[befordring].[view_New_Applications]",
         }
 
         if view_name not in allowed_views:
@@ -374,8 +375,7 @@ class BevillingService:
             WHERE
                 cpr = :cpr
             ORDER BY
-                sagsbehandlingsdato DESC,
-                status_tekst ASC
+                created_at DESC
         """)
 
         result = self.db.execute(sql, {"cpr": cpr})
@@ -396,13 +396,17 @@ class BevillingService:
 
         sql = text("""
             SELECT
-                *
+                vbk.*,
+                k.final
             FROM
-                [befordring_app].[befordring].[view_Bevilling_Koerselsraekker]
+                [befordring_app].[befordring].[view_Bevilling_Koerselsraekker] vbk
+            INNER JOIN
+                [befordring_app].[befordring].[Koersel] k
+                ON k.koersel_id = vbk.koersel_id
             WHERE
-                bevilling_id = :bevilling_id
+                vbk.bevilling_id = :bevilling_id
             ORDER BY
-                tidspunkt_tekst DESC
+                vbk.gyldig_til DESC
         """)
 
         result = self.db.execute(
@@ -450,6 +454,28 @@ class BevillingService:
         # hjaelpemiddel_ids are not columns on Bevilling itself.
         # They are handled separately through the link table.
         hjaelpemiddel_ids = new_bevilling_data.pop("hjaelpemiddel_ids", [])
+
+        # Validate required fields before attempting a DB insert.
+        # The schema allows None for all fields so we check here and return
+        # a clear 422 instead of letting the DB raise a constraint violation.
+        required_fields = {
+            "adresse_for_bevilling": "Adresse for bevilling",
+            "begrundelse_fra_formular": "Begrundelse",
+        }
+
+        missing = [
+            label
+            for field, label in required_fields.items()
+            if not new_bevilling_data.get(field)
+        ]
+
+        if missing:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": f"Udfyld venligst følgende felter: {', '.join(missing)}",
+                },
+            )
 
         try:
             bevilling = Bevilling(
@@ -601,7 +627,9 @@ class BevillingService:
             the current status.
         """
 
-        if not bevilling_data:
+        reset_status = bevilling_data.pop("reset_status", False)
+
+        if not bevilling_data and not reset_status:
             raise HTTPException(
                 status_code=400,
                 detail="No fields provided for update",
@@ -618,6 +646,11 @@ class BevillingService:
         try:
             for field_name, value in bevilling_data.items():
                 setattr(bevilling, field_name, value)
+
+            if reset_status:
+                # Setting to "Ny" before the SP runs removes Afslag/Ophørt
+                # protection so the SP can freely recalculate the correct status.
+                bevilling.status_id = self.get_status_id_by_text("Ny")
 
             bevilling.updated_by = "frontend"
 
@@ -680,6 +713,12 @@ class BevillingService:
             raise HTTPException(
                 status_code=404,
                 detail=f"Kørselsrække not found: {koersel_id}",
+            )
+
+        if koersel.final:
+            raise HTTPException(
+                status_code=409,
+                detail="Kørselsrækken er afsluttet og kan ikke redigeres.",
             )
 
         # Validate the final date range by combining existing dates with any
