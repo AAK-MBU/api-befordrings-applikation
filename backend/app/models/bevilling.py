@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Unicode, text
+from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Unicode, text
 from sqlalchemy.dialects.mssql import DATETIME2
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,10 +37,16 @@ class Bevilling(Base):
         nullable=False,
     )
 
-    matrikel_id: Mapped[int] = mapped_column(
+    matrikel_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(f"{DB_SCHEMA}.Skolematrikel.matrikel_id"),
-        nullable=False,
+        nullable=True,
+    )
+
+    ungdomsuddannelse_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Ungdomsuddannelse.ungdomsuddannelse_id"),
+        nullable=True,
     )
 
     hjemmel_id: Mapped[int | None] = mapped_column(
@@ -75,17 +81,19 @@ class Bevilling(Base):
         nullable=True,
     )
 
-    ansoegningsdato: Mapped[date] = mapped_column(Date, nullable=False)
+    ansoegningsdato: Mapped[date | None] = mapped_column(Date, nullable=True)
     sagsbehandlingsdato: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    relation_til_barnet: Mapped[str] = mapped_column(String, nullable=False)
-    foerste_koersel_dato: Mapped[date] = mapped_column(Date, nullable=False)
+    relation_til_barnet: Mapped[str | None] = mapped_column(String, nullable=True)
+    foerste_koersel_dato: Mapped[date | None] = mapped_column(Date, nullable=True)
     ansoegningstype: Mapped[str] = mapped_column(String, nullable=False)
 
     afstandskriterie_dato: Mapped[date | None] = mapped_column(Date, nullable=True)
     afstandskriterie_klassetrin: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     begrundelse_fra_formular: Mapped[str] = mapped_column(String, nullable=False)
+
+    revurderet_af_ppr: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DATETIME2,
@@ -142,8 +150,8 @@ class Koersel(Base):
         nullable=False,
     )
 
-    bevilget_koereafstand_pr_vej: Mapped[int | None] = mapped_column(
-        Integer,
+    bevilget_koereafstand_pr_vej: Mapped[float | None] = mapped_column(
+        Float,
         nullable=True,
     )
 

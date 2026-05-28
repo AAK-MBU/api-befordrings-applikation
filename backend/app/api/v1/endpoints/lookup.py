@@ -18,7 +18,7 @@ The router should stay very thin. The actual database queries should live in
 LookupService.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.api.dependencies import DbSession
 from app.services.lookup_service import LookupService
@@ -107,6 +107,27 @@ def get_skolematrikel(db: DbSession):
     return service.get_skolematrikel()
 
 
+@router.get("/skolematrikel/{matrikel_id}/coordinates")
+def get_skolematrikel_coordinates(matrikel_id: int, db: DbSession):
+    """Get latitude and longitude for a single skolematrikel.
+
+    Args:
+        matrikel_id:
+            Primary key of the skolematrikel.
+
+    Returns:
+        matrikel_id, latitude, and longitude for the requested school location.
+    """
+
+    service = LookupService(db=db)
+    result = service.get_skolematrikel_coordinates(matrikel_id=matrikel_id)
+
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Skolematrikel {matrikel_id} not found.")
+
+    return result
+
+
 @router.get("/hjaelpemidler")
 def get_hjaelpemidler(db: DbSession):
     """Get available hjælpemidler.
@@ -157,6 +178,40 @@ def get_koerselstype_tillaeg(db: DbSession):
     service = LookupService(db=db)
 
     return service.get_koerselstype_tillaeg()
+
+
+@router.get("/ungdomsuddannelser/{ungdomsuddannelse_id}/coordinates")
+def get_ungdomsuddannelse_coordinates(ungdomsuddannelse_id: int, db: DbSession):
+    """Get latitude and longitude for a single ungdomsuddannelse.
+
+    Args:
+        ungdomsuddannelse_id:
+            Primary key of the ungdomsuddannelse.
+
+    Returns:
+        ungdomsuddannelse_id, latitude, and longitude for the requested institution.
+    """
+
+    service = LookupService(db=db)
+    result = service.get_ungdomsuddannelse_coordinates(ungdomsuddannelse_id=ungdomsuddannelse_id)
+
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Ungdomsuddannelse {ungdomsuddannelse_id} not found.")
+
+    return result
+
+
+@router.get("/ungdomsuddannelser")
+def get_ungdomsuddannelser(db: DbSession):
+    """Get available ungdomsuddannelser.
+
+    Returns:
+        A list of ungdomsuddannelser used as lookup options.
+    """
+
+    service = LookupService(db=db)
+
+    return service.get_ungdomsuddannelser()
 
 
 @router.get("/dage")

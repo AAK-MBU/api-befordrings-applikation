@@ -210,3 +210,6 @@ __marimo__/
 documentation/
 test/
 scripts/migrations/
+
+# SvelteKit generated files (build-time type stubs, route manifests)
+frontend/.svelte-kit/

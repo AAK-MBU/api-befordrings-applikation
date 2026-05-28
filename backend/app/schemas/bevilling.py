@@ -8,6 +8,7 @@ class BevillingCreateRequest(BaseModel):
 
     adresse_for_bevilling: str | None = None
     matrikel_id: int | None = None
+    ungdomsuddannelse_id: int | None = None
     hjemmel_id: int | None = None
     afgoerelsesbrev_id: int | None = None
 
@@ -41,7 +42,9 @@ class BevillingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status_id: int | None = None
+    reset_status: bool = False
     matrikel_id: int | None = None
+    ungdomsuddannelse_id: int | None = None
     sagsbehandlingsdato: date | None = None
     adresse_for_bevilling: str | None = None
     afstandskriterie_dato: date | None = None
@@ -53,6 +56,7 @@ class BevillingUpdateRequest(BaseModel):
     afgoerelsesbrev_id: int | None = None
     sagsbehandler_id: int | None = None
     ppr_sagsbehandler_id: int | None = None
+    revurderet_af_ppr: bool | None = None
 
 
 class HjaelpemidlerUpdateRequest(BaseModel):
@@ -93,6 +97,7 @@ class KoerselsraekkeUpdateRequest(BaseModel):
     gyldig_til: date | None = None
     taxa_id: str | None = None
     kommentar: str | None = None
+    final: bool | None = None
 
 
 class KoerselTillaegUpdateRequest(BaseModel):

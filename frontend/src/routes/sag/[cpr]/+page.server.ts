@@ -8,7 +8,6 @@ type BevillingRecord = Record<string, any> & {
 };
 
 
-// Small helper to keep response checks consistent.
 async function assertResponseOk(response: Response, errorMessage: string) {
   if (response.ok) {
     return;
@@ -41,7 +40,8 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     tidspunkterRes,
     koerselstyperRes,
     koerselstypeTillaegRes,
-    dageRes
+    dageRes,
+    ungdomsuddannelserRes
   ] = await Promise.all([
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}`),
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}/parents`),
@@ -57,13 +57,13 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     backendApiFetch(fetch, "/lookup/tidspunkter"),
     backendApiFetch(fetch, "/lookup/koerselstyper"),
     backendApiFetch(fetch, "/lookup/koerselstype_tillaeg"),
-    backendApiFetch(fetch, "/lookup/dage")
+    backendApiFetch(fetch, "/lookup/dage"),
+    backendApiFetch(fetch, "/lookup/ungdomsuddannelser")
   ]);
 
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
   await assertResponseOk(parentsRes, "Failed to fetch parents");
   await assertResponseOk(bevillingerRes, "Failed to fetch bevillinger");
-
   await assertResponseOk(statusRes, "Failed to fetch status");
   await assertResponseOk(skolematriklerRes, "Failed to fetch skolematrikler");
   await assertResponseOk(hjemlerRes, "Failed to fetch hjemler");
@@ -75,11 +75,11 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   await assertResponseOk(koerselstyperRes, "Failed to fetch koerselstyper");
   await assertResponseOk(koerselstypeTillaegRes, "Failed to fetch koerselstype tillaeg");
   await assertResponseOk(dageRes, "Failed to fetch dage");
+  await assertResponseOk(ungdomsuddannelserRes, "Failed to fetch ungdomsuddannelser");
 
   const stamdataResponse = await stamdataRes.json();
   const parents = await parentsRes.json();
   const bevillinger: BevillingRecord[] = await bevillingerRes.json();
-
   const statuser = await statusRes.json();
   const skolematrikler = await skolematriklerRes.json();
   const hjemler = await hjemlerRes.json();
@@ -91,6 +91,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   const koerselstyper = await koerselstyperRes.json();
   const koerselstypeTillaeg = await koerselstypeTillaegRes.json();
   const dage = await dageRes.json();
+  const ungdomsuddannelser = await ungdomsuddannelserRes.json();
 
   const bevillingerWithKoerselsraekker = await Promise.all(
     bevillinger.map(async (bevilling) => {
@@ -105,18 +106,11 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
         console.error("Status:", koerselsraekkerRes.status);
         console.error("Response:", await koerselsraekkerRes.text());
 
-        return {
-          ...bevilling,
-          koerselsraekker: []
-        };
+        return { ...bevilling, koerselsraekker: [] };
       }
 
       const koerselsraekker = await koerselsraekkerRes.json();
-
-      return {
-        ...bevilling,
-        koerselsraekker
-      };
+      return { ...bevilling, koerselsraekker };
     })
   );
 
@@ -141,7 +135,8 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
       tidspunkter,
       koerselstyper,
       koerselstypeTillaeg,
-      dage
+      dage,
+      ungdomsuddannelser
     }
   };
 };

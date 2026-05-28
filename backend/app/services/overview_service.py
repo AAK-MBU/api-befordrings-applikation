@@ -81,7 +81,7 @@ class OverviewService:
         }
 
 
-    def _read_overview_table(self, table_name: str):
+    def _read_overview_table(self, table_name: str, order_direction: str = "ASC"):
         """Read all rows from an allowed overview table.
 
         Args:
@@ -103,8 +103,7 @@ class OverviewService:
         """
 
         allowed_tables = {
-            "[befordring_app].[befordring].[DATA_NYE_ANSOEGNINGER]",
-            "[befordring_app].[befordring].[DATA_REPORTS]",
+            "[befordring_app].[befordring].[view_New_Applications]",
         }
 
         if table_name not in allowed_tables:
@@ -115,6 +114,8 @@ class OverviewService:
                 *
             FROM
                 {table_name}
+            ORDER BY
+                ansoegningsdato {order_direction}
         """)
 
         result = self.db.execute(sql)
@@ -189,6 +190,107 @@ class OverviewService:
         ]
 
 
+    def search_bevillinger(self, q: str):
+        """Search bevillinger by CPR or name (partial match).
+
+        Args:
+            q:
+                Search string. Must be at least 2 characters.
+
+        Returns:
+            Up to 20 unique citizen records matching the query, each with
+            ``cpr_elev``, ``adresseringsnavn``, and ``bevilling_count``.
+        """
+
+        if not q or len(q.strip()) < 2:
+            return []
+
+        like_q = f"%{q.strip()}%"
+
+        # Search view_Stamdata so citizens without any bevillinger are still found.
+        # LEFT JOIN Bevilling to count each citizen's bevillinger (0 if none).
+        sql = text("""
+            SELECT TOP 20
+                s.cpr         AS cpr_elev,
+                s.adresseringsnavn,
+                COUNT(b.bevilling_id) AS bevilling_count
+            FROM
+                [befordring_app].[befordring].[view_Stamdata] s
+            LEFT JOIN
+                [befordring_app].[befordring].[Bevilling] b
+                ON b.cpr_elev = s.cpr
+            WHERE
+                s.cpr LIKE :q
+                OR s.adresseringsnavn LIKE :q
+            GROUP BY
+                s.cpr,
+                s.adresseringsnavn
+            ORDER BY
+                s.adresseringsnavn
+        """)
+
+        result = self.db.execute(sql, {"q": like_q})
+
+        return self._rows_to_dicts(result)
+
+
+    def get_revurderinger(self):
+        """Get bevillinger with status Revurdering, with nested koerselsraekker.
+
+        Returns:
+            List of bevilling dicts, each with a 'koerselsraekker' key containing
+            a list of that bevilling's koersel rows.
+        """
+
+        bev_sql = text("""
+            SELECT
+                *
+            FROM
+                [befordring_app].[befordring].[view_Revurderinger]
+            ORDER BY
+                revurderingsdato ASC
+        """)
+
+        bevillinger = self._rows_to_dicts(self.db.execute(bev_sql))
+
+        if not bevillinger:
+            return []
+
+        koersel_sql = text("""
+            SELECT
+                vbk.*,
+                k.final
+            FROM
+                [befordring_app].[befordring].[view_Bevilling_Koerselsraekker] vbk
+            INNER JOIN
+                [befordring_app].[befordring].[Koersel] k
+                ON k.koersel_id = vbk.koersel_id
+            INNER JOIN
+                [befordring_app].[befordring].[Bevilling] b
+                ON b.bevilling_id = vbk.bevilling_id
+            INNER JOIN
+                [befordring_app].[befordring].[Status] s
+                ON s.status_id = b.status_id
+            WHERE
+                s.status_tekst = N'Revurdering'
+            ORDER BY
+                vbk.bevilling_id,
+                vbk.gyldig_til DESC
+        """)
+
+        koersler = self._rows_to_dicts(self.db.execute(koersel_sql))
+
+        koersel_map: dict = {}
+        for k in koersler:
+            bid = k["bevilling_id"]
+            koersel_map.setdefault(bid, []).append(k)
+
+        for b in bevillinger:
+            b["koerselsraekker"] = koersel_map.get(b.get("bevilling_id"), [])
+
+        return bevillinger
+
+
     def get_new_applications(self):
         """Get new applications overview data.
 
@@ -201,7 +303,8 @@ class OverviewService:
         """
 
         return self._read_overview_table(
-            table_name="[befordring_app].[befordring].[DATA_NYE_ANSOEGNINGER]",
+            table_name="[befordring_app].[befordring].[view_New_Applications]",
+            order_direction="ASC"
         )
 
 

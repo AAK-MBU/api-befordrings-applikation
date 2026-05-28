@@ -8,6 +8,30 @@ easier to read, test, and reuse.
 """
 
 
+def is_checked(value) -> bool:
+    """Return True when an OS2Forms checkbox-like value is checked."""
+
+    return str(value).strip() == "1"
+
+
+def get_begrundelse(payload: dict) -> str:
+    """Determine the applicant's foundation for applying."""
+
+    begrundelse_fields = {
+        "sygdom_funktionsnedsaettelse_handicap": "Sygdom/funktionsnedsaettelse/handicap",
+        "trafikfarlig_vej": "Trafikfarlig vej",
+        "langt_mellem_skole_og_hjem": "Langt mellem skole og hjem",
+    }
+
+    begrundelser = []
+
+    for field_name, label in begrundelse_fields.items():
+        if is_checked(payload.get(field_name)):
+            begrundelser.append(label)
+
+    return ", ".join(begrundelser)
+
+
 def get_relation_til_barnet(payload: dict) -> str | None:
     """Determine the applicant's relation to the child/student.
 
@@ -99,6 +123,38 @@ def get_adresse_for_bevilling(payload: dict) -> str | None:
         return payload.get("barnets_anden_adresse") or barnets_adresse
 
     return barnets_adresse
+
+
+def get_hjaelpemiddel_names(payload: dict) -> list[str]:
+    """Extract hjaelpemiddel names from the OS2Forms payload.
+
+    Args:
+        payload:
+            Parsed OS2Forms submission data.
+
+    Returns:
+        A list of hjaelpemiddel name strings, or an empty list if none
+        were marked or the question was not answered.
+
+    Notes:
+        OS2Forms sends multi-value checkbox fields as indexed keys:
+            angiv_hjaelpemiddel[0] = 'Kørestol'
+            angiv_hjaelpemiddel[1] = 'Rollator'
+
+        The presence question er_der_et_hjaelpemiddel_... must be 'Ja'
+        for the list to be considered.
+    """
+
+    if payload.get("er_der_et_hjaelpemiddel_der_skal_med_under_koersel_") != "Ja":
+        return []
+
+    names = []
+
+    for key, value in payload.items():
+        if key.startswith("angiv_hjaelpemiddel[") and value:
+            names.append(str(value).strip())
+
+    return names
 
 
 def get_ansoegningstype(payload: dict) -> str:

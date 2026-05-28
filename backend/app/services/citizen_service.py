@@ -6,16 +6,13 @@ The service is responsible for:
 
 - Fetching citizen stamdata
 - Fetching parent/guardian data
-- Updating editable citizen stamdata fields
 
-The API router should stay thin and delegate this logic to CitizenService.
+Citizen stamdata and parent data are maintained by external systems and are
+read-only in this application. No update methods should be added here.
 """
 
-from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-
-from app.models.citizen import Elev
 
 
 class CitizenService:
@@ -112,7 +109,8 @@ class CitizenService:
                 cpr_foraelder,
                 adresse_tekst,
                 foraeldremyndighed,
-                navne_adresse_beskyttelse
+                navne_adresse_beskyttelse,
+                maa_vide_barns_adresse
             FROM
                 [befordring_app].[befordring].[view_ParentData]
             WHERE
@@ -127,65 +125,3 @@ class CitizenService:
         return self._rows_to_dicts(result)
 
 
-    def update_citizen_stamdata(self, cpr: str, stamdata: dict):
-        """Update editable stamdata fields for a citizen/student.
-
-        Args:
-            cpr:
-                CPR number of the citizen/student.
-
-            stamdata:
-                Dictionary containing the fields that should be updated.
-
-        Returns:
-            A dictionary containing:
-            - number of updated rows
-            - list of updated field names
-
-        Raises:
-            HTTPException:
-                404 if no citizen/student exists with the provided CPR.
-
-        Notes:
-            This updates the Elev table directly through the SQLAlchemy model.
-
-            The router should pass a dictionary created with
-            exclude_unset=True, so only fields explicitly sent by the frontend
-            are updated.
-        """
-
-        # If no fields were provided, there is nothing to update.
-        # This is treated as a harmless no-op.
-        if not stamdata:
-            return {
-                "rows_updated": 0,
-                "updated_fields": [],
-            }
-
-        # Fetch the Elev row by primary key.
-        # This assumes CPR is the primary key on the Elev model.
-        elev = self.db.get(Elev, cpr)
-
-        if elev is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Citizen not found: {cpr}",
-            )
-
-        # Dynamically update only the fields provided in the request.
-        #
-        # Example:
-        # stamdata = {"klasse": "3A", "sfo": True}
-        #
-        # This will update:
-        # elev.klasse
-        # elev.sfo
-        for field_name, value in stamdata.items():
-            setattr(elev, field_name, value)
-
-        self.db.commit()
-
-        return {
-            "rows_updated": 1,
-            "updated_fields": list(stamdata.keys()),
-        }

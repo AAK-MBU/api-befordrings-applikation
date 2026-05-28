@@ -1,6 +1,6 @@
 [project]
 name = "api-befordrings-applikation"
-version = "0.0.1"
+version = "1.0.0"
 description = "API for the befordrings application"
 authors = [
     {name = "MBU", email = "dadj@aarhus.dk"}
