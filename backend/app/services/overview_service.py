@@ -146,18 +146,18 @@ class OverviewService:
         ]
 
 
-    def get_non_active_bevillinger(self):
-        """Get non-active bevillinger for the overview.
+    def get_fejlede_bevillinger(self):
+        """Get bevillinger with status Fejlet for the overview.
 
         Returns:
-            A list of simplified bevilling records where status is not Aktiv.
+            A list of simplified bevilling records where status is Fejlet.
         """
 
         service = BevillingService(db=self.db)
 
         records = service.get_bevillinger(
             view_name="[befordring_app].[befordring].[view_All_Bevillinger]",
-            exclude_status="Aktiv",
+            status="Fejlet",
         )
 
         return [

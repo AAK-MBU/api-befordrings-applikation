@@ -1,5 +1,6 @@
 <script lang="ts">
   import KoerselsraekkeTable from "$lib/components/KoerselsraekkeTable.svelte";
+  import AddresseSearch from "$lib/components/AddresseSearch.svelte";
 
   import {
     getStatusBadgeClass,
@@ -63,6 +64,26 @@
   const inputClass = "border border-gray-300 px-2 py-1 text-sm rounded focus:border-blue-400 focus:ring-0";
   const mediumSelectClass = "w-full border border-gray-300 px-2 py-1 pr-8 text-sm rounded focus:border-blue-400 focus:ring-0";
   const largeSelectClass = "w-full border border-gray-300 px-2 py-1 pr-8 text-sm rounded focus:border-blue-400 focus:ring-0";
+
+  function getStatusBemaerkningClass(status: string | null | undefined): string {
+    switch (status) {
+      case "Fejlet":       return "bg-red-50 text-red-700 border border-red-200";
+      case "Revurdering":  return "bg-amber-50 text-amber-700 border border-amber-200";
+      case "Afslag":       return "bg-orange-50 text-orange-700 border border-orange-200";
+      case "Ophørt":       return "bg-gray-100 text-gray-600 border border-gray-300";
+      case "Udløbet":      return "bg-gray-100 text-gray-600 border border-gray-300";
+      default:             return "bg-blue-50 text-blue-700 border border-blue-200";
+    }
+  }
+
+  function getStatusBemaerkningIcon(status: string | null | undefined): string {
+    switch (status) {
+      case "Fejlet":      return "error";
+      case "Revurdering": return "warning";
+      case "Afslag":      return "warning";
+      default:            return "info";
+    }
+  }
 
 
   // -----------------------------
@@ -181,18 +202,12 @@
 
   async function recalculateEgenbefordringRows(
     koerselsraekker: any[],
-    address: string,
+    lat1: number,
+    lon1: number,
     matrikel: number
   ) {
     const egenRows = koerselsraekker.filter(k => isEgenbefordringType(k.befordringstype_id));
     if (egenRows.length === 0) return;
-
-    // Geocode address
-    const geocodeRes = await backendFetch(
-      `/bevilling/geocode_address?address=${encodeURIComponent(address)}`
-    );
-    if (!geocodeRes.ok) return;
-    const { latitude: lat1, longitude: lon1 } = await geocodeRes.json();
 
     // Get school coordinates
     const schoolRes = await backendFetch(`/lookup/skolematrikel/${matrikel}/coordinates`);
@@ -243,7 +258,12 @@
     const isManualStatus = manualStatusLabels.includes(bevilling.status_tekst);
     editableBevilling = {
       ...bevilling,
-      status_id: isManualStatus ? bevilling.status_id : null,
+      status_id:    isManualStatus ? bevilling.status_id : null,
+      // Address fields — adresse_for_bevilling is the text alias from the view
+      adresse_id:   bevilling.adresse_id   ?? null,
+      adresse_tekst: bevilling.adresse_for_bevilling ?? "",
+      adresse_lat:  bevilling.adresse_latitude  ?? null,
+      adresse_lon:  bevilling.adresse_longitude ?? null,
     };
 
     selectedHjaelpemiddelIds = parseHjaelpemiddelIds(
@@ -281,7 +301,7 @@
     const updates = {
       ...statusField,
       sagsbehandlingsdato: editableBevilling.sagsbehandlingsdato,
-      adresse_for_bevilling: editableBevilling.adresse_for_bevilling,
+      adresse_id: editableBevilling.adresse_id,
       matrikel_id: editableBevilling.matrikel_id,
       afstandskriterie_dato: editableBevilling.afstandskriterie_dato,
       afstandskriterie_klassetrin: editableBevilling.afstandskriterie_klassetrin,
@@ -296,17 +316,18 @@
       hjaelpemiddel_ids: selectedHjaelpemiddelIds
     };
 
-    const addressChanged = editableBevilling.adresse_for_bevilling !== bevilling.adresse_for_bevilling;
-    const schoolChanged = editableBevilling.matrikel_id !== bevilling.matrikel_id;
+    const addressChanged = editableBevilling.adresse_id !== bevilling.adresse_id;
+    const schoolChanged  = editableBevilling.matrikel_id !== bevilling.matrikel_id;
     const koerselsraekker = [...(bevilling.koerselsraekker ?? [])];
-    const newAddress = editableBevilling.adresse_for_bevilling;
-    const newMatrikelId = editableBevilling.matrikel_id;
+    const newMatrikelId   = editableBevilling.matrikel_id;
+    const adresseLat      = editableBevilling.adresse_lat;
+    const adresseLon      = editableBevilling.adresse_lon;
 
     const success = await onSaveBevilling(bevilling.bevilling_id, updates);
 
     if (success) {
-      if ((addressChanged || schoolChanged) && newAddress && newMatrikelId) {
-        await recalculateEgenbefordringRows(koerselsraekker, newAddress, newMatrikelId);
+      if ((addressChanged || schoolChanged) && newMatrikelId && adresseLat && adresseLon) {
+        await recalculateEgenbefordringRows(koerselsraekker, adresseLat, adresseLon, newMatrikelId);
       }
       cancelEdit();
     }
@@ -348,6 +369,29 @@
               <span class="inline-block px-2 py-0.5 rounded text-xs font-medium {getStatusBadgeClass(bevilling.status_tekst)}">
                 {bevilling.status_tekst ?? ""}
               </span>
+              {#if bevilling.statusbemaerkning}
+                <span class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium {getStatusBemaerkningClass(bevilling.status_tekst)}">
+                  {#if getStatusBemaerkningIcon(bevilling.status_tekst) === "error"}
+                    <!-- X-circle -->
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="9"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 9l-6 6M9 9l6 6"/>
+                    </svg>
+                  {:else if getStatusBemaerkningIcon(bevilling.status_tekst) === "warning"}
+                    <!-- Triangle warning -->
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                  {:else}
+                    <!-- Info circle -->
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="9"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8h.01M12 12v4"/>
+                    </svg>
+                  {/if}
+                  {bevilling.statusbemaerkning}
+                </span>
+              {/if}
             {/if}
             <span class="font-mono text-sm text-gray-500">{bevilling.esdh_noegle ?? ""}</span>
           </div>
@@ -356,7 +400,8 @@
             {#if isEditing}
               <button
                 type="button"
-                class="px-3 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                disabled={!editableBevilling.adresse_id}
+                class="px-3 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
                 on:click={() => saveEdit(bevilling)}
               >
                 Gem
@@ -424,10 +469,19 @@
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Adresse for bevilling</p>
             {#if isEditing}
-              <input
-                class="{inputClass} w-full"
-                value={editableBevilling.adresse_for_bevilling ?? ""}
-                on:change={(e) => updateField("adresse_for_bevilling", e.currentTarget.value)}
+              <AddresseSearch
+                adresseId={editableBevilling.adresse_id}
+                adresseTekst={editableBevilling.adresse_tekst ?? ""}
+                inputClass={inputClass + " w-full"}
+                onSelect={(result) => {
+                  editableBevilling = {
+                    ...editableBevilling,
+                    adresse_id:    result?.adresse_id   ?? null,
+                    adresse_tekst: result?.adresse_tekst ?? "",
+                    adresse_lat:   result?.latitude      ?? null,
+                    adresse_lon:   result?.longitude     ?? null,
+                  };
+                }}
               />
             {:else}
               <p class="text-sm text-gray-800">{bevilling.adresse_for_bevilling ?? "—"}</p>

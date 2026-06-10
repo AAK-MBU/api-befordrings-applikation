@@ -114,6 +114,19 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     })
   );
 
+  // Sort bevillinger by the latest gyldig_til date across their koerselsraekker,
+  // descending — bevillinger with the most recent end date appear first.
+  // Bevillinger with no koerselsraekker sort to the bottom.
+  const maxGyldigTil = (b: BevillingRecord & { koerselsraekker: any[] }): string =>
+    b.koerselsraekker.reduce(
+      (max: string, k: any) => (k.gyldig_til > max ? k.gyldig_til : max),
+      ""
+    );
+
+  const sortedBevillinger = [...bevillingerWithKoerselsraekker].sort(
+    (a, b) => maxGyldigTil(b).localeCompare(maxGyldigTil(a))
+  );
+
   const stamdata = Array.isArray(stamdataResponse)
     ? stamdataResponse[0]
     : stamdataResponse;
@@ -122,7 +135,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     cpr,
     stamdata,
     parents,
-    bevillinger: bevillingerWithKoerselsraekker,
+    bevillinger: sortedBevillinger,
 
     lookupOptions: {
       statuser,

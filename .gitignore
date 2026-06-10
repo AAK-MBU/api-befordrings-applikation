@@ -213,3 +213,7 @@ scripts/migrations/
 
 # SvelteKit generated files (build-time type stubs, route manifests)
 frontend/.svelte-kit/
+
+# Root-level Node (concurrently orchestration)
+node_modules/
+package-lock.json

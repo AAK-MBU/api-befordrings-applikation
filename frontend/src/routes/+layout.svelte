@@ -9,6 +9,22 @@
 
   let { children, data } = $props();
 
+  let nyeCount = $state(0);
+  let revCount = $state(0);
+
+  onMount(async () => {
+    try {
+      const [nyeRes, revRes] = await Promise.all([
+        backendFetch('/overview/new_applications'),
+        backendFetch('/overview/revurderinger'),
+      ]);
+      if (nyeRes.ok) nyeCount = (await nyeRes.json()).length;
+      if (revRes.ok) revCount = (await revRes.json()).length;
+    } catch {
+      // non-critical — badges just won't show
+    }
+  });
+
   const tabs = [
     { href: '/', label: 'Overblik' },
     { href: '/nye-ansoegninger', label: 'Nye ansøgninger' },
@@ -128,15 +144,24 @@
     <ul class="flex flex-wrap">
       {#each tabs as tab}
         {@const active = isActive(tab)}
+        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : 0}
         <li>
           <a
             href={tab.href}
-            class="flex items-center px-3 md:px-5 py-4 text-sm font-medium border-b-2 transition-colors"
+            class="flex items-center gap-2 px-3 md:px-5 py-4 text-sm font-medium border-b-2 transition-colors"
             style={active
               ? 'color: #ffffff; border-color: #ffffff;'
               : 'color: rgba(255,255,255,0.6); border-color: transparent;'}
           >
             {tab.label}
+            {#if count > 0}
+              <span
+                class="px-1.5 py-0.5 text-[10px] font-bold rounded-full leading-none"
+                style="background: #2ab4a0; color: #ffffff;"
+              >
+                {count}
+              </span>
+            {/if}
           </a>
         </li>
       {/each}
@@ -194,6 +219,7 @@
             <div
               role="option"
               aria-selected={highlightedIndex === i}
+              tabindex="-1"
               class="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-100 last:border-0
                 {highlightedIndex === i ? 'bg-blue-50' : 'hover:bg-gray-50'}"
               onmousedown={(e) => { e.preventDefault(); selectResult(result.cpr_elev); }}

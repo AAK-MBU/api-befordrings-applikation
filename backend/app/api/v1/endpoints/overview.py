@@ -17,9 +17,9 @@ def get_active_bevillinger(db: DbSession):
     return OverviewService(db=db).get_active_bevillinger()
 
 
-@router.get("/ikke_aktive_bevillinger")
-def get_non_active_bevillinger(db: DbSession):
-    return OverviewService(db=db).get_non_active_bevillinger()
+@router.get("/fejlede_bevillinger")
+def get_fejlede_bevillinger(db: DbSession):
+    return OverviewService(db=db).get_fejlede_bevillinger()
 
 
 @router.get("/revurderinger")

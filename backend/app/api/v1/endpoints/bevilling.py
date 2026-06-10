@@ -34,7 +34,7 @@ from app.schemas.bevilling import (
 )
 from app.services.bevilling_service import BevillingService
 from app.utils.ats import fetch_workqueue
-from app.utils.distance import driving_distance
+from app.utils.distance import driving_distance, walking_distance
 from app.utils.geocoding import geocode_address
 
 
@@ -552,6 +552,37 @@ def calculate_driving_distance(
 
     try:
         distance_km, duration_minutes = driving_distance(lat1, lon1, lat2, lon2)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Distance API error: {e}")
+
+    return {
+        "distance_km": round(distance_km, 1),
+        "duration_minutes": round(duration_minutes, 1),
+    }
+
+
+@router.get("/calculate_walking_distance")
+def calculate_walking_distance(
+    lat1: float = Query(...),
+    lon1: float = Query(...),
+    lat2: float = Query(...),
+    lon2: float = Query(...),
+):
+    """Calculate walking distance and duration between two coordinates.
+
+    Args:
+        lat1, lon1: Origin coordinates (latitude, longitude).
+        lat2, lon2: Destination coordinates (latitude, longitude).
+
+    Returns:
+        distance_km:
+            Walking distance in kilometres.
+        duration_minutes:
+            Estimated walking duration in minutes.
+    """
+
+    try:
+        distance_km, duration_minutes = walking_distance(lat1, lon1, lat2, lon2)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Distance API error: {e}")
 

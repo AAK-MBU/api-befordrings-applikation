@@ -108,12 +108,29 @@
   // ---------------------------------------------------------------------------
 
   async function handleSaveKoerselsraekke(koerselId: number, updates: any): Promise<boolean> {
+    const { tillaeg_ids, dag_ids, ...koerselsraekkeUpdates } = updates;
+
     const res = await backendFetch(`/bevilling/koerselsraekke/${koerselId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
+      body: JSON.stringify(koerselsraekkeUpdates),
     });
     if (!res.ok) return false;
+
+    const tillaegRes = await backendFetch(`/bevilling/koerselsraekke/${koerselId}/tillaeg`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tillaeg_ids: tillaeg_ids ?? [] }),
+    });
+    if (!tillaegRes.ok) return false;
+
+    const dageRes = await backendFetch(`/bevilling/koerselsraekke/${koerselId}/dage`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dag_ids: dag_ids ?? [] }),
+    });
+    if (!dageRes.ok) return false;
+
     await invalidateAll();
     return true;
   }
@@ -426,6 +443,12 @@
                   {bev.gaaafstand_km != null ? Number(bev.gaaafstand_km).toFixed(1) + ' km' : '—'}
                 </span>
               </div>
+              {#if bev.statusbemaerkning}
+                <div class="flex flex-col min-w-0 flex-1 pl-2 border-l border-amber-200 ml-2">
+                  <span class="text-[9px] font-bold uppercase tracking-wider text-amber-500 leading-none mb-0.5">Årsag</span>
+                  <span class="text-xs text-amber-700 truncate" title={bev.statusbemaerkning}>{bev.statusbemaerkning}</span>
+                </div>
+              {/if}
             </div>
 
             <!-- Urgency badge -->
@@ -439,14 +462,14 @@
             </div>
 
             <!-- PPR badge / button -->
-            <div class="shrink-0" on:click|stopPropagation>
+            <div class="shrink-0">
               <button
                 type="button"
                 class="text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap
                   {bev.revurderet_af_ppr
                     ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200'
                     : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200'}"
-                on:click={() => togglePpr(bev.bevilling_id, bev.revurderet_af_ppr)}
+                on:click|stopPropagation={() => togglePpr(bev.bevilling_id, bev.revurderet_af_ppr)}
               >
                 {bev.revurderet_af_ppr ? '✓ PPR revurderet' : 'PPR ikke revurderet'}
               </button>
@@ -459,6 +482,19 @@
           {#if isExpanded}
             {@const isEditingFields = editingBevillingFields === bev.bevilling_id}
             <div class="border-t border-gray-100" style="border-left: 3px solid {color};">
+
+              <!-- Statusbemærkning callout — only shown when a system reason is set -->
+              {#if bev.statusbemaerkning}
+                <div class="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-start gap-2.5">
+                  <svg class="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-0.5">Årsag til revurdering</p>
+                    <p class="text-sm text-amber-900">{bev.statusbemaerkning}</p>
+                  </div>
+                </div>
+              {/if}
 
               <!-- Details grid -->
               <div class="px-6 py-4 bg-gray-50 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-3">

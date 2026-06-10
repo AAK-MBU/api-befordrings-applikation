@@ -5,6 +5,7 @@
 
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import BevillingTable from "$lib/components/BevillingTable.svelte";
+  import AddresseSearch from "$lib/components/AddresseSearch.svelte";
   import {
     getStatusBadgeClass,
   } from "$lib/tableColumnConfig";
@@ -51,6 +52,37 @@
   $: initial = (stamdata?.adresseringsnavn ?? "?").charAt(0).toUpperCase();
   $: anyParentCannotKnowAddress = (parents ?? []).some((p: any) => p.maa_vide_barns_adresse === false);
 
+  // If any bevilling is Aktiv, always show Aktiv.
+  // Otherwise show the status of the bevilling with the latest gyldig_til
+  // across its koerselsraekker (bevillinger are already sorted that way).
+  $: displayStatus = (() => {
+    const active = (bevillinger as any[]).find((b) => b.status_tekst === "Aktiv");
+    if (active) return active.status_tekst;
+    const first = (bevillinger as any[])[0];
+    return first?.status_tekst ?? stamdata?.status_tekst ?? null;
+  })();
+
+  // Derive age from the first 6 digits of the CPR (DDMMYY).
+  // Century: if YY <= current two-digit year the person was born this century,
+  // otherwise last century. Correct for all school-age children.
+  function ageFromCpr(cpr: string): number | null {
+    if (!cpr || cpr.length < 10) return null;
+    const dd  = parseInt(cpr.slice(0, 2), 10);
+    const mm  = parseInt(cpr.slice(2, 4), 10);
+    const yy  = parseInt(cpr.slice(4, 6), 10);
+    const now = new Date();
+    const century   = yy <= (now.getFullYear() % 100) ? 2000 : 1900;
+    const birthDate = new Date(century + yy, mm - 1, dd);
+    let age = now.getFullYear() - birthDate.getFullYear();
+    if (
+      now.getMonth() < birthDate.getMonth() ||
+      (now.getMonth() === birthDate.getMonth() && now.getDate() < birthDate.getDate())
+    ) age--;
+    return isNaN(age) ? null : age;
+  }
+
+  $: studentAge = ageFromCpr(stamdata?.cpr ?? "");
+
   let showCreateBevillingModal = false;
 
 
@@ -70,7 +102,8 @@
 
   function getEmptyBevilling() {
     return {
-      adresse_for_bevilling: "Testvej 123, 8000 Aarhus C",
+      adresse_id: null as number | null,
+      adresse_tekst: "",
       matrikel_id: "1",
       ungdomsuddannelse_id: "",
       hjemmel_id: "1",
@@ -217,7 +250,8 @@
 
     newBevilling = {
       // Copied from source — stable fields that carry over to a new bevilling
-      adresse_for_bevilling:        source.adresse_for_bevilling ?? "",
+      adresse_id:                   source.adresse_id   ?? null,
+      adresse_tekst:                source.adresse_for_bevilling ?? "",
       matrikel_id:                  source.matrikel_id != null ? String(source.matrikel_id) : "",
       ungdomsuddannelse_id:         source.ungdomsuddannelse_id != null ? String(source.ungdomsuddannelse_id) : "",
       hjemmel_id:                   source.hjemmel_id != null ? String(source.hjemmel_id) : "",
@@ -282,7 +316,7 @@
     const isMidlertidig = newBevilling.ansoegningstype === "Midlertidig kørsel";
 
     const payload = {
-      adresse_for_bevilling: emptyToNull(newBevilling.adresse_for_bevilling),
+      adresse_id: newBevilling.adresse_id,
       matrikel_id: (isMidlertidig && skoleType === 'ungdomsuddannelse')
         ? null
         : numberOrNull(newBevilling.matrikel_id),
@@ -689,14 +723,17 @@
       <div>
         <div class="flex items-center gap-2.5">
           <h1 class="text-xl font-bold text-gray-900">{stamdata?.adresseringsnavn ?? ""}</h1>
-          {#if stamdata?.status_tekst}
-            <span class="inline-block px-2 py-0.5 rounded text-xs font-medium {getStatusBadgeClass(stamdata.status_tekst)}">
-              {stamdata.status_tekst}
+          {#if displayStatus}
+            <span class="inline-block px-2 py-0.5 rounded text-xs font-medium {getStatusBadgeClass(displayStatus)}">
+              {displayStatus}
             </span>
           {/if}
         </div>
         <p class="text-sm text-gray-500 mt-0.5">
           <span class="font-mono">{stamdata?.cpr ?? ""}</span>
+          {#if studentAge !== null}
+            <span class="mx-1.5 text-gray-300">·</span>{studentAge} år
+          {/if}
           {#if stamdata?.adresse_tekst}
             <span class="mx-1.5 text-gray-300">·</span>{stamdata.adresse_tekst}
           {/if}
@@ -752,22 +789,16 @@
           </span>
         </div>
 
-        <!-- STATUS -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Status</p>
-          {#if stamdata?.status_tekst}
-            <span class="inline-block px-2 py-0.5 rounded text-xs font-medium {getStatusBadgeClass(stamdata.status_tekst)}">
-              {stamdata.status_tekst}
-            </span>
-          {:else}
-            <p class="text-sm text-gray-800">—</p>
-          {/if}
-        </div>
-
         <!-- FOLKEREGISTERADRESSE -->
         <div>
           <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Folkeregisteradresse</p>
           <p class="text-sm text-gray-800">{stamdata?.adresse_tekst ?? "—"}</p>
+        </div>
+
+        <!-- SKOLEKODE -->
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skolekode</p>
+          <p class="text-sm text-gray-800">{stamdata?.skolekode || "—"}</p>
         </div>
 
         <!-- SKOLE -->
@@ -897,7 +928,7 @@
           tabindex="-1"
         >
 
-          <div class="sticky top-0 px-8 py-5 border-b border-gray-200" style="background-color: #032A42;">
+          <div class="sticky top-0 z-10 px-8 py-5 border-b border-gray-200" style="background-color: #032A42;">
             <h2 class="text-lg font-bold text-white">Opret ny bevilling</h2>
             <p class="mt-0.5 text-sm" style="color: rgba(255,255,255,0.7);">Udfyld alle obligatoriske felter</p>
           </div>
@@ -988,10 +1019,19 @@
 
               <label class="text-sm font-medium text-gray-700 col-span-2">
                 Adresse for bevilling
-                <input
-                  class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-blue-400 focus:ring-0"
-                  bind:value={newBevilling.adresse_for_bevilling}
-                />
+                <div class="mt-1.5">
+                  <AddresseSearch
+                    adresseId={newBevilling.adresse_id}
+                    adresseTekst={newBevilling.adresse_tekst}
+                    onSelect={(result) => {
+                      newBevilling = {
+                        ...newBevilling,
+                        adresse_id:    result?.adresse_id    ?? null,
+                        adresse_tekst: result?.adresse_tekst ?? "",
+                      };
+                    }}
+                  />
+                </div>
               </label>
 
               <label class="text-sm font-medium text-gray-700">
@@ -1109,7 +1149,8 @@
             </button>
             <button
               type="button"
-              class="px-5 py-2 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+              disabled={!newBevilling.adresse_id}
+              class="px-5 py-2 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
               on:click={handleCreateBevilling}
             >
               Opret bevilling
@@ -1149,7 +1190,7 @@
                 <option value="">Vælg bevilling</option>
                 {#each bevillinger ?? [] as bevilling}
                   <option value={String(bevilling.bevilling_id)}>
-                    {bevilling.status_tekst ?? "Ukendt status"} - {bevilling.adresse_for_bevilling ?? "Ingen adresse"}
+                    {bevilling.status_tekst ?? "Ukendt status"} - {bevilling.adresse_for_bevilling ?? bevilling.adresse_tekst ?? "Ingen adresse"}
                   </option>
                 {/each}
               </select>

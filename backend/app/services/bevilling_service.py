@@ -459,7 +459,7 @@ class BevillingService:
         # The schema allows None for all fields so we check here and return
         # a clear 422 instead of letting the DB raise a constraint violation.
         required_fields = {
-            "adresse_for_bevilling": "Adresse for bevilling",
+            "adresse_id": "Adresse for bevilling",
             "begrundelse_fra_formular": "Begrundelse",
         }
 

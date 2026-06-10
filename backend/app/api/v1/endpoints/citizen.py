@@ -9,12 +9,35 @@ read-only in this application. Only GET endpoints are exposed here.
 from fastapi import APIRouter
 
 from app.api.dependencies import DbSession
+from app.schemas.citizen import ElevCreateRequest
 from app.services.citizen_service import CitizenService
 
 
 # All routes in this file are grouped under /citizen.
 # The tag is used by Swagger/OpenAPI to group the endpoints visually.
 router = APIRouter(prefix="/citizen", tags=["Citizen"])
+
+
+@router.post("/create_elev")
+def create_elev(request: ElevCreateRequest, db: DbSession):
+    """Create a new student in the Elev table if not already present.
+
+    Used by the RPA conversion bot when migrating PPR bevillinger.
+    The Adresse record is created as part of the same transaction.
+
+    Args:
+        request:
+            ElevCreateRequest containing CPR, name, geocoded address, and
+            optional school/class fields.
+
+        db:
+            Database session injected by FastAPI.
+
+    Returns:
+        {"cpr": str, "created": bool} — created=False if the student already existed.
+    """
+    service = CitizenService(db=db)
+    return service.create_elev(request.model_dump())
 
 
 @router.get("/stamdata/{cpr}")

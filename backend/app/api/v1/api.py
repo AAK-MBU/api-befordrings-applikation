@@ -19,7 +19,7 @@ single api_router instead of importing every endpoint router individually.
 
 from fastapi import APIRouter, Depends
 
-from app.api.v1.endpoints import bevilling, citizen, lookup, overview, os2forms
+from app.api.v1.endpoints import adresse, bevilling, citizen, lookup, overview, os2forms
 from app.core.security import verify_api_key
 
 
@@ -92,5 +92,14 @@ api_router.include_router(
 # This keeps all API v1 endpoints behind the same API-key requirement.
 api_router.include_router(
     os2forms.router,
+    dependencies=protected_dependencies,
+)
+
+
+# Register adresse routes.
+#
+# Provides address search used by the bevilling create/edit forms.
+api_router.include_router(
+    adresse.router,
     dependencies=protected_dependencies,
 )

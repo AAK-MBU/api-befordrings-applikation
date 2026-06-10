@@ -22,9 +22,9 @@ export async function load({ fetch }) {
     "/overview/aktive_bevillinger"
   );
 
-  const notActiveBevillingerRes = await backendApiFetch(
+  const fejledeBevillingerRes = await backendApiFetch(
     fetch,
-    "/overview/ikke_aktive_bevillinger"
+    "/overview/fejlede_bevillinger"
   );
 
   await assertResponseOk(
@@ -33,15 +33,15 @@ export async function load({ fetch }) {
   );
 
   await assertResponseOk(
-    notActiveBevillingerRes,
-    "Failed to fetch not active bevillinger"
+    fejledeBevillingerRes,
+    "Failed to fetch fejlede bevillinger"
   );
 
   const activeBevillinger = await activeBevillingerRes.json();
-  const notActiveBevillinger = await notActiveBevillingerRes.json();
+  const fejledeBevillinger = await fejledeBevillingerRes.json();
 
   return {
     activeBevillinger,
-    notActiveBevillinger
+    fejledeBevillinger
   };
 }

@@ -198,7 +198,7 @@ class LookupService:
         """Get available skolematrikler.
 
         Returns:
-            A list of skolematrikel records as id/label dictionaries.
+            A list of skolematrikel records as id/label/skolekode dictionaries.
 
         Notes:
             only_active=False means both active and inactive school locations
@@ -206,14 +206,21 @@ class LookupService:
 
             This can be useful if old bevillinger reference skolematrikler
             that are no longer active.
+
+            skolekode is included in addition to the standard id/label fields
+            so that callers (e.g. the RPA conversion bot) can build a
+            skolekode → matrikel_id lookup without a separate query.
         """
 
-        return self._get_lookup_records(
-            model=Skolematrikel,
-            id_column=Skolematrikel.matrikel_id,
-            label_column=Skolematrikel.matrikel_navn,
-            only_active=False,
-        )
+        rows = self.db.execute(
+            select(
+                Skolematrikel.matrikel_id.label("id"),
+                Skolematrikel.matrikel_navn.label("label"),
+                Skolematrikel.skolekode,
+            ).order_by(Skolematrikel.matrikel_navn)
+        ).mappings().all()
+
+        return [dict(row) for row in rows]
 
 
     def get_hjaelpemidler(self):
@@ -345,3 +352,5 @@ class LookupService:
             id_column=Ugedag.dag_id,
             label_column=Ugedag.dag_tekst,
         )
+
+

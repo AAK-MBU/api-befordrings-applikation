@@ -44,15 +44,11 @@
       key: "ppr_sagsbehandler",
       label: "PPR ansvarlig"
     },
-    {
-      key: "noter",
-      label: "Noter"
-    }
   ];
 
   $: activeCount = data.activeBevillinger?.length ?? 0;
-  $: inactiveCount = data.notActiveBevillinger?.length ?? 0;
-  $: totalCount = activeCount + inactiveCount;
+  $: fejletCount = data.fejledeBevillinger?.length ?? 0;
+  $: totalCount = activeCount + fejletCount;
 </script>
 
 
@@ -91,11 +87,12 @@
 
     <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 flex items-center justify-between">
       <div>
-        <p class="text-4xl font-bold text-gray-900">{inactiveCount}</p>
-        <p class="text-xs uppercase tracking-widest text-gray-400 mt-2">Ikke-aktive</p>
+        <p class="text-4xl font-bold text-gray-900">{fejletCount}</p>
+        <p class="text-xs uppercase tracking-widest text-gray-400 mt-2">Fejlede</p>
       </div>
-      <svg class="w-8 h-8 text-gray-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <svg class="w-8 h-8 text-red-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="9" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01" />
       </svg>
     </div>
 
@@ -134,21 +131,21 @@
   </div>
 
 
-  <!-- Inactive grants section -->
+  <!-- Failed grants section -->
   <div class="mb-6">
     <div class="flex items-center gap-2.5 mb-3 px-3 py-2 bg-white rounded-lg border border-gray-300 shadow-sm">
-      <div class="w-2.5 h-2.5 rounded-full border-2 border-gray-400 flex-shrink-0"></div>
-      <h2 class="font-semibold text-gray-700">Ikke-aktive bevillinger</h2>
+      <div class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></div>
+      <h2 class="font-semibold text-gray-700">Fejlede bevillinger</h2>
       <span
         class="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-white text-xs font-bold"
         style="background-color: #032A42;"
       >
-        {inactiveCount}
+        {fejletCount}
       </span>
     </div>
     <div class="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
       <DataTable
-        data={data.notActiveBevillinger}
+        data={data.fejledeBevillinger}
         columns={columns}
         filterable={true}
       />

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class BevillingCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    adresse_for_bevilling: str | None = None
+    adresse_id: str
     matrikel_id: int | None = None
     ungdomsuddannelse_id: int | None = None
     hjemmel_id: int | None = None
@@ -46,7 +46,7 @@ class BevillingUpdateRequest(BaseModel):
     matrikel_id: int | None = None
     ungdomsuddannelse_id: int | None = None
     sagsbehandlingsdato: date | None = None
-    adresse_for_bevilling: str | None = None
+    adresse_id: str | None = None
     afstandskriterie_dato: date | None = None
     afstandskriterie_klassetrin: int | None = None
     relation_til_barnet: str | None = None
@@ -72,7 +72,7 @@ class KoerselsraekkeCreateRequest(BaseModel):
     gyldig_til: date
     tidspunkt_id: int
     befordringstype_id: int
-    bevilget_koereafstand_pr_vej: float
+    bevilget_koereafstand_pr_vej: float | None = None
 
     taxa_id: str | None = None
     kommentar: str | None = None

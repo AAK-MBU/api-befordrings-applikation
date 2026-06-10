@@ -26,8 +26,9 @@ class Bevilling(Base):
         nullable=False,
     )
 
-    adresse_for_bevilling: Mapped[str] = mapped_column(
-        String,
+    adresse_id: Mapped[str] = mapped_column(
+        Unicode(36),
+        ForeignKey(f"{DB_SCHEMA}.Adresse.adresse_id"),
         nullable=False,
     )
 
@@ -94,6 +95,12 @@ class Bevilling(Base):
     begrundelse_fra_formular: Mapped[str] = mapped_column(String, nullable=False)
 
     revurderet_af_ppr: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    # System-managed field — written by usp_recalculate_bevilling_status.
+    # Explains why the bevilling is in its current status (e.g. skolekode
+    # mismatch, approaching revurderingsdato). Cleared automatically when
+    # the status resolves to Aktiv or Ophørt.
+    statusbemaerkning: Mapped[str | None] = mapped_column(Unicode, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DATETIME2,

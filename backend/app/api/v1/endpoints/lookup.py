@@ -225,3 +225,5 @@ def get_dage(db: DbSession):
     service = LookupService(db=db)
 
     return service.get_dage()
+
+

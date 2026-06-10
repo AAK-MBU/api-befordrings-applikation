@@ -14,6 +14,8 @@ read-only in this application. No update methods should be added here.
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.citizen import Elev
+
 
 class CitizenService:
     """Service class for citizen-related operations.
@@ -83,6 +85,47 @@ class CitizenService:
         return records[0]
 
 
+    def create_elev(self, elev_data: dict) -> dict:
+        """Create an Elev record for a citizen if one does not exist.
+
+        Args:
+            elev_data:
+                Dictionary matching ElevCreateRequest fields.
+
+        Returns:
+            {"cpr": str, "created": bool} — created=False if the Elev already existed.
+
+        Notes:
+            adresse_id is the LOIS AdresseId (DAR GUID). The caller (RPA
+            conversion bot) resolves it via LOIS at queue time — see
+            queue_handler.py — and ensures the corresponding Adresse row
+            exists via POST /adresse/create before calling this endpoint.
+            No address record is created here.
+        """
+        existing = self.db.get(Elev, elev_data["cpr"])
+        if existing:
+            return {"cpr": existing.cpr, "created": False}
+
+        elev = Elev(
+            cpr=elev_data["cpr"],
+            adresseringsnavn=elev_data["adresseringsnavn"],
+            navne_adresse_beskyttelse=elev_data.get("navne_adresse_beskyttelse", False),
+            adresse_id=elev_data.get("adresse_id"),
+            matrikel_id=elev_data.get("matrikel_id"),
+            skolekode=elev_data.get("skolekode", 0),
+            skoleafstand=elev_data.get("skoleafstand", 0.0),
+            klasseart=elev_data.get("klasseart", ""),
+            elevklassetrin=elev_data.get("elevklassetrin", ""),
+            klassebetegnelse=elev_data.get("klassebetegnelse", ""),
+            sfo=elev_data.get("sfo", ""),
+            bopaelsdistrikt=elev_data.get("bopaelsdistrikt", ""),
+        )
+        self.db.add(elev)
+        self.db.commit()
+
+        return {"cpr": elev.cpr, "created": True}
+
+
     def get_parent_data(self, cpr: str):
         """Get parent/guardian data for a citizen/student.
 
@@ -123,5 +166,3 @@ class CitizenService:
         result = self.db.execute(sql, {"cpr": cpr})
 
         return self._rows_to_dicts(result)
-
-
