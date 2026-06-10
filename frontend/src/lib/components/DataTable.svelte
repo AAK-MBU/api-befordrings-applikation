@@ -24,6 +24,7 @@
   // Props
   // -----------------------------
 
+  export let pageSize = 10;
   export let data: any[] = [];
   export let columns: DataTableColumn[] = [];
 
@@ -49,6 +50,7 @@
   // -----------------------------
 
   let filters: Record<string, string> = {};
+  let currentPage = 1;
 
 
   // -----------------------------
@@ -71,6 +73,16 @@
       return rowValue.includes(filterValue);
     });
   });
+
+  $: totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+
+  $: paginatedData = filteredData.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Reset to page 1 when filters/data shrink the result set below the current page.
+  $: if (currentPage > totalPages) currentPage = 1;
 </script>
 
 
@@ -140,7 +152,7 @@
 
       {:else}
 
-        {#each filteredData as row, index}
+        {#each paginatedData as row, index}
 
           {@const rowId = getRowId(row, index)}
           {@const isEditing = editingRowId === rowId}
@@ -237,5 +249,33 @@
     </tbody>
 
   </table>
+
+  {#if totalPages > 1}
+    <div class="flex items-center justify-between px-3 py-2 text-xs text-gray-600 bg-gray-50 border-t border-gray-200">
+      <span>
+        Side {currentPage} af {totalPages}
+      </span>
+
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="px-2 py-1 border border-gray-300 rounded disabled:opacity-50"
+          on:click={() => currentPage--}
+          disabled={currentPage === 1}
+        >
+          Forrige
+        </button>
+
+        <button
+          type="button"
+          class="px-2 py-1 border border-gray-300 rounded disabled:opacity-50"
+          on:click={() => currentPage++}
+          disabled={currentPage === totalPages}
+        >
+          Næste
+        </button>
+      </div>
+    </div>
+  {/if}
 
 </div>

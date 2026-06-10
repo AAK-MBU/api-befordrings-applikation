@@ -30,6 +30,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     stamdataRes,
     parentsRes,
     bevillingerRes,
+    aktiviteterRes,
     statusRes,
     skolematriklerRes,
     hjemlerRes,
@@ -46,6 +47,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}`),
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}/parents`),
     backendApiFetch(fetch, `/bevilling/get_student_bevillinger/${cpr}`),
+    backendApiFetch(fetch, `/aktivitet/${cpr}`),
 
     backendApiFetch(fetch, "/lookup/status"),
     backendApiFetch(fetch, "/lookup/skolematrikel"),
@@ -64,6 +66,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
   await assertResponseOk(parentsRes, "Failed to fetch parents");
   await assertResponseOk(bevillingerRes, "Failed to fetch bevillinger");
+  await assertResponseOk(aktiviteterRes, "Failed to fetch aktiviteter");
   await assertResponseOk(statusRes, "Failed to fetch status");
   await assertResponseOk(skolematriklerRes, "Failed to fetch skolematrikler");
   await assertResponseOk(hjemlerRes, "Failed to fetch hjemler");
@@ -80,6 +83,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   const stamdataResponse = await stamdataRes.json();
   const parents = await parentsRes.json();
   const bevillinger: BevillingRecord[] = await bevillingerRes.json();
+  const aktiviteter = await aktiviteterRes.json();
   const statuser = await statusRes.json();
   const skolematrikler = await skolematriklerRes.json();
   const hjemler = await hjemlerRes.json();
@@ -136,6 +140,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     stamdata,
     parents,
     bevillinger: sortedBevillinger,
+    aktiviteter,
 
     lookupOptions: {
       statuser,

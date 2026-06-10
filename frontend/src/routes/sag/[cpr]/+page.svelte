@@ -37,7 +37,7 @@
   $: selectedLetterBevillingIsOphoert =
     selectedLetterBevilling?.status_tekst == "Ophørt";
 
-  let { stamdata, parents, bevillinger, lookupOptions } = data;
+  let { stamdata, parents, bevillinger, lookupOptions, aktiviteter } = data;
 
   const initialHash = window.location.hash.slice(1);
   let activeTab = (initialHash === "sagsforloeb" || initialHash === "stamdata")
@@ -91,6 +91,48 @@
     parents = data.parents;
     bevillinger = data.bevillinger;
     lookupOptions = data.lookupOptions;
+    aktiviteter = data.aktiviteter;
+  }
+
+
+  // -----------------------------
+  // Sagsaktivitet (Sagsforløb tab)
+  // -----------------------------
+
+  let nyKommentar = "";
+  let savingKommentar = false;
+
+  async function saveKommentar() {
+    if (!nyKommentar.trim()) {
+      return;
+    }
+
+    savingKommentar = true;
+
+    try {
+      const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          aktivitetstype: "Kommentar",
+          kommentar: nyKommentar,
+          oprettet_af: "Sagsbehandler"
+        })
+      });
+
+      if (!response.ok) {
+        alert("Kunne ikke gemme kommentar");
+        return;
+      }
+
+      nyKommentar = "";
+
+      await invalidateAll();
+    } finally {
+      savingKommentar = false;
+    }
   }
 
 
@@ -1274,6 +1316,84 @@
 
   <!-- SAGSFORLØB TAB -->
   {#if activeTab === "sagsforloeb"}
+
+    <!-- Ny kommentar -->
+    <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
+      <h2 class="font-semibold text-gray-800 mb-3">Ny kommentar</h2>
+
+      <textarea
+        bind:value={nyKommentar}
+        rows="4"
+        class="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+        placeholder="Skriv kommentar..."
+      ></textarea>
+
+      <div class="mt-3">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-50"
+          style="background-color: #032A42;"
+          on:click={saveKommentar}
+          disabled={savingKommentar}
+        >
+          {savingKommentar ? "Gemmer..." : "Gem kommentar"}
+        </button>
+      </div>
+    </div>
+
+    <!-- Aktiviteter -->
+    <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
+      <div class="flex items-center gap-3 mb-4">
+        <h2 class="font-semibold text-gray-800">Aktiviteter</h2>
+        <span
+          class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-bold"
+          style="background-color: #dbeafe; color: #1d4ed8;"
+        >
+          {aktiviteter?.length ?? 0}
+        </span>
+      </div>
+
+      {#if !aktiviteter || aktiviteter.length === 0}
+
+        <div class="text-sm text-gray-500">
+          Ingen aktiviteter registreret endnu.
+        </div>
+
+      {:else}
+
+        <div class="space-y-3">
+          {#each aktiviteter as aktivitet}
+
+            <div class="border border-gray-200 rounded-lg p-4">
+
+              <div class="flex justify-between items-start mb-2">
+                <div>
+                  <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                    {aktivitet.aktivitetstype}
+                  </span>
+                  <span class="ml-2 text-xs text-gray-500">
+                    {aktivitet.oprettet_af ?? "System"}
+                  </span>
+                </div>
+
+                <div class="text-xs text-gray-500">
+                  {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
+                </div>
+              </div>
+
+              {#if aktivitet.kommentar}
+                <div class="mt-2 text-sm text-gray-800 whitespace-pre-wrap">
+                  {aktivitet.kommentar}
+                </div>
+              {/if}
+
+            </div>
+
+          {/each}
+        </div>
+
+      {/if}
+    </div>
 
   {/if}
 

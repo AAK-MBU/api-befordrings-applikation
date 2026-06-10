@@ -19,7 +19,7 @@ single api_router instead of importing every endpoint router individually.
 
 from fastapi import APIRouter, Depends
 
-from app.api.v1.endpoints import adresse, bevilling, citizen, lookup, overview, os2forms
+from app.api.v1.endpoints import adresse, aktivitet, bevilling, citizen, lookup, overview, os2forms
 from app.core.security import verify_api_key
 
 
@@ -101,5 +101,15 @@ api_router.include_router(
 # Provides address search used by the bevilling create/edit forms.
 api_router.include_router(
     adresse.router,
+    dependencies=protected_dependencies,
+)
+
+
+# Register aktivitet routes.
+#
+# Provides the case activity feed (Sagsaktivitet) shown on the
+# "Sagsforløb" tab of the case page.
+api_router.include_router(
+    aktivitet.router,
     dependencies=protected_dependencies,
 )
