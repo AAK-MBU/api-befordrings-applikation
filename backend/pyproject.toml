@@ -12,7 +12,7 @@ keywords = ["fastapi", "befordrings-api", "api"]
 
 dependencies = [
     "automation-server-client @ git+https://github.com/odense-rpa/automation-server-client.git",
-    "oidc-auth[fastapi]",
+    "oidc-auth @ git+https://github.com/AAK-MBU/oidc-auth.git",
     "beautifulsoup4",
     "cryptography >= 43.0.0",
     "fastapi>=0.109.0",
@@ -21,7 +21,7 @@ dependencies = [
     "office365-rest-python-client",
     "openpyxl >= 3.1.2",
     "pandas",
-    "Pillow == 11.0",
+    "Pillow == 11.1.0",
     "portalocker",
     "pydantic>=2.5.3",
     "pydantic-settings>=2.1.0",
@@ -34,6 +34,7 @@ dependencies = [
     "sqlalchemy>=2.0.25",
     "sqlmodel>=0.0.14",
     "uvicorn[standard]>=0.27.0",
+    "itsdangerous>=2.2.0",
 ]
 
 [tool.uv.sources]
