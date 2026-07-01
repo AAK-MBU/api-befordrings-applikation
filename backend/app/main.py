@@ -44,6 +44,7 @@ app = FastAPI(
     description="API for Befordrings applikation",
     version="1.0.0",
     default_response_class=UTF8JSONResponse,
+    root_path="/api"
 )
 
 
