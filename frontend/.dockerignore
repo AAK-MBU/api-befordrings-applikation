@@ -1,0 +1,6 @@
+# frontend/.dockerignore
+node_modules
+.svelte-kit
+build
+.env
+*.local

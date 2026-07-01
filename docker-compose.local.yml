@@ -3,27 +3,36 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: befordringssystemet
+    container_name: befordringssystemet-api
     environment:
       API_KEY: ${API_KEY}
       API_KEY_HASHES: ${API_KEY_HASHES}
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI}
+      OIDC_SCOPES: ${OIDC_SCOPES}
+      OIDC_ENVIRONMENT: ${OIDC_ENVIRONMENT}
+      SESSION_SECRET: ${SESSION_SECRET}
     healthcheck:
-          test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-          interval: 30s
-          timeout: 10s
-          retries: 3
-          start_period: 40s
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "8000:8000"
     env_file:
       - .env
     restart: unless-stopped
     networks:
-      befordringssystemet-network
+      - befordringssystemet-network
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: befordringssystemet
+    container_name: befordringssystemet-frontend
     environment:
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
       BEFORDRING_API_KEY: ${BEFORDRING_API_KEY}
@@ -36,11 +45,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    ports:
+      - "80:80"
     env_file:
       - .env
     restart: unless-stopped
     networks:
-      befordringssystemet-network
+      - befordringssystemet-network
 
 networks:
   befordringssystemet-network: {}

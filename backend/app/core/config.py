@@ -11,7 +11,6 @@ import os
 
 from dotenv import load_dotenv
 
-
 # Load variables from a local .env file into the environment.
 #
 # This is mainly useful during local development.
@@ -42,7 +41,9 @@ class Settings:
     oidc_issuer: str = os.getenv("OIDC_ISSUER", "")
     oidc_client_id: str = os.getenv("OIDC_CLIENT_ID", "")
     oidc_client_secret: str = os.getenv("OIDC_CLIENT_SECRET", "")
-    oidc_redirect_uri: str = os.getenv("OIDC_REDIRECT_URI", "http://localhost:8020/auth/callback")
+    oidc_redirect_uri: str = os.getenv(
+        "OIDC_REDIRECT_URI", "http://localhost:8000/auth/callback"
+    )
     oidc_discovery_url: str | None = os.getenv("OIDC_DISCOVERY_URL") or None
     oidc_scopes: str = os.getenv("OIDC_SCOPES", "openid")
     oidc_environment: str = os.getenv("OIDC_ENVIRONMENT", "production")
