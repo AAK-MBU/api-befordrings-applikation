@@ -8,5 +8,5 @@ function normalizePath(path: string) {
 
 
 export function backendFetch(path: string, options: RequestInit = {}) {
-  return fetch(`/api/backend${normalizePath(path)}`, options);
+  return fetch(`/backend${normalizePath(path)}`, options);
 }
