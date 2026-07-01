@@ -95,6 +95,7 @@ class Bevilling(Base):
     begrundelse_fra_formular: Mapped[str] = mapped_column(String, nullable=False)
 
     revurderet_af_ppr: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    revurderet_af_br: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # System-managed field — written by usp_recalculate_bevilling_status.
     # Explains why the bevilling is in its current status (e.g. skolekode

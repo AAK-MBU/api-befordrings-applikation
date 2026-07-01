@@ -57,6 +57,7 @@ class BevillingUpdateRequest(BaseModel):
     sagsbehandler_id: int | None = None
     ppr_sagsbehandler_id: int | None = None
     revurderet_af_ppr: bool | None = None
+    revurderet_af_br: bool | None = None
 
 
 class HjaelpemidlerUpdateRequest(BaseModel):

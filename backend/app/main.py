@@ -11,11 +11,17 @@ It is responsible for:
 - Exposing basic root and health-check endpoints
 """
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
+
+from oidc_auth import IDTokenClaims
+from oidc_auth.integrations import create_oidc_router, get_current_user
 
 from app.api.v1.api import api_router
+from app.core.config import settings
+from app.core.oidc import oidc_config
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -41,6 +47,16 @@ app = FastAPI(
 )
 
 
+# Session middleware must be added before CORS so that it ends up as the inner
+# layer of the middleware stack.  The session cookie carries OIDC state between
+# the /auth/login redirect and the /auth/callback return.
+# same_site="lax" is required for the IdP redirect to send the cookie back.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    same_site="lax",
+)
+
 # Configure CORS.
 #
 # CORS controls which frontend origins are allowed to call the API from a
@@ -57,6 +73,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Register OIDC login / callback / logout routes.
+#
+# create_oidc_router already applies the /auth prefix internally, so routes
+# are mounted at /auth/login, /auth/callback and /auth/logout.
+#
+# OIDC_REDIRECT_URI must be set to http://<host>:<port>/auth/callback to
+# match the callback path that this router exposes.
+app.include_router(create_oidc_router(oidc_config))
 
 # Register all API v1 routers.
 #
@@ -80,6 +105,23 @@ def root():
     """
 
     return {"message": "Befordrings Application API is running"}
+
+
+@app.get("/me", tags=["auth"])
+def me(user: IDTokenClaims = Depends(get_current_user)) -> dict:
+    """Return the OIDC claims for the currently logged-in user.
+
+    Raises 401 if there is no active OIDC session.
+    """
+    return {
+        "sub": user.sub,
+        "name": user.name,
+        "email": user.email,
+        "roles": list(user.roles),
+        "groups": list(user.groups),
+        "organisation": user.organisation,
+        "mapped_claims": user.mapped_claims,
+    }
 
 
 @app.get("/health", tags=["health"])

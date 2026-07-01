@@ -11,7 +11,7 @@ class ElevCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     cpr: str
-    adresseringsnavn: str
+    adresseringsnavn: str | None = None
 
     # FK to the Adresse table (LOIS AdresseId / DAR GUID).
     # The RPA resolves this at queue time from LOIS.CPR.PersonGeoView and

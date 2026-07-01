@@ -17,9 +17,7 @@ services:
       - .env
     restart: unless-stopped
     networks:
-      edge:
-        aliases:
-          - befordringssystemet-api
+      befordringssystemet-network
 
   frontend:
     build:
@@ -42,10 +40,7 @@ services:
       - .env
     restart: unless-stopped
     networks:
-      edge:
-        aliases:
-          - befordringssystemet-frontend
+      befordringssystemet-network
 
 networks:
-  edge:
-    external: true
+  befordringssystemet-network: {}

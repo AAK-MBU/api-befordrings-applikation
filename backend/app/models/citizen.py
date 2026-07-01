@@ -23,8 +23,8 @@ class Elev(Base):
         primary_key=True,
     )
 
-    adresseringsnavn: Mapped[str] = mapped_column(String, nullable=False)
-    navne_adresse_beskyttelse: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    adresseringsnavn: Mapped[str | None] = mapped_column(String, nullable=True)
+    navne_adresse_beskyttelse: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     adresse_id: Mapped[str] = mapped_column(
         Unicode(36),
@@ -45,27 +45,27 @@ class Elev(Base):
     )
 
     skoleafstand: Mapped[float | None] = mapped_column(Float, nullable=True)
-    klasseart: Mapped[str] = mapped_column(String, nullable=False)
-    elevklassetrin: Mapped[str] = mapped_column(String, nullable=False)
-    klassebetegnelse: Mapped[str] = mapped_column(String, nullable=False)
-    sfo: Mapped[str] = mapped_column(String, nullable=False)
-    bopaelsdistrikt: Mapped[str] = mapped_column(String, nullable=False)
+    klasseart: Mapped[str | None] = mapped_column(String, nullable=True)
+    elevklassetrin: Mapped[str | None] = mapped_column(String, nullable=True)
+    klassebetegnelse: Mapped[str | None] = mapped_column(String, nullable=True)
+    sfo: Mapped[str | None] = mapped_column(String, nullable=True)
+    bopaelsdistrikt: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Skolekode is denormalised directly onto Elev so the nightly RPA can
     # compare it against the skolekode on the bevilling's matrikel without
     # needing to join through Skolematrikel on the student side.
-    skolekode: Mapped[int] = mapped_column(
+    skolekode: Mapped[int | None] = mapped_column(
         Integer,
-        nullable=False,
+        nullable=True,
         server_default=text("0"),
     )
 
     # Flag set by the nightly RPA when it detects that skoleafstand needs to
     # be recalculated (e.g. school assignment changed). Cleared once the RPA
     # has successfully written the new distance.
-    kraever_genberegning: Mapped[bool] = mapped_column(
+    kraever_genberegning: Mapped[bool | None] = mapped_column(
         Boolean,
-        nullable=False,
+        nullable=True,
         server_default=text("0"),
     )
 
@@ -98,6 +98,7 @@ class Foraelder(Base):
     navne_adresse_beskyttelse: Mapped[bool] = mapped_column(Boolean, nullable=False)
     foraeldremyndighed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     maa_vide_barns_adresse: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    relation: Mapped[str] = mapped_column(String(50), nullable=False)
 
     elev = relationship("Elev")
     adresse = relationship("Adresse")

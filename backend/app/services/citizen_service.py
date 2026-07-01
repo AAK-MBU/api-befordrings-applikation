@@ -108,7 +108,7 @@ class CitizenService:
 
         elev = Elev(
             cpr=elev_data["cpr"],
-            adresseringsnavn=elev_data["adresseringsnavn"],
+            adresseringsnavn=elev_data.get("adresseringsnavn"),
             navne_adresse_beskyttelse=elev_data.get("navne_adresse_beskyttelse", False),
             adresse_id=elev_data.get("adresse_id"),
             matrikel_id=elev_data.get("matrikel_id"),
@@ -151,7 +151,7 @@ class CitizenService:
                 adresseringsnavn,
                 cpr_foraelder,
                 adresse_tekst,
-                foraeldremyndighed,
+                relation,
                 navne_adresse_beskyttelse,
                 maa_vide_barns_adresse
             FROM

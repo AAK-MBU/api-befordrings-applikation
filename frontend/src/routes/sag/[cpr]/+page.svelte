@@ -37,7 +37,11 @@
   $: selectedLetterBevillingIsOphoert =
     selectedLetterBevilling?.status_tekst == "Ophørt";
 
-  let { stamdata, parents, bevillinger, lookupOptions, aktiviteter } = data;
+  let { stamdata, parents, bevillinger, lookupOptions } = data;
+
+  // sagsaktivitet/sagsforløb temporarily disabled — not fetched in +page.server.ts.
+  // Stub kept so the (dead) Sagsforløb tab markup below still compiles.
+  let aktiviteter: any[] = [];
 
   const initialHash = window.location.hash.slice(1);
   let activeTab = (initialHash === "sagsforloeb" || initialHash === "stamdata")
@@ -91,48 +95,52 @@
     parents = data.parents;
     bevillinger = data.bevillinger;
     lookupOptions = data.lookupOptions;
-    aktiviteter = data.aktiviteter;
   }
 
 
   // -----------------------------
-  // Sagsaktivitet (Sagsforløb tab)
+  // Sagsaktivitet (Sagsforløb tab) — temporarily disabled.
+  // Stubs kept so the (dead) Sagsforløb tab markup below still compiles.
   // -----------------------------
 
   let nyKommentar = "";
   let savingKommentar = false;
 
-  async function saveKommentar() {
-    if (!nyKommentar.trim()) {
-      return;
-    }
+  // async function saveKommentar() {
+  //   if (!nyKommentar.trim()) {
+  //     return;
+  //   }
 
-    savingKommentar = true;
+  //   savingKommentar = true;
 
-    try {
-      const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          aktivitetstype: "Kommentar",
-          kommentar: nyKommentar,
-          oprettet_af: "Sagsbehandler"
-        })
-      });
+  //   try {
+  //     const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json"
+  //       },
+  //       body: JSON.stringify({
+  //         aktivitetstype: "Kommentar",
+  //         kommentar: nyKommentar,
+  //         oprettet_af: "Sagsbehandler"
+  //       })
+  //     });
 
-      if (!response.ok) {
-        alert("Kunne ikke gemme kommentar");
-        return;
-      }
+  //     if (!response.ok) {
+  //       alert("Kunne ikke gemme kommentar");
+  //       return;
+  //     }
 
-      nyKommentar = "";
+  //     nyKommentar = "";
 
-      await invalidateAll();
-    } finally {
-      savingKommentar = false;
-    }
+  //     await invalidateAll();
+  //   } finally {
+  //     savingKommentar = false;
+  //   }
+  // }
+
+  function saveKommentar() {
+    // no-op — sagsaktivitet/sagsforløb temporarily disabled
   }
 
 
@@ -198,9 +206,8 @@
       label: "Folkeregisteradresse"
     },
     {
-      key: "foraeldremyndighed",
-      label: "Forældremyndig",
-      render: (row) => row.foraeldremyndighed ? "Ja" : "Nej"
+      key: "relation",
+      label: "Relation"
     },
     {
       key: "navne_adresse_beskyttelse",
@@ -796,6 +803,7 @@
         Stamdata
       </button>
 
+      <!-- Sagsforløb tab temporarily disabled
       <button
         type="button"
         class="px-4 py-2 text-sm font-medium rounded border transition-colors"
@@ -806,6 +814,7 @@
       >
         Sagsforløb
       </button>
+      -->
     </div>
 
   </div>
@@ -1314,8 +1323,8 @@
   {/if}
 
 
-  <!-- SAGSFORLØB TAB -->
-  {#if activeTab === "sagsforloeb"}
+  <!-- SAGSFORLØB TAB — temporarily disabled -->
+  {#if false && activeTab === "sagsforloeb"}
 
     <!-- Ny kommentar -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">

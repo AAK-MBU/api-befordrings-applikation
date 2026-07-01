@@ -38,6 +38,18 @@ class Settings:
     # Comma-separated or otherwise encoded API key hashes used for API auth.
     api_key_hashes: str = os.getenv("API_KEY_HASHES", "")
 
+    # OpenID Connect settings.
+    oidc_issuer: str = os.getenv("OIDC_ISSUER", "")
+    oidc_client_id: str = os.getenv("OIDC_CLIENT_ID", "")
+    oidc_client_secret: str = os.getenv("OIDC_CLIENT_SECRET", "")
+    oidc_redirect_uri: str = os.getenv("OIDC_REDIRECT_URI", "http://localhost:8020/auth/callback")
+    oidc_discovery_url: str | None = os.getenv("OIDC_DISCOVERY_URL") or None
+    oidc_scopes: str = os.getenv("OIDC_SCOPES", "openid")
+    oidc_environment: str = os.getenv("OIDC_ENVIRONMENT", "production")
+
+    # Secret used to sign the Starlette session cookie.
+    session_secret: str = os.getenv("SESSION_SECRET", "dev-only-change-in-prod")
+
 
 # Shared settings instance used throughout the application.
 #

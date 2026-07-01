@@ -19,6 +19,7 @@ single api_router instead of importing every endpoint router individually.
 
 from fastapi import APIRouter, Depends
 
+from app.api.dependencies import require_auth
 from app.api.v1.endpoints import adresse, aktivitet, bevilling, citizen, lookup, overview, os2forms
 from app.core.security import verify_api_key
 
@@ -31,85 +32,68 @@ from app.core.security import verify_api_key
 api_router = APIRouter()
 
 
-# Shared dependencies for protected API routes.
-#
-# Depends(verify_api_key) means FastAPI will run verify_api_key before allowing
-# access to the routes below.
-#
-# If the API key is missing or invalid, the request should be rejected before it
-# reaches the actual endpoint function.
-protected_dependencies = [Depends(verify_api_key)]
+# Human-facing routes accept either a valid API key (X-API-Key header) or an
+# active OIDC browser session.  RPA bots and integration partners continue to
+# use API keys; human users logging in via the browser use OIDC.
+human_dependencies = [Depends(require_auth)]
+
+# Automated / webhook routes keep the original API-key-only requirement.
+# os2forms submissions come from an external system with no browser session.
+rpa_dependencies = [Depends(verify_api_key)]
 
 
 # Register overview routes.
-#
-# These endpoints will require a valid API key because protected_dependencies
-# is passed to include_router.
 api_router.include_router(
     overview.router,
-    dependencies=protected_dependencies,
+    dependencies=human_dependencies,
 )
 
 
 # Register citizen routes.
 #
-# Final route paths depend on how this api_router is included in main.py.
-#
-# Example:
-# If main.py uses prefix="/api/v1" and citizen.router uses prefix="/citizen",
-# the final path becomes:
-#
-# /api/v1/citizen/...
+# citizen/stamdata is read by the human-facing case page.
+# citizen/create_elev is called by the RPA conversion bot.
+# Both are covered by human_dependencies: the RPA bot sends an API key, the
+# browser uses the OIDC session — require_auth handles both.
 api_router.include_router(
     citizen.router,
-    dependencies=protected_dependencies,
+    dependencies=human_dependencies,
 )
 
 
 # Register bevilling routes.
-#
-# These endpoints contain most of the bevilling-related functionality such as
-# create, update, delete, kørselsrækker, hjælpemidler, and letter creation.
 api_router.include_router(
     bevilling.router,
-    dependencies=protected_dependencies,
+    dependencies=human_dependencies,
 )
 
 
 # Register lookup routes.
-#
-# Lookup routes are also protected here, even though they are read-only.
-# This keeps all API v1 endpoints behind the same API-key requirement.
 api_router.include_router(
     lookup.router,
-    dependencies=protected_dependencies,
+    dependencies=human_dependencies,
 )
 
 
 # Register os2forms routes.
 #
-# OS2forms routes are also protected here, even though they are read-only.
-# This keeps all API v1 endpoints behind the same API-key requirement.
+# OS2Forms submissions arrive from an external system; they always authenticate
+# with an API key and never hold a browser session.
 api_router.include_router(
     os2forms.router,
-    dependencies=protected_dependencies,
+    dependencies=rpa_dependencies,
 )
 
 
 # Register adresse routes.
-#
-# Provides address search used by the bevilling create/edit forms.
 api_router.include_router(
     adresse.router,
-    dependencies=protected_dependencies,
+    dependencies=human_dependencies,
 )
 
 
 # Register aktivitet routes.
-#
-# Provides the case activity feed (Sagsaktivitet) shown on the
-# "Sagsforløb" tab of the case page.
 api_router.include_router(
     aktivitet.router,
-    dependencies=protected_dependencies,
+    dependencies=human_dependencies,
 )

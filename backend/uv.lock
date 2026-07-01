@@ -55,6 +55,7 @@ dependencies = [
     { name = "fastapi-pagination" },
     { name = "mbu-dev-shared-components" },
     { name = "office365-rest-python-client" },
+    { name = "oidc-auth", extra = ["fastapi"] },
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pillow" },
@@ -94,6 +95,7 @@ requires-dist = [
     { name = "mbu-dev-shared-components", specifier = ">=0.4.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "office365-rest-python-client" },
+    { name = "oidc-auth", extras = ["fastapi"], git = "https://github.com/AAK-MBU/oidc-auth.git?rev=f79b58d96ecb8d0470cc2a5f5c34b6af0aefb64d" },
     { name = "openpyxl", specifier = ">=3.1.2" },
     { name = "pandas" },
     { name = "pillow", specifier = "==11.0" },
@@ -563,6 +565,15 @@ wheels = [
 ]
 
 [[package]]
+name = "itsdangerous"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9c/cb/8ac0172223afbccb63986cc25049b154ecfb5e85932587206f42317be31d/itsdangerous-2.2.0.tar.gz", hash = "sha256:e0050c0b7da1eea53ffaf149c0cfbb5c6e2e2b69c4bef22c81fa6eb73e5f6173", size = 54410, upload-time = "2024-04-16T21:28:15.614Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/96/92447566d16df59b2a776c0fb82dbc4d9e07cd95062562af01e408583fc4/itsdangerous-2.2.0-py3-none-any.whl", hash = "sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef", size = 16234, upload-time = "2024-04-16T21:28:14.499Z" },
+]
+
+[[package]]
 name = "librt"
 version = "0.11.0"
 source = { registry = "https://pypi.org/simple" }
@@ -747,6 +758,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bc/04/6dce2d581c54a8e55a3b128cf79a93821a68a62bb9a956e65476c5bb247e/office365_rest_python_client-2.6.2.tar.gz", hash = "sha256:ce27f5a1c0cc3ff97041ccd9b386145692be4c64739f243f7d6ac3edbe0a3c46", size = 659460, upload-time = "2025-05-11T10:24:21.895Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/a4/611155711f8af347875c15b8b83f5fd9e978bd4de45f90085b9a583b684d/Office365_REST_Python_Client-2.6.2-py3-none-any.whl", hash = "sha256:06fc6829c39b503897caa9d881db419d7f97a8e4f1c95c4c2d12db36ea6c955d", size = 1337139, upload-time = "2025-05-11T10:24:18.926Z" },
+]
+
+[[package]]
+name = "oidc-auth"
+version = "1.0.0"
+source = { git = "https://github.com/AAK-MBU/oidc-auth.git?rev=f79b58d96ecb8d0470cc2a5f5c34b6af0aefb64d#f79b58d96ecb8d0470cc2a5f5c34b6af0aefb64d" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pyjwt", extra = ["crypto"] },
+]
+
+[package.optional-dependencies]
+fastapi = [
+    { name = "fastapi" },
+    { name = "itsdangerous" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [[package]]
