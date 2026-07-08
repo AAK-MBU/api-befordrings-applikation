@@ -41,7 +41,7 @@ class Base(DeclarativeBase):
 # URL-encoded before they are passed into SQLAlchemy.
 #
 # quote_plus makes the connection string safe to use inside the SQLAlchemy URL.
-odbc_connection = quote_plus(settings.db_connection_string_prod)
+odbc_connection = quote_plus(settings.db_connection_string)
 
 
 # Create the SQLAlchemy engine.
