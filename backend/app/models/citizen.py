@@ -26,10 +26,10 @@ class Elev(Base):
     adresseringsnavn: Mapped[str | None] = mapped_column(String, nullable=True)
     navne_adresse_beskyttelse: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
-    adresse_id: Mapped[str] = mapped_column(
+    adresse_id: Mapped[str | None] = mapped_column(
         Unicode(36),
         ForeignKey(f"{DB_SCHEMA}.Adresse.adresse_id"),
-        nullable=False,
+        nullable=True,
     )
 
     matrikel_id: Mapped[int | None] = mapped_column(
@@ -76,6 +76,8 @@ class Foraelder(Base):
     __tablename__ = "Foraelder"
     __table_args__ = {"schema": DB_SCHEMA}
 
+    # Composite primary key (cpr_foraelder, cpr_elev) — a guardian can appear
+    # once per child.
     cpr_foraelder: Mapped[str] = mapped_column(
         String(10),
         primary_key=True,
@@ -84,21 +86,28 @@ class Foraelder(Base):
     cpr_elev: Mapped[str] = mapped_column(
         String(10),
         ForeignKey(f"{DB_SCHEMA}.Elev.cpr"),
-        nullable=False,
+        primary_key=True,
     )
 
-    adresseringsnavn: Mapped[str] = mapped_column(String, nullable=False)
+    adresseringsnavn: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    adresse_id: Mapped[str] = mapped_column(
+    adresse_id: Mapped[str | None] = mapped_column(
         Unicode(36),
         ForeignKey(f"{DB_SCHEMA}.Adresse.adresse_id"),
-        nullable=False,
+        nullable=True,
     )
 
-    navne_adresse_beskyttelse: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    foraeldremyndighed: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    maa_vide_barns_adresse: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    relation: Mapped[str] = mapped_column(String(50), nullable=False)
+    navne_adresse_beskyttelse: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    maa_vide_barns_adresse: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        server_default=text("1"),
+    )
+    relation: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        server_default=text("'Ukendt'"),
+    )
 
     elev = relationship("Elev")
     adresse = relationship("Adresse")
@@ -124,7 +133,8 @@ class Sagsaktivitet(Base):
     cpr: Mapped[str] = mapped_column(String(10), nullable=False)
     aktivitetstype: Mapped[str] = mapped_column(String(50), nullable=False)
     kommentar: Mapped[str | None] = mapped_column(Unicode, nullable=True)
-    oprettet_af: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # DB column is named "udfoert_af"; kept as oprettet_af in Python/API.
+    oprettet_af: Mapped[str | None] = mapped_column("udfoert_af", String(100), nullable=True)
 
     oprettet_tidspunkt: Mapped[datetime] = mapped_column(
         DATETIME2,
