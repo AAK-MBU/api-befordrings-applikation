@@ -93,7 +93,7 @@ def get_bevillinger(
         }
 
     return service.get_bevillinger(
-        view_name="[befordring_app].[befordring].[view_All_Bevillinger]",
+        view_name="[befordring].[view_All_Bevillinger]",
         status=status,
         cpr=cpr,
         order_by=order_config,

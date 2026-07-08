@@ -69,7 +69,7 @@ class CitizenService:
             SELECT
                 *
             FROM
-                [befordring_app].[befordring].[view_Stamdata]
+                [befordring].[view_Stamdata]
             WHERE
                 cpr = :cpr
         """)
@@ -155,7 +155,7 @@ class CitizenService:
                 navne_adresse_beskyttelse,
                 maa_vide_barns_adresse
             FROM
-                [befordring_app].[befordring].[view_ParentData]
+                [befordring].[view_ParentData]
             WHERE
                 cpr_elev = :cpr
             ORDER BY

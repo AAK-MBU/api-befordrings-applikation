@@ -252,10 +252,10 @@ class BevillingService:
         """
 
         allowed_views = {
-            "[befordring_app].[befordring].[view_All_Bevillinger]",
-            "[befordring_app].[befordring].[view_All_Active_Bevillinger]",
-            "[befordring_app].[befordring].[view_Student_Bevillinger]",
-            "[befordring_app].[befordring].[view_New_Applications]",
+            "[befordring].[view_All_Bevillinger]",
+            "[befordring].[view_All_Active_Bevillinger]",
+            "[befordring].[view_Student_Bevillinger]",
+            "[befordring].[view_New_Applications]",
         }
 
         if view_name not in allowed_views:
@@ -338,7 +338,7 @@ class BevillingService:
             SELECT
                 *
             FROM
-                [befordring_app].[befordring].[view_All_Bevillinger]
+                [befordring].[view_All_Bevillinger]
             WHERE
                 bevilling_id = :bevilling_id
         """)
@@ -371,7 +371,7 @@ class BevillingService:
             SELECT
                 *
             FROM
-                [befordring_app].[befordring].[view_Student_Bevillinger]
+                [befordring].[view_Student_Bevillinger]
             WHERE
                 cpr = :cpr
             ORDER BY
@@ -399,9 +399,9 @@ class BevillingService:
                 vbk.*,
                 k.final
             FROM
-                [befordring_app].[befordring].[view_Bevilling_Koerselsraekker] vbk
+                [befordring].[view_Bevilling_Koerselsraekker] vbk
             INNER JOIN
-                [befordring_app].[befordring].[Koersel] k
+                [befordring].[Koersel] k
                 ON k.koersel_id = vbk.koersel_id
             WHERE
                 vbk.bevilling_id = :bevilling_id
@@ -1051,7 +1051,7 @@ class BevillingService:
             SELECT
                 *
             FROM
-                [befordring_app].[befordring].[view_Letter_BevillingData]
+                [befordring].[view_Letter_BevillingData]
             WHERE
                 bevilling_id = :bevilling_id
         """)
@@ -1075,7 +1075,7 @@ class BevillingService:
             SELECT
                 *
             FROM
-                [befordring_app].[befordring].[view_Letter_Koerselsraekker]
+                [befordring].[view_Letter_Koerselsraekker]
             WHERE
                 bevilling_id = :bevilling_id
             ORDER BY
