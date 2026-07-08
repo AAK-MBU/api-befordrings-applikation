@@ -103,7 +103,7 @@ class OverviewService:
         """
 
         allowed_tables = {
-            "[befordring_app].[befordring].[view_New_Applications]",
+            "[befordring].[view_New_Applications]",
         }
 
         if table_name not in allowed_tables:
@@ -137,7 +137,7 @@ class OverviewService:
         service = BevillingService(db=self.db)
 
         records = service.get_bevillinger(
-            view_name="[befordring_app].[befordring].[view_All_Active_Bevillinger]",
+            view_name="[befordring].[view_All_Active_Bevillinger]",
         )
 
         return [
@@ -156,7 +156,7 @@ class OverviewService:
         service = BevillingService(db=self.db)
 
         records = service.get_bevillinger(
-            view_name="[befordring_app].[befordring].[view_All_Bevillinger]",
+            view_name="[befordring].[view_All_Bevillinger]",
             status="Fejlet",
         )
 
@@ -180,7 +180,7 @@ class OverviewService:
         service = BevillingService(db=self.db)
 
         records = service.get_bevillinger(
-            view_name="[befordring_app].[befordring].[view_All_Bevillinger]",
+            view_name="[befordring].[view_All_Bevillinger]",
             status="Revurdering",
         )
 
@@ -215,9 +215,9 @@ class OverviewService:
                 s.adresseringsnavn,
                 COUNT(b.bevilling_id) AS bevilling_count
             FROM
-                [befordring_app].[befordring].[view_Stamdata] s
+                [befordring].[view_Stamdata] s
             LEFT JOIN
-                [befordring_app].[befordring].[Bevilling] b
+                [befordring].[Bevilling] b
                 ON b.cpr_elev = s.cpr
             WHERE
                 s.cpr LIKE :q
@@ -246,7 +246,7 @@ class OverviewService:
             SELECT
                 *
             FROM
-                [befordring_app].[befordring].[view_Revurderinger]
+                [befordring].[view_Revurderinger]
             ORDER BY
                 revurderingsdato ASC
         """)
@@ -261,15 +261,15 @@ class OverviewService:
                 vbk.*,
                 k.final
             FROM
-                [befordring_app].[befordring].[view_Bevilling_Koerselsraekker] vbk
+                [befordring].[view_Bevilling_Koerselsraekker] vbk
             INNER JOIN
-                [befordring_app].[befordring].[Koersel] k
+                [befordring].[Koersel] k
                 ON k.koersel_id = vbk.koersel_id
             INNER JOIN
-                [befordring_app].[befordring].[Bevilling] b
+                [befordring].[Bevilling] b
                 ON b.bevilling_id = vbk.bevilling_id
             INNER JOIN
-                [befordring_app].[befordring].[Status] s
+                [befordring].[Status] s
                 ON s.status_id = b.status_id
             WHERE
                 s.status_tekst = N'Revurdering'
@@ -303,7 +303,7 @@ class OverviewService:
         """
 
         return self._read_overview_table(
-            table_name="[befordring_app].[befordring].[view_New_Applications]",
+            table_name="[befordring].[view_New_Applications]",
             order_direction="ASC"
         )
 
@@ -316,5 +316,5 @@ class OverviewService:
         """
 
         return self._read_overview_table(
-            table_name="[befordring_app].[befordring].[DATA_REPORTS]",
+            table_name="[befordring].[DATA_REPORTS]",
         )
