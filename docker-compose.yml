@@ -20,11 +20,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    ports:
-      - "8000:8000"
     env_file:
       - .env
     restart: unless-stopped
+    volumes:
+       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     networks:
       edge:
         aliases:
@@ -47,8 +47,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    ports:
-      - "80:80"
     env_file:
       - .env
     restart: unless-stopped

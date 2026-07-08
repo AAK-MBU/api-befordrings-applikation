@@ -29,7 +29,8 @@ class Settings:
     """
 
     # Main database connection string used by the application.
-    db_connection_string: str = os.getenv("DBCONNECTIONSTRINGBEFORDRING", "")
+    db_connection_string_dev: str = os.getenv("DBCONNECTIONSTRINGBEFORDRINGDEV", "")
+    db_connection_string_prod: str = os.getenv("DBCONNECTIONSTRINGBEFORDRINGPROD", "")
 
     # Optional/secondary LIS database connection string.
     lis_db_connection_string: str = os.getenv("DBCONNECTIONSTRINGSERVER29", "")
