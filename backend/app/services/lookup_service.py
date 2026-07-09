@@ -19,6 +19,7 @@ basic structure.
 from sqlalchemy import select, true
 from sqlalchemy.orm import Session
 
+from app.models.adresse import Adresse
 from app.models.lookup import (
     Afgoerelsesbrev,
     Befordringstype,
@@ -351,6 +352,21 @@ class LookupService:
             model=Ugedag,
             id_column=Ugedag.dag_id,
             label_column=Ugedag.dag_tekst,
+        )
+
+
+    def get_adresser(self):
+        """Get all addresses.
+
+        Returns:
+            A list of address records as id/label dictionaries.
+        """
+
+        return self._get_lookup_records(
+            model=Adresse,
+            id_column=Adresse.adresse_id,
+            label_column=Adresse.adresse_tekst,
+            only_active=False,
         )
 
 

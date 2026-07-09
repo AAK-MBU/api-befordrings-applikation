@@ -227,3 +227,16 @@ def get_dage(db: DbSession):
     return service.get_dage()
 
 
+@router.get("/adressen")
+def get_adressen(db: DbSession):
+    """Get all addresses.
+
+    Returns:
+        A list of address records as id/label dictionaries.
+    """
+
+    service = LookupService(db=db)
+
+    return service.get_adressen()
+
+

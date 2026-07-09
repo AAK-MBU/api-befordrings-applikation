@@ -1312,7 +1312,7 @@
 
             {#if selectedLetterBevillingHasSkolerejsekort}
               <label class="block text-sm font-medium text-gray-700">
-                Transporttid i bus
+                Transporttid i bus (i minutter)
                 <input type="number" min="0" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={transporttidIBus} />
               </label>
               <label class="block text-sm font-medium text-gray-700">
