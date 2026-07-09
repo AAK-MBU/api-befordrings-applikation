@@ -237,6 +237,6 @@ def get_adresser(db: DbSession):
 
     service = LookupService(db=db)
 
-    return service.get_adressen()
+    return service.get_adresser()
 
 
