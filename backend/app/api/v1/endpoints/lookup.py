@@ -227,7 +227,7 @@ def get_dage(db: DbSession):
     return service.get_dage()
 
 
-@router.get("/adressen")
+@router.get("/adresser")
 def get_adresser(db: DbSession):
     """Get all addresses.
 
