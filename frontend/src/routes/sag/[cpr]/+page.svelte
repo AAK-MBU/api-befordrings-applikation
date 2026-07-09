@@ -42,7 +42,7 @@
 
   $: selectedLetterBevillingHasSkolerejsekort =
     (selectedLetterBevilling?.koerselsraekker ?? []).some(
-      (k: any) => k.koerselstype_tekst === "Skolerejsekort"
+      (k: any) => k.befordringstype_tekst === "Skolerejsekort"
     );
 
   let { stamdata, parents, bevillinger, lookupOptions } = data;
