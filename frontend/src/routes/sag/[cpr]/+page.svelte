@@ -19,6 +19,9 @@
 
   let letterType = "";
   let befordringsudvalgResultat = "";
+  let tidligereAfgoerelseDato = "";
+  let transporttidIBus: number | "" = "";
+  let skiftMedBus: number | "" = "";
 
   let creatingLetter = false;
   let showCreateLetterModal = false;
@@ -36,6 +39,11 @@
 
   $: selectedLetterBevillingIsOphoert =
     selectedLetterBevilling?.status_tekst == "Ophørt";
+
+  $: selectedLetterBevillingHasSkolerejsekort =
+    (selectedLetterBevilling?.koerselsraekker ?? []).some(
+      (k: any) => k.koerselstype_tekst === "Skolerejsekort"
+    );
 
   let { stamdata, parents, bevillinger, lookupOptions } = data;
 
@@ -273,6 +281,9 @@
     selectedLetterBevillingId = "";
     letterType = "";
     befordringsudvalgResultat = "";
+    tidligereAfgoerelseDato = "";
+    transporttidIBus = "";
+    skiftMedBus = "";
   }
 
 
@@ -460,8 +471,23 @@
       return;
     }
 
+    if (selectedLetterBevillingHasBefordringsudvalg && !tidligereAfgoerelseDato) {
+      alert("Angiv dato for tidligere afgørelse");
+      return;
+    }
+
     if (selectedLetterBevillingIsOphoert && !ophoersdato) {
       alert("Vælg ophørsdato");
+      return;
+    }
+
+    if (selectedLetterBevillingHasSkolerejsekort && transporttidIBus === "") {
+      alert("Angiv transporttid i bus");
+      return;
+    }
+
+    if (selectedLetterBevillingHasSkolerejsekort && skiftMedBus === "") {
+      alert("Angiv antal skift med bus");
       return;
     }
 
@@ -474,8 +500,20 @@
         ? befordringsudvalgResultat
         : null,
 
+      dato_for_tidligere_afgoerelse: selectedLetterBevillingHasBefordringsudvalg
+        ? tidligereAfgoerelseDato
+        : null,
+
       ophoersdato: selectedLetterBevillingIsOphoert
         ? ophoersdato
+        : null,
+
+      transporttid_i_bus: selectedLetterBevillingHasSkolerejsekort
+        ? Number(transporttidIBus)
+        : null,
+
+      skift_med_bus: selectedLetterBevillingHasSkolerejsekort
+        ? Number(skiftMedBus)
         : null
     };
 
@@ -1265,6 +1303,21 @@
                   <option value="Befordringsudvalg: Afslag / fastholdelse">Befordringsudvalg: Afslag / fastholdelse</option>
                   <option value="Befordringsudvalg: Ændring i bevilling">Befordringsudvalg: Ændring i bevilling</option>
                 </select>
+              </label>
+              <label class="block text-sm font-medium text-gray-700">
+                Dato for tidligere afgørelse
+                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={tidligereAfgoerelseDato} />
+              </label>
+            {/if}
+
+            {#if selectedLetterBevillingHasSkolerejsekort}
+              <label class="block text-sm font-medium text-gray-700">
+                Transporttid i bus
+                <input type="number" min="0" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={transporttidIBus} />
+              </label>
+              <label class="block text-sm font-medium text-gray-700">
+                Skift med bus (antal)
+                <input type="number" min="0" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={skiftMedBus} />
               </label>
             {/if}
 
