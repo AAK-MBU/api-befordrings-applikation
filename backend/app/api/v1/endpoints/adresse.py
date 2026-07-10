@@ -44,7 +44,7 @@ def search_adresser(
 
     return (
         db.query(Adresse)
-        .filter(Adresse.adresse_tekst.ilike(f"%{q}%"))
+        .filter(Adresse.adresse_tekst.like(f"{q}%"))
         .order_by(Adresse.adresse_tekst)
         .limit(15)
         .all()
