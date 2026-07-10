@@ -43,6 +43,7 @@
   let results: AdresseResult[] = [];
   let isOpen = false;
   let loading = false;
+  let searched = false;
   let debounceTimer: ReturnType<typeof setTimeout>;
   let activeIndex = -1;
   let inputEl: HTMLInputElement | null = null;
@@ -87,6 +88,7 @@
     clearTimeout(debounceTimer);
     results = [];
     isOpen = false;
+    searched = false;
 
     if (value.length < 2) {
       loading = false;
@@ -108,6 +110,7 @@
         }
       } finally {
         loading = false;
+        searched = true;
       }
     }, 300);
   }
@@ -147,6 +150,7 @@
     // Delay so mousedown on a result item fires before blur closes the list.
     setTimeout(() => {
       isOpen = false;
+      searched = false;
 
       if (inputValue.trim() === "") {
         // User explicitly cleared the field — remove the selection.
@@ -239,6 +243,10 @@
           </button>
         </li>
       {/each}
+    </ul>
+  {:else if !loading && inputValue.length >= 2 && searched}
+    <ul use:portal class="bg-white border border-gray-200 rounded shadow-lg">
+      <li class="px-3 py-2 text-sm text-gray-400 italic">Ingen adresser fundet</li>
     </ul>
   {/if}
 </div>
