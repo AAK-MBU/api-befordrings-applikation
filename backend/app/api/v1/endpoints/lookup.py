@@ -18,7 +18,7 @@ The router should stay very thin. The actual database queries should live in
 LookupService.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.api.dependencies import DbSession
 from app.services.lookup_service import LookupService
