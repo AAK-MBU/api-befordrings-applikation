@@ -246,7 +246,7 @@
     </ul>
   {:else if !loading && inputValue.length >= 2 && searched}
     <ul use:portal class="bg-white border border-gray-200 rounded shadow-lg">
-      <li class="px-3 py-2 text-sm text-gray-400 italic">Ingen adresser fundet endnu</li>
+      <li class="px-3 py-2 text-sm text-gray-400 italic">Ingen adresser fundet</li>
     </ul>
   {/if}
 </div>
