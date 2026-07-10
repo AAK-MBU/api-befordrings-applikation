@@ -228,15 +228,22 @@ def get_dage(db: DbSession):
 
 
 @router.get("/adresser")
-def get_adresser(db: DbSession):
-    """Get all addresses.
+def get_adresser(
+    db: DbSession,
+    q: str = Query(min_length=2, description="Address search string (starts-with match)."),
+):
+    """Search addresses by partial text.
 
-    Returns:
-        A list of address records as id/label dictionaries.
+    Returns up to 50 addresses where adresse_tekst starts with the given
+    query string.
+
+    Args:
+        q:
+            Partial address string. Minimum 2 characters required.
     """
 
     service = LookupService(db=db)
 
-    return service.get_adresser()
+    return service.get_adresser(q=q)
 
 

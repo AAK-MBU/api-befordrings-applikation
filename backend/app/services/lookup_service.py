@@ -355,18 +355,30 @@ class LookupService:
         )
 
 
-    def get_adresser(self):
-        """Get all addresses.
+    def get_adresser(self, q: str):
+        """Search addresses by partial text.
+
+        Args:
+            q:
+                Search string. Only rows where adresse_tekst starts with this
+                value are returned. Minimum 2 characters enforced at the
+                endpoint level.
 
         Returns:
-            A list of address records as id/label dictionaries.
+            Up to 50 address records as id/label dictionaries, ordered
+            alphabetically by address text.
         """
 
-        return self._get_lookup_records(
-            model=Adresse,
-            id_column=Adresse.adresse_id,
-            label_column=Adresse.adresse_tekst,
-            only_active=False,
-        )
+        rows = self.db.execute(
+            select(
+                Adresse.adresse_id.label("id"),
+                Adresse.adresse_tekst.label("label"),
+            )
+            .where(Adresse.adresse_tekst.like(f"{q}%"))
+            .order_by(Adresse.adresse_tekst)
+            .limit(50)
+        ).mappings().all()
+
+        return [dict(row) for row in rows]
 
 
