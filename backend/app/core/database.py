@@ -57,6 +57,9 @@ odbc_connection = quote_plus(settings.db_connection_string)
 engine = create_engine(
     f"mssql+pyodbc:///?odbc_connect={odbc_connection}",
     pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=1800,
 )
 
 
