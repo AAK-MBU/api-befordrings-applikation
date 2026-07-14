@@ -1,7 +1,7 @@
   <script lang="ts">
     import { invalidateAll } from "$app/navigation";
     import { backendFetch } from "$lib/client/backendFetch";
-    import { formatDanishDate, getStatusBadgeClass } from "$lib/tableColumnConfig";
+    import { formatDanishDate, getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
     import BevillingTable from "$lib/components/BevillingTable.svelte";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
 
@@ -1527,7 +1527,7 @@
                 </a>
               </div>
               <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="text-gray-400 text-xs whitespace-nowrap">{bev.cpr_elev}</span>
+                <span class="text-gray-400 text-xs whitespace-nowrap">{formatCpr(bev.cpr_elev)}</span>
                 {#if bev.skole_navn}
                   <span class="text-gray-300 text-xs">·</span>
                   <span class="text-gray-500 text-xs whitespace-nowrap truncate">{bev.skole_navn}</span>

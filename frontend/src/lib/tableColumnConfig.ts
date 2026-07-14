@@ -7,6 +7,13 @@ export function formatDanishDate(dateStr: string | null | undefined): string {
 }
 
 
+export function formatCpr(cpr: string | null | undefined): string {
+  if (!cpr) return "—";
+  const digits = String(cpr).replace(/\D/g, "");
+  return digits.length === 10 ? `${digits.slice(0, 6)}-${digits.slice(6)}` : String(cpr);
+}
+
+
 export const statusBadgeClasses: Record<string, string> = {
   ny: "bg-blue-100 text-blue-700",
   aktiv: "bg-green-100 text-green-800",

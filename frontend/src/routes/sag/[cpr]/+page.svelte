@@ -8,6 +8,7 @@
   import AddresseSearch from "$lib/components/AddresseSearch.svelte";
   import {
     getStatusBadgeClass,
+    formatCpr,
   } from "$lib/tableColumnConfig";
 
   export let data;
@@ -216,7 +217,8 @@
     },
     {
       key: "cpr_foraelder",
-      label: "Cpr-nummer"
+      label: "Cpr-nummer",
+      render: (row) => formatCpr(row.cpr_foraelder)
     },
     {
       key: "adresse_tekst",
@@ -838,7 +840,7 @@
           {/if}
         </div>
         <p class="text-sm text-gray-500 mt-0.5">
-          <span class="font-mono">{stamdata?.cpr ?? ""}</span>
+          <span class="font-mono">{formatCpr(stamdata?.cpr)}</span>
           {#if studentAge !== null}
             <span class="mx-1.5 text-gray-300">·</span>{studentAge} år
           {/if}

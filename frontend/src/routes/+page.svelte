@@ -1,6 +1,6 @@
 <script lang="ts">
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
-  import { getStatusBadgeClass } from "$lib/tableColumnConfig";
+  import { getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
 
   export let data;
 
@@ -23,7 +23,8 @@
     {
       key: "cpr",
       label: "CPR",
-      filterType: "text"
+      filterType: "text",
+      render: (row: any) => formatCpr(row.cpr)
     },
     {
       key: "status",
