@@ -31,7 +31,8 @@ from app.models.bevilling import (
     KoerselKoerselstypeTillaegLink,
     KoerselUgedagLink,
 )
-from app.models.lookup import Status
+from app.models.citizen import Sagsaktivitet
+from app.models.lookup import PPRSagsbehandler, Sagsbehandler, Status
 
 
 class BevillingService:
@@ -51,6 +52,56 @@ class BevillingService:
         """Initialize the service with a database session."""
 
         self.db = db
+
+
+    def _log_event(
+        self,
+        cpr: str,
+        aktivitetstype: str,
+        kommentar: str | None = None,
+        relateret_bevilling_id: int | None = None,
+        udfoert_af: str = "System",
+    ) -> None:
+        """Log a case event to Sagsaktivitet.
+
+        Audit logging is best-effort: it must never break the primary write
+        operation. On any failure the transaction is rolled back and the error
+        is swallowed.
+        """
+
+        try:
+            self.db.add(Sagsaktivitet(
+                cpr=cpr,
+                aktivitetstype=aktivitetstype,
+                kommentar=kommentar,
+                udfoert_af=udfoert_af,
+                relateret_bevilling_id=relateret_bevilling_id,
+            ))
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+
+
+    def _get_sagsbehandler_name(self, sagsbehandler_id: int | None) -> str | None:
+        """Look up a caseworker's display name by ID (None if unset/missing)."""
+
+        if sagsbehandler_id is None:
+            return None
+
+        sb = self.db.get(Sagsbehandler, sagsbehandler_id)
+
+        return sb.sagsbehandler_tekst if sb else None
+
+
+    def _get_ppr_name(self, ppr_id: int | None) -> str | None:
+        """Look up a PPR caseworker's display name by ID (None if unset/missing)."""
+
+        if ppr_id is None:
+            return None
+
+        ppr = self.db.get(PPRSagsbehandler, ppr_id)
+
+        return ppr.ppr_sagsbehandler_tekst if ppr else None
 
 
     def _get_status_result_for_bevilling(
@@ -422,6 +473,7 @@ class BevillingService:
         cpr: str,
         new_bevilling_data: dict,
         status_text: str = "Ny",
+        udfoert_af: str = "System",
     ):
         """Create a new bevilling.
 
@@ -507,7 +559,7 @@ class BevillingService:
             self.db.commit()
             self.db.refresh(bevilling)
 
-            return {
+            result = {
                 "bevilling_id": bevilling.bevilling_id,
                 "status_text": status_result["status_text"],
                 "status_reason": status_result.get("status_reason"),
@@ -519,11 +571,22 @@ class BevillingService:
             self.db.rollback()
             raise
 
+        self._log_event(
+            cpr=cpr,
+            aktivitetstype="Bevilling oprettet",
+            kommentar=f"Bevilling ID: {bevilling.bevilling_id} — Status: Ny",
+            relateret_bevilling_id=bevilling.bevilling_id,
+            udfoert_af=udfoert_af,
+        )
+
+        return result
+
 
     def create_koerselsraekke(
         self,
         bevilling_id: int,
         new_koerselsraekke_data: dict,
+        udfoert_af: str = "System",
     ):
         """Create a new koerselsraekke for a bevilling.
 
@@ -603,7 +666,7 @@ class BevillingService:
             raise
 
 
-    def update_bevilling(self, bevilling_id: int, bevilling_data: dict):
+    def update_bevilling(self, bevilling_id: int, bevilling_data: dict, udfoert_af: str = "System"):
         """Update an existing bevilling.
 
         Args:
@@ -643,6 +706,16 @@ class BevillingService:
                 detail=f"Bevilling not found: {bevilling_id}",
             )
 
+        # Capture the fields we audit BEFORE mutating so _log_bevilling_update_events
+        # can detect what actually changed.
+        cpr = bevilling.cpr_elev
+        old_values = {
+            "sagsbehandler_id": bevilling.sagsbehandler_id,
+            "ppr_sagsbehandler_id": bevilling.ppr_sagsbehandler_id,
+            "revurderet_af_ppr": bevilling.revurderet_af_ppr,
+            "revurderet_af_br": bevilling.revurderet_af_br,
+        }
+
         try:
             for field_name, value in bevilling_data.items():
                 setattr(bevilling, field_name, value)
@@ -663,7 +736,7 @@ class BevillingService:
 
             self.db.commit()
 
-            return {
+            result = {
                 "rows_updated": 1,
                 "updated_fields": list(bevilling_data.keys()),
                 "status": status_result,
@@ -673,11 +746,88 @@ class BevillingService:
             self.db.rollback()
             raise
 
+        self._log_bevilling_update_events(
+            cpr, bevilling_id, bevilling_data, old_values, status_result, udfoert_af
+        )
+
+        return result
+
+
+    _STATUS_KOMMENTAR: dict[str, str] = {
+        "Påbegyndt": "Sagsbehandler tilføjet",
+        "Aktiv": "Bevillingsperioden er startet",
+        "Kommende": "Bevillingsperioden er endnu ikke startet",
+        "Udløbet": "Bevillingsperioden er udløbet",
+    }
+
+    def _log_bevilling_update_events(
+        self,
+        cpr: str,
+        bevilling_id: int,
+        new_data: dict,
+        old_values: dict,
+        status_result: dict,
+        udfoert_af: str = "System",
+    ) -> None:
+        """Emit Sagsaktivitet events for the meaningful changes in an update.
+
+        Logs caseworker/PPR reassignments, PPR/BR revurdering toggles, and
+        status transitions. Each event is only logged when the value actually
+        changed relative to old_values.
+        """
+
+        if "sagsbehandler_id" in new_data and new_data["sagsbehandler_id"] != old_values["sagsbehandler_id"]:
+            name = self._get_sagsbehandler_name(new_data["sagsbehandler_id"])
+            self._log_event(
+                cpr, "Sagsbehandler opdateret",
+                kommentar=f"Sagsbehandler sat til {name}" if name else None,
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
+
+        if "ppr_sagsbehandler_id" in new_data and new_data["ppr_sagsbehandler_id"] != old_values["ppr_sagsbehandler_id"]:
+            name = self._get_ppr_name(new_data["ppr_sagsbehandler_id"])
+            self._log_event(
+                cpr, "PPR ansvarlig opdateret",
+                kommentar=f"PPR ansvarlig sat til {name}" if name else None,
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
+
+        if "revurderet_af_ppr" in new_data and new_data["revurderet_af_ppr"] != old_values["revurderet_af_ppr"]:
+            label = "PPR Revurderet" if new_data["revurderet_af_ppr"] else "PPR revurderet fjernet"
+            self._log_event(cpr, label, relateret_bevilling_id=bevilling_id, udfoert_af=udfoert_af)
+
+        br_changed = "revurderet_af_br" in new_data and new_data["revurderet_af_br"] != old_values["revurderet_af_br"]
+        if br_changed:
+            label = "BR Revurderet" if new_data["revurderet_af_br"] else "BR revurderet fjernet"
+            self._log_event(cpr, label, relateret_bevilling_id=bevilling_id, udfoert_af=udfoert_af)
+
+        if status_result.get("rows_updated", 0) > 0:
+            new_status = status_result["status_text"]
+            if br_changed and new_data.get("revurderet_af_br") and new_status == "Aktiv":
+                self._log_event(
+                    cpr,
+                    f"Status sat til {new_status}",
+                    kommentar="Sagen er gennemgået revurdering og markeret som revurderet af BR",
+                    relateret_bevilling_id=bevilling_id,
+                    udfoert_af=udfoert_af,
+                )
+            else:
+                self._log_event(
+                    cpr,
+                    f"Status sat til {new_status}",
+                    kommentar=status_result.get("status_reason") or self._STATUS_KOMMENTAR.get(new_status),
+                    relateret_bevilling_id=bevilling_id,
+                    udfoert_af=udfoert_af,
+                )
+
 
     def update_koerselsraekke(
         self,
         koersel_id: int,
         koerselsraekke_data: dict,
+        udfoert_af: str = "System",
     ):
         """Update an existing koerselsraekke.
 
@@ -914,7 +1064,7 @@ class BevillingService:
         }
 
 
-    def delete_bevilling(self, bevilling_id: int):
+    def delete_bevilling(self, bevilling_id: int, udfoert_af: str = "System"):
         """Delete a bevilling.
 
         Args:
@@ -942,8 +1092,18 @@ class BevillingService:
                 detail=f"Bevilling not found: {bevilling_id}",
             )
 
+        # Captured before delete — cpr_elev is inaccessible after commit.
+        cpr = bevilling.cpr_elev
+
         self.db.delete(bevilling)
         self.db.commit()
+
+        self._log_event(
+            cpr,
+            "Bevilling slettet",
+            kommentar=f"Bevilling ID: {bevilling_id}",
+            udfoert_af=udfoert_af,
+        )
 
         return {
             "rows_deleted": 1,

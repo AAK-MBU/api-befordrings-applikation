@@ -75,3 +75,35 @@ def require_auth(
             detail="Invalid API key",
         )
     return get_current_user(request)
+
+
+def get_udfoert_af(
+    principal: Annotated[object, Depends(require_auth)],
+) -> str:
+    """Resolve a display name for audit attribution (Sagsaktivitet.udfoert_af).
+
+    Reuses require_auth so the dual API-key/OIDC resolution is not duplicated:
+      - API-key callers (RPA bots) have no human identity and are attributed
+        to "System".
+      - Human OIDC sessions are attributed to their display name, falling back
+        to email and then subject.
+
+    The result is truncated to 100 chars to match the udfoert_af column width.
+    """
+    if isinstance(principal, dict):
+        # API-key auth (e.g. RPA) — no human identity available.
+        return "System"
+
+    # principal is an oidc_auth IDTokenClaims object.
+    name = (
+        getattr(principal, "name", None)
+        or getattr(principal, "email", None)
+        or getattr(principal, "sub", None)
+    )
+
+    return (name or "Ukendt")[:100]
+
+
+# Reusable dependency that yields the display name of the current caller,
+# used for audit attribution on write endpoints (Sagsaktivitet.udfoert_af).
+CurrentUser = Annotated[str, Depends(get_udfoert_af)]

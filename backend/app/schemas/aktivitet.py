@@ -8,7 +8,7 @@ class SagsaktivitetCreateRequest(BaseModel):
 
     aktivitetstype: str
     kommentar: str | None = None
-    oprettet_af: str | None = None
+    udfoert_af: str | None = None
     relateret_bevilling_id: int | None = None
 
 
@@ -19,6 +19,6 @@ class SagsaktivitetResponse(BaseModel):
     cpr: str
     aktivitetstype: str
     kommentar: str | None = None
-    oprettet_af: str | None = None
+    udfoert_af: str | None = None
     oprettet_tidspunkt: datetime
     relateret_bevilling_id: int | None = None

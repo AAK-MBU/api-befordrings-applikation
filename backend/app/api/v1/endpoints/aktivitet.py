@@ -6,7 +6,7 @@ and caseworker comments shown on the "Sagsforløb" tab of the case page.
 
 from fastapi import APIRouter
 
-from app.api.dependencies import DbSession
+from app.api.dependencies import CurrentUser, DbSession
 from app.schemas.aktivitet import SagsaktivitetCreateRequest, SagsaktivitetResponse
 from app.services.aktivitet_service import AktivitetService
 
@@ -35,7 +35,12 @@ def get_case_activity(cpr: str, db: DbSession):
 
 
 @router.post("/{cpr}", response_model=SagsaktivitetResponse)
-def create_activity(cpr: str, payload: SagsaktivitetCreateRequest, db: DbSession):
+def create_activity(
+    cpr: str,
+    payload: SagsaktivitetCreateRequest,
+    db: DbSession,
+    udfoert_af: CurrentUser,
+):
     """Create an activity/comment on a citizen case.
 
     Args:
@@ -48,9 +53,16 @@ def create_activity(cpr: str, payload: SagsaktivitetCreateRequest, db: DbSession
         db:
             Database session injected by FastAPI.
 
+        udfoert_af:
+            Display name of the signed-in caller, used for attribution when
+            the payload does not explicitly set it.
+
     Returns:
         The created activity record.
     """
+
+    # Default attribution to the signed-in user unless the caller supplied one.
+    payload.udfoert_af = payload.udfoert_af or udfoert_af
 
     service = AktivitetService(db=db)
 
