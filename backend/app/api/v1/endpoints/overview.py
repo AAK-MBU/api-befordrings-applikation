@@ -7,6 +7,13 @@ from app.services.overview_service import OverviewService
 router = APIRouter(prefix="/overview", tags=["Overview"])
 
 
+@router.get("/alle_bevillinger")
+def get_alle_bevillinger(db: DbSession):
+    """Get all bevillinger (every status) for the overview table."""
+
+    return OverviewService(db=db).get_alle_bevillinger()
+
+
 @router.get("/search")
 def search_bevillinger(db: DbSession, q: str = Query(default="", min_length=0)):
     return OverviewService(db=db).search_bevillinger(q)

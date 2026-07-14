@@ -58,7 +58,7 @@ class AktivitetService:
             cpr=cpr,
             aktivitetstype=payload.aktivitetstype,
             kommentar=payload.kommentar,
-            oprettet_af=payload.oprettet_af,
+            udfoert_af=payload.udfoert_af,
             relateret_bevilling_id=payload.relateret_bevilling_id,
         )
 

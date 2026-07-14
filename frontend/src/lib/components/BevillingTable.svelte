@@ -43,6 +43,8 @@
     koerselId: number
   ) => Promise<boolean> = async () => false;
 
+  export let readonlyKoerselsraekker: boolean = false;
+
 
   // -----------------------------
   // Table state
@@ -423,14 +425,16 @@
               </button>
             {/if}
 
-            <button
-              type="button"
-              class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-              on:click={() => toggleRow(bevilling.bevilling_id)}
-            >
-              Kørselsrækker {koerselCount}
-              <span class="text-xs opacity-60">{isExpanded ? "▲" : "▼"}</span>
-            </button>
+            {#if !readonlyKoerselsraekker}
+              <button
+                type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                on:click={() => toggleRow(bevilling.bevilling_id)}
+              >
+                Kørselsrækker {koerselCount}
+                <span class="text-xs opacity-60">{isExpanded ? "▲" : "▼"}</span>
+              </button>
+            {/if}
           </div>
         </div>
 
@@ -704,7 +708,7 @@
 
 
         <!-- Kørselsrækker section (expanded) -->
-        {#if isExpanded}
+        {#if isExpanded || readonlyKoerselsraekker}
           <div class="border-t-2 border-gray-300 bg-gray-100">
 
             <div class="px-6 py-2.5 border-b border-gray-300">
@@ -717,6 +721,7 @@
                 lookupOptions={lookupOptions}
                 adresseForBevilling={bevilling.adresse_for_bevilling ?? ""}
                 matrikelId={bevilling.matrikel_id ?? null}
+                readonly={readonlyKoerselsraekker}
                 onSaveKoerselsraekke={onSaveKoerselsraekke}
                 onCreateKoerselsraekke={(updates) => onCreateKoerselsraekke(bevilling.bevilling_id, updates)}
                 onFinalizeKoerselsraekke={onFinalizeKoerselsraekke}

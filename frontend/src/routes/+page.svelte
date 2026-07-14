@@ -4,10 +4,16 @@
 
   export let data;
 
+  const STATUS_ORDER: Record<string, number> = {
+  "Aktiv": 0, "Revurdering": 1, "Ny": 2, "Påbegyndt": 3,
+  "Kommende": 4, "Fejlet": 5, "Ophørt": 6, "Afslag": 7, "Udløbet": 8,
+  };
+
   const columns: DataTableColumn[] = [
     {
       key: "navn",
       label: "Navn",
+      filterType: "text",
       render: (row) => `
         <a href="/sag/${row.cpr}" class="text-sky-600 font-medium hover:underline">
           ${row.navn ?? ""}
@@ -16,11 +22,14 @@
     },
     {
       key: "cpr",
-      label: "CPR"
+      label: "CPR",
+      filterType: "text"
     },
     {
       key: "status",
       label: "Status",
+      filterType: "select",
+      multiSelect: true,
       render: (row) => `
         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium ${getStatusBadgeClass(row.status)}">
           ${row.status ?? ""}
@@ -30,6 +39,7 @@
     {
       key: "esdh_noegle",
       label: "Sags-ID",
+      filterType: "text",
       render: (row) => `
         <a href="#" class="text-sky-600 hover:underline">
           ${row.esdh_noegle ?? ""}
@@ -38,17 +48,24 @@
     },
     {
       key: "sagsbehandler",
-      label: "Sagsbehandler"
+      label: "Sagsbehandler",
+      filterType: "select",
+      multiSelect: true
     },
     {
       key: "ppr_sagsbehandler",
-      label: "PPR ansvarlig"
+      label: "PPR ansvarlig",
+      filterType: "select",
+      multiSelect: true
     },
   ];
 
-  $: activeCount = data.activeBevillinger?.length ?? 0;
-  $: fejletCount = data.fejledeBevillinger?.length ?? 0;
-  $: totalCount = activeCount + fejletCount;
+  $: sortedBevillinger = [...(data.bevillinger ?? [])].sort((a, b) =>
+  (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99)
+  );
+
+  $: totalCount = sortedBevillinger.length;
+
 </script>
 
 
@@ -72,80 +89,20 @@
   </div>
 
 
-  <!-- Stat cards -->
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-
-    <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 flex items-center justify-between">
-      <div>
-        <p class="text-4xl font-bold text-gray-900">{activeCount}</p>
-        <p class="text-xs uppercase tracking-widest text-gray-400 mt-2">Aktive</p>
-      </div>
-      <svg class="w-8 h-8 text-gray-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-      </svg>
-    </div>
-
-    <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 flex items-center justify-between">
-      <div>
-        <p class="text-4xl font-bold text-gray-900">{fejletCount}</p>
-        <p class="text-xs uppercase tracking-widest text-gray-400 mt-2">Fejlede</p>
-      </div>
-      <svg class="w-8 h-8 text-red-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" />
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01" />
-      </svg>
-    </div>
-
-    <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 flex items-center justify-between">
-      <div>
-        <p class="text-4xl font-bold text-gray-900">{totalCount}</p>
-        <p class="text-xs uppercase tracking-widest text-gray-400 mt-2">I alt</p>
-      </div>
-      <svg class="w-8 h-8 text-gray-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10" />
-      </svg>
-    </div>
-
-  </div>
-
-
-  <!-- Active grants section -->
+  <!-- All bevillinger -->
   <div class="mb-6">
     <div class="flex items-center gap-2.5 mb-3 px-3 py-2 bg-white rounded-lg border border-gray-300 shadow-sm">
-      <div class="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></div>
-      <h2 class="font-semibold text-gray-700">Aktive bevillinger</h2>
+      <h2 class="font-semibold text-gray-700">Alle bevillinger</h2>
       <span
         class="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-white text-xs font-bold"
         style="background-color: #032A42;"
       >
-        {activeCount}
+        {totalCount}
       </span>
     </div>
     <div class="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
       <DataTable
-        data={data.activeBevillinger}
-        columns={columns}
-        filterable={true}
-      />
-    </div>
-  </div>
-
-
-  <!-- Failed grants section -->
-  <div class="mb-6">
-    <div class="flex items-center gap-2.5 mb-3 px-3 py-2 bg-white rounded-lg border border-gray-300 shadow-sm">
-      <div class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></div>
-      <h2 class="font-semibold text-gray-700">Fejlede bevillinger</h2>
-      <span
-        class="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-white text-xs font-bold"
-        style="background-color: #032A42;"
-      >
-        {fejletCount}
-      </span>
-    </div>
-    <div class="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
-      <DataTable
-        data={data.fejledeBevillinger}
+        data={sortedBevillinger}
         columns={columns}
         filterable={true}
       />

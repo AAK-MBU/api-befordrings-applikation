@@ -2,7 +2,7 @@
   import { invalidateAll } from "$app/navigation";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import { backendFetch } from "$lib/client/backendFetch";
-  import { formatDanishDate } from "$lib/tableColumnConfig";
+  import { formatDanishDate, getStatusBadgeClass } from "$lib/tableColumnConfig";
 
   export let data;
 
@@ -99,6 +99,16 @@
       render: (row: any) => {
         const days = daysSince(row.ansoegningsdato);
         return `<span style="display:inline-block;padding:2px 10px;border-radius:9999px;font-size:0.75rem;font-weight:600;${waitingBadgeStyle(days)}">${waitingLabel(days)}</span>`;
+      }
+    },
+    {
+      key: "status_tekst",
+      label: "Status",
+      filterType: "select",
+      multiSelect: true,
+      render: (row: any) => {
+        const status = row.status_tekst ?? "";
+        return `<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ${getStatusBadgeClass(status)}">${status}</span>`;
       }
     },
     {
