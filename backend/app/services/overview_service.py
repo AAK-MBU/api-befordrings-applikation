@@ -123,6 +123,25 @@ class OverviewService:
         return self._rows_to_dicts(result)
 
 
+    def get_alle_bevillinger(self):
+        """Get all bevillinger for the overview.
+
+        Returns:
+            A list of simplified bevilling records across every status.
+        """
+
+        service = BevillingService(db=self.db)
+
+        records = service.get_bevillinger(
+            view_name="[befordring].[view_All_Bevillinger]",
+        )
+
+        return [
+            self._map_bevilling_overview_record(record)
+            for record in records
+        ]
+
+
     def get_active_bevillinger(self):
         """Get active bevillinger for the overview.
 
