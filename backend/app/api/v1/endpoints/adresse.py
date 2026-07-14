@@ -29,10 +29,15 @@ def search_adresser(
     db: DbSession,
     q: str = Query(..., min_length=2, description="Search term — minimum 2 characters"),
 ):
-    """Search addresses by partial text match.
+    """Search addresses by prefix (starts-with) match.
 
-    Performs a case-insensitive LIKE '%q%' query against adresse_tekst.
-    Returns up to 15 matches ordered alphabetically.
+    Performs a LIKE 'q%' query against adresse_tekst and returns up to 15
+    matches ordered alphabetically.
+
+    IMPORTANT: this deliberately uses a prefix match ('q%'), NOT a contains
+    match ('%q%'). The Adresse table holds ~4 million rows with a supporting
+    index (IX_Adresse_adresse_tekst); a leading-wildcard/contains query cannot
+    use that index and forces a full scan on every keystroke. Keep it as 'q%'.
 
     Args:
         q:

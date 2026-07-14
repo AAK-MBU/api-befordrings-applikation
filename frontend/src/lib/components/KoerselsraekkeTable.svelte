@@ -30,6 +30,7 @@
 
   export let adresseForBevilling: string = "";
   export let matrikelId: number | null = null;
+  export let readonly: boolean = false;
 
 
   // -----------------------------
@@ -518,6 +519,7 @@
 <div class="space-y-0">
 
   <!-- + Ny kørselsrække button / create form — above the rows -->
+  {#if !readonly}
   {#if isCreating}
 
     <div class="mt-2 p-4 bg-white rounded-lg border border-gray-300 shadow-sm">
@@ -686,6 +688,7 @@
       </button>
     </div>
 
+  {/if}
   {/if}
 
 
@@ -890,7 +893,7 @@
                 </svg>
                 Afsluttet
               </span>
-            {:else}
+            {:else if !readonly}
               <!-- Unlocked state: redigér + lock button -->
               <button
                 type="button"

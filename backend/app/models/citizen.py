@@ -133,8 +133,7 @@ class Sagsaktivitet(Base):
     cpr: Mapped[str] = mapped_column(String(10), nullable=False)
     aktivitetstype: Mapped[str] = mapped_column(String(50), nullable=False)
     kommentar: Mapped[str | None] = mapped_column(Unicode, nullable=True)
-    # DB column is named "udfoert_af"; kept as oprettet_af in Python/API.
-    oprettet_af: Mapped[str | None] = mapped_column("udfoert_af", String(100), nullable=True)
+    udfoert_af: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     oprettet_tidspunkt: Mapped[datetime] = mapped_column(
         DATETIME2,

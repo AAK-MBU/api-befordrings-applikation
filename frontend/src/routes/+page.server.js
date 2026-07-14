@@ -17,31 +17,17 @@ async function assertResponseOk(response, errorMessage) {
 
 
 export async function load({ fetch }) {
-  const activeBevillingerRes = await backendApiFetch(
+  const bevillingerRes = await backendApiFetch(
     fetch,
-    "/overview/aktive_bevillinger"
-  );
-
-  const fejledeBevillingerRes = await backendApiFetch(
-    fetch,
-    "/overview/fejlede_bevillinger"
+    "/overview/alle_bevillinger"
   );
 
   await assertResponseOk(
-    activeBevillingerRes,
-    "Failed to fetch active bevillinger"
+    bevillingerRes,
+    "Failed to fetch bevillinger"
   );
 
-  await assertResponseOk(
-    fejledeBevillingerRes,
-    "Failed to fetch fejlede bevillinger"
-  );
+  const bevillinger = await bevillingerRes.json();
 
-  const activeBevillinger = await activeBevillingerRes.json();
-  const fejledeBevillinger = await fejledeBevillingerRes.json();
-
-  return {
-    activeBevillinger,
-    fejledeBevillinger
-  };
+  return { bevillinger };
 }

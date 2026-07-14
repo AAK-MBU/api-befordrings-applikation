@@ -45,11 +45,7 @@
       (k: any) => k.befordringstype_tekst === "Skolerejsekort"
     );
 
-  let { stamdata, parents, bevillinger, lookupOptions } = data;
-
-  // sagsaktivitet/sagsforløb temporarily disabled — not fetched in +page.server.ts.
-  // Stub kept so the (dead) Sagsforløb tab markup below still compiles.
-  let aktiviteter: any[] = [];
+  let { stamdata, parents, bevillinger, lookupOptions, aktiviteter } = data;
 
   const initialHash = window.location.hash.slice(1);
   let activeTab = (initialHash === "sagsforloeb" || initialHash === "stamdata")
@@ -63,6 +59,9 @@
 
   $: initial = (stamdata?.adresseringsnavn ?? "?").charAt(0).toUpperCase();
   $: anyParentCannotKnowAddress = (parents ?? []).some((p: any) => p.maa_vide_barns_adresse === false);
+
+  $: anyPprRevurderet = (bevillinger as any[]).some((b) => b.revurderet_af_ppr);
+  $: anyBrRevurderet  = (bevillinger as any[]).some((b) => b.revurderet_af_br);
 
   // If any bevilling is Aktiv, always show Aktiv.
   // Otherwise show the status of the bevilling with the latest gyldig_til
@@ -103,52 +102,62 @@
     parents = data.parents;
     bevillinger = data.bevillinger;
     lookupOptions = data.lookupOptions;
+    aktiviteter = data.aktiviteter;
   }
 
 
   // -----------------------------
-  // Sagsaktivitet (Sagsforløb tab) — temporarily disabled.
-  // Stubs kept so the (dead) Sagsforløb tab markup below still compiles.
+  // Sagsaktivitet (Sagsforløb tab)
   // -----------------------------
 
   let nyKommentar = "";
   let savingKommentar = false;
 
-  // async function saveKommentar() {
-  //   if (!nyKommentar.trim()) {
-  //     return;
-  //   }
+  async function saveKommentar() {
+    if (!nyKommentar.trim()) {
+      return;
+    }
 
-  //   savingKommentar = true;
+    savingKommentar = true;
 
-  //   try {
-  //     const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json"
-  //       },
-  //       body: JSON.stringify({
-  //         aktivitetstype: "Kommentar",
-  //         kommentar: nyKommentar,
-  //         oprettet_af: "Sagsbehandler"
-  //       })
-  //     });
+    try {
+      const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          aktivitetstype: "Kommentar",
+          kommentar: nyKommentar,
+          udfoert_af: null,
+        })
+      });
 
-  //     if (!response.ok) {
-  //       alert("Kunne ikke gemme kommentar");
-  //       return;
-  //     }
+      if (!response.ok) {
+        alert("Kunne ikke gemme kommentar");
+        return;
+      }
 
-  //     nyKommentar = "";
+      nyKommentar = "";
 
-  //     await invalidateAll();
-  //   } finally {
-  //     savingKommentar = false;
-  //   }
-  // }
+      await invalidateAll();
+    } finally {
+      savingKommentar = false;
+    }
+  }
 
-  function saveKommentar() {
-    // no-op — sagsaktivitet/sagsforløb temporarily disabled
+  function feedStyle(aktivitet: any): { border: string; icon: string; badgeBg: string; badgeText: string } {
+    const type = aktivitet.aktivitetstype ?? "";
+    if (type === "PPR Revurderet" || type === "BR Revurderet") {
+      return { border: "border-l-green-500", icon: "check", badgeBg: "bg-green-100", badgeText: "text-green-800" };
+    }
+    if (type === "Kommentar") {
+      return { border: "border-l-blue-500", icon: "chat", badgeBg: "bg-blue-100", badgeText: "text-blue-800" };
+    }
+    if (type === "Brev oprettet") {
+      return { border: "border-l-purple-500", icon: "gear", badgeBg: "bg-purple-100", badgeText: "text-purple-800" };
+    }
+    return { border: "border-l-gray-300", icon: "gear", badgeBg: "bg-gray-100", badgeText: "text-gray-600" };
   }
 
 
@@ -551,8 +560,20 @@
 
       alert(`Brev er sat i kø. Reference: ${result.reference}`);
 
+      await backendFetch(`/aktivitet/${stamdata.cpr}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aktivitetstype: "Brev oprettet",
+          kommentar: `Bevilling ID: ${selectedLetterBevillingId}`,
+          relateret_bevilling_id: Number(selectedLetterBevillingId),
+          udfoert_af: null,
+        })
+      });
+
       showCreateLetterModal = false;
       resetCreateLetterForm();
+      await invalidateAll();
 
     } finally {
       creatingLetter = false;
@@ -841,7 +862,6 @@
         Stamdata
       </button>
 
-      <!-- Sagsforløb tab temporarily disabled
       <button
         type="button"
         class="px-4 py-2 text-sm font-medium rounded border transition-colors"
@@ -852,7 +872,6 @@
       >
         Sagsforløb
       </button>
-      -->
     </div>
 
   </div>
@@ -1376,84 +1395,102 @@
   {/if}
 
 
-  <!-- SAGSFORLØB TAB — temporarily disabled -->
-  {#if false && activeTab === "sagsforloeb"}
+  <!-- SAGSFORLØB TAB -->
+  {#if activeTab === "sagsforloeb"}
+
+    <!-- PPR / BR revurderet status banner -->
+    {#if anyPprRevurderet || anyBrRevurderet}
+      <div class="bg-green-50 border border-green-300 rounded-lg px-4 py-3 mb-4 flex items-center gap-3 flex-wrap">
+        <svg class="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-sm font-medium text-green-800">Revurderet:</p>
+        {#if anyPprRevurderet}
+          <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-300">✓ PPR revurderet</span>
+        {/if}
+        {#if anyBrRevurderet}
+          <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-300">✓ BR revurderet</span>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Ny kommentar -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
-      <h2 class="font-semibold text-gray-800 mb-3">Ny kommentar</h2>
+      <h2 class="font-semibold text-gray-800 mb-3">Tilføj kommentar</h2>
 
       <textarea
         bind:value={nyKommentar}
-        rows="4"
-        class="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+        rows="3"
+        class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-blue-400 focus:ring-0 resize-none"
         placeholder="Skriv kommentar..."
       ></textarea>
 
-      <div class="mt-3">
+      <div class="mt-2">
         <button
           type="button"
           class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-50"
           style="background-color: #032A42;"
           on:click={saveKommentar}
-          disabled={savingKommentar}
+          disabled={savingKommentar || !nyKommentar.trim()}
         >
           {savingKommentar ? "Gemmer..." : "Gem kommentar"}
         </button>
       </div>
     </div>
 
-    <!-- Aktiviteter -->
+    <!-- Timeline feed -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
-      <div class="flex items-center gap-3 mb-4">
-        <h2 class="font-semibold text-gray-800">Aktiviteter</h2>
-        <span
-          class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-bold"
-          style="background-color: #dbeafe; color: #1d4ed8;"
-        >
+      <div class="flex items-center gap-3 mb-5">
+        <h2 class="font-semibold text-gray-800">Sagsforløb</h2>
+        <span class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
           {aktiviteter?.length ?? 0}
         </span>
       </div>
 
       {#if !aktiviteter || aktiviteter.length === 0}
-
-        <div class="text-sm text-gray-500">
-          Ingen aktiviteter registreret endnu.
-        </div>
-
+        <p class="text-sm text-gray-400 italic">Ingen aktiviteter registreret endnu.</p>
       {:else}
-
-        <div class="space-y-3">
+        <div class="space-y-2">
           {#each aktiviteter as aktivitet}
-
-            <div class="border border-gray-200 rounded-lg p-4">
-
-              <div class="flex justify-between items-start mb-2">
-                <div>
-                  <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+            {@const style = feedStyle(aktivitet)}
+            <div class="border-l-4 {style.border} bg-gray-50 rounded-r-lg px-4 py-3">
+              <div class="flex items-start justify-between gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <!-- Icon -->
+                  {#if style.icon === "check"}
+                    <svg class="w-3.5 h-3.5 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  {:else if style.icon === "chat"}
+                    <svg class="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  {:else}
+                    <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  {/if}
+                  <!-- Type badge -->
+                  <span class="px-2 py-0.5 rounded text-xs font-medium {style.badgeBg} {style.badgeText}">
                     {aktivitet.aktivitetstype}
                   </span>
-                  <span class="ml-2 text-xs text-gray-500">
-                    {aktivitet.oprettet_af ?? "System"}
-                  </span>
+                  <!-- Sender -->
+                  {#if aktivitet.udfoert_af}
+                    <span class="text-xs text-gray-500">· {aktivitet.udfoert_af}</span>
+                  {/if}
                 </div>
-
-                <div class="text-xs text-gray-500">
+                <!-- Timestamp -->
+                <span class="text-xs text-gray-400 whitespace-nowrap shrink-0">
                   {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
-                </div>
+                </span>
               </div>
-
               {#if aktivitet.kommentar}
-                <div class="mt-2 text-sm text-gray-800 whitespace-pre-wrap">
-                  {aktivitet.kommentar}
-                </div>
+                <p class="mt-2 text-sm text-gray-800 whitespace-pre-wrap">{aktivitet.kommentar}</p>
               {/if}
-
             </div>
-
           {/each}
         </div>
-
       {/if}
     </div>
 

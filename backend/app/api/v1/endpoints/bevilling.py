@@ -21,7 +21,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.dependencies import DbSession
+from app.api.dependencies import CurrentUser, DbSession
 from app.schemas.bevilling import (
     BevillingCreateRequest,
     BevillingUpdateRequest,
@@ -170,6 +170,7 @@ def create_bevilling(
     cpr: str,
     request: BevillingCreateRequest,
     db: DbSession,
+    udfoert_af: CurrentUser,
     status_text: str = Query("Ny"),
 ):
     """Create a new bevilling for a citizen/student.
@@ -203,6 +204,7 @@ def create_bevilling(
         cpr=cpr,
         new_bevilling_data=request.model_dump(exclude_none=True),
         status_text=status_text,
+        udfoert_af=udfoert_af,
     )
 
 
@@ -211,6 +213,7 @@ def update_bevilling(
     bevilling_id: int,
     request: BevillingUpdateRequest,
     db: DbSession,
+    udfoert_af: CurrentUser,
 ):
     """Update an existing bevilling.
 
@@ -238,11 +241,12 @@ def update_bevilling(
     return service.update_bevilling(
         bevilling_id=bevilling_id,
         bevilling_data=request.model_dump(exclude_unset=True),
+        udfoert_af=udfoert_af,
     )
 
 
 @router.delete("/{bevilling_id}")
-def delete_bevilling(bevilling_id: int, db: DbSession):
+def delete_bevilling(bevilling_id: int, db: DbSession, udfoert_af: CurrentUser):
     """Delete or deactivate a bevilling.
 
     Args:
@@ -262,7 +266,7 @@ def delete_bevilling(bevilling_id: int, db: DbSession):
 
     service = BevillingService(db=db)
 
-    return service.delete_bevilling(bevilling_id=bevilling_id)
+    return service.delete_bevilling(bevilling_id=bevilling_id, udfoert_af=udfoert_af)
 
 
 @router.put("/{bevilling_id}/hjaelpemidler")
@@ -303,6 +307,7 @@ def create_koerselsraekke(
     bevilling_id: int,
     request: KoerselsraekkeCreateRequest,
     db: DbSession,
+    udfoert_af: CurrentUser,
 ):
     """Create a new koerselsraekke for a bevilling.
 
@@ -334,6 +339,7 @@ def create_koerselsraekke(
         return service.create_koerselsraekke(
             bevilling_id=bevilling_id,
             new_koerselsraekke_data=request.model_dump(exclude_none=True),
+            udfoert_af=udfoert_af,
         )
 
     except ValueError as error:
@@ -348,6 +354,7 @@ def update_koerselsraekke(
     koersel_id: int,
     request: KoerselsraekkeUpdateRequest,
     db: DbSession,
+    udfoert_af: CurrentUser,
 ):
     """Update an existing koerselsraekke.
 
@@ -370,6 +377,7 @@ def update_koerselsraekke(
     return service.update_koerselsraekke(
         koersel_id=koersel_id,
         koerselsraekke_data=request.model_dump(exclude_unset=True),
+        udfoert_af=udfoert_af,
     )
 
 

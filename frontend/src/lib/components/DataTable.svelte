@@ -13,6 +13,9 @@
     key: string;
     label: string;
     filterable?: boolean;
+    filterType?: "text" | "select";
+    multiSelect?: boolean;
+    sortable?: boolean;
     editable?: boolean;
     render?: (row: any) => string;
     class?: string;
@@ -49,8 +52,32 @@
   // Table state
   // -----------------------------
 
-  let filters: Record<string, string> = {};
+  let filters: Record<string, string | string[]> = {};
   let currentPage = 1;
+  let openDropdown: string | null = null;
+
+  $: hasActiveFilters = Object.values(filters).some((v) =>
+    Array.isArray(v) ? v.length > 0 : v !== ""
+  );
+
+  function clickOutside(node: HTMLElement, callback: () => void) {
+    const handle = (e: MouseEvent) => {
+      if (!node.contains(e.target as Node)) callback();
+    };
+    document.addEventListener("click", handle, true);
+    return { destroy() { document.removeEventListener("click", handle, true); } };
+  }
+
+  function getUniqueOptions(key: string): string[] {
+    return Array.from(
+      new Set(data.map((row) => String(row[key] ?? "").trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, "da"));
+  }
+
+  function clearFilters() {
+    filters = {};
+    currentPage = 1;
+  }
 
 
   // -----------------------------
@@ -67,10 +94,23 @@
         return true;
       }
 
-      const rowValue = String(row[column.key] ?? "").toLowerCase();
-      const filterValue = String(filters[column.key] ?? "").toLowerCase();
+      const filterValue = filters[column.key];
 
-      return rowValue.includes(filterValue);
+      if (
+        filterValue === undefined ||
+        filterValue === "" ||
+        (Array.isArray(filterValue) && filterValue.length === 0)
+      ) {
+        return true;
+      }
+
+      const rowValue = String(row[column.key] ?? "").toLowerCase();
+
+      if (Array.isArray(filterValue)) {
+        return filterValue.some((v) => rowValue === v.toLowerCase());
+      }
+
+      return rowValue.includes(filterValue.toLowerCase());
     });
   });
 
@@ -87,6 +127,15 @@
 
 
 <div class="w-full overflow-x-auto">
+
+  {#if filterable && hasActiveFilters}
+    <div class="flex items-center justify-between px-3 py-1.5 mb-2 rounded-md bg-sky-50 border border-sky-100 text-xs text-sky-700">
+      <span>Aktive filtre</span>
+      <button type="button" on:click={clearFilters} class="font-medium hover:underline">
+        Ryd filtre
+      </button>
+    </div>
+  {/if}
 
   <table class="w-full text-sm text-gray-700 border-collapse">
 
@@ -117,15 +166,85 @@
           {/if}
 
           {#each columns as column}
-            <td class="px-3 py-2">
+            <td class="px-3 py-2 align-top">
 
               {#if column.filterable !== false}
-                <input
-                  type="text"
-                  placeholder="Søg..."
-                  class="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:border-blue-400 focus:ring-0 transition-colors bg-white"
-                  bind:value={filters[column.key]}
-                />
+
+                {#if column.filterType === "select" && column.multiSelect}
+
+                  <div class="relative" use:clickOutside={() => { if (openDropdown === column.key) openDropdown = null; }}>
+                    <button
+                      type="button"
+                      class="h-7 w-full flex items-center justify-between border border-gray-200 rounded bg-white px-2 text-xs text-left"
+                      on:click={() => { openDropdown = openDropdown === column.key ? null : column.key; }}
+                    >
+                      <span class="truncate text-slate-500">
+                        {Array.isArray(filters[column.key]) && (filters[column.key] as string[]).length > 0
+                          ? (filters[column.key] as string[]).join("; ")
+                          : "Vælg..."}
+                      </span>
+                      <svg class="w-3 h-3 ml-1 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {#if openDropdown === column.key}
+                      <div class="absolute z-50 mt-1 min-w-full w-max bg-white border border-gray-200 rounded shadow-lg">
+                        {#each getUniqueOptions(column.key) as option}
+                          {@const isSelected = Array.isArray(filters[column.key]) && (filters[column.key] as string[]).includes(option)}
+                          <label class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 cursor-pointer whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              on:change={() => {
+                                const current = Array.isArray(filters[column.key]) ? (filters[column.key] as string[]) : [];
+                                filters = {
+                                  ...filters,
+                                  [column.key]: isSelected
+                                    ? current.filter((v) => v !== option)
+                                    : [...current, option]
+                                };
+                                currentPage = 1;
+                              }}
+                            />
+                            {option}
+                          </label>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+
+                {:else if column.filterType === "select"}
+
+                  <select
+                    value={filters[column.key] ?? ""}
+                    on:change={(e) => {
+                      filters = { ...filters, [column.key]: (e.target as HTMLSelectElement).value };
+                      currentPage = 1;
+                    }}
+                    class="h-7 w-full border border-gray-200 rounded px-2 text-xs focus:border-blue-400 focus:ring-0 bg-white"
+                  >
+                    <option value="">Alle</option>
+                    {#each getUniqueOptions(column.key) as option}
+                      <option value={option}>{option}</option>
+                    {/each}
+                  </select>
+
+                {:else}
+
+                  <input
+                    type="text"
+                    placeholder="Søg..."
+                    class="h-7 w-full border border-gray-200 rounded px-2 text-xs focus:border-blue-400 focus:ring-0 transition-colors bg-white"
+                    value={typeof filters[column.key] === "string" ? filters[column.key] : ""}
+                    on:input={(e) => {
+                      filters = { ...filters, [column.key]: (e.target as HTMLInputElement).value };
+                      currentPage = 1;
+                    }}
+                  />
+
+                {/if}
+
               {/if}
 
             </td>
@@ -250,12 +369,23 @@
 
   </table>
 
-  {#if totalPages > 1}
-    <div class="flex items-center justify-between px-3 py-2 text-xs text-gray-600 bg-gray-50 border-t border-gray-200">
-      <span>
-        Side {currentPage} af {totalPages}
-      </span>
+  <div class="flex items-center justify-between px-3 py-2 text-xs text-gray-600 bg-gray-50 border-t border-gray-200">
 
+    <div class="flex items-center gap-2">
+      <span>Rækker pr. side:</span>
+      <select
+        bind:value={pageSize}
+        class="h-8 border border-gray-200 rounded pl-2 pr-6 text-xs bg-white focus:border-blue-400 focus:ring-0"
+      >
+        <option value={10}>10</option>
+        <option value={25}>25</option>
+        <option value={50}>50</option>
+        <option value={100}>100</option>
+      </select>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <span>Side {currentPage} af {totalPages}</span>
       <div class="flex gap-2">
         <button
           type="button"
@@ -265,7 +395,6 @@
         >
           Forrige
         </button>
-
         <button
           type="button"
           class="px-2 py-1 border border-gray-300 rounded disabled:opacity-50"
@@ -276,6 +405,7 @@
         </button>
       </div>
     </div>
-  {/if}
+
+  </div>
 
 </div>
