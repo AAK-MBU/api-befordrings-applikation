@@ -1,11 +1,11 @@
 <script lang="ts">
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
-  import { getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
+  import { getStatusBadgeClass, formatCpr, revurderingPillHtml } from "$lib/tableColumnConfig";
 
   export let data;
 
   const STATUS_ORDER: Record<string, number> = {
-  "Aktiv": 0, "Revurdering": 1, "Ny": 2, "Påbegyndt": 3,
+  "Aktiv": 0, "Ny": 2, "Påbegyndt": 3,
   "Kommende": 4, "Fejlet": 5, "Ophørt": 6, "Afslag": 7, "Udløbet": 8,
   };
 
@@ -34,7 +34,7 @@
       render: (row) => `
         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium ${getStatusBadgeClass(row.status)}">
           ${row.status ?? ""}
-        </span>
+        </span>${revurderingPillHtml(row)}
       `
     },
     {

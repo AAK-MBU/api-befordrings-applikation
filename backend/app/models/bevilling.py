@@ -97,6 +97,10 @@ class Bevilling(Base):
     revurderet_af_ppr: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     revurderet_af_br: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
+    # Flag set by usp_recalculate_bevilling_status: the bevilling keeps its real
+    # status (Aktiv/Kommende/…) but is marked as needing reassessment.
+    revurdering: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     # System-managed field — written by usp_recalculate_bevilling_status.
     # Explains why the bevilling is in its current status (e.g. skolekode
     # mismatch, approaching revurderingsdato). Cleared automatically when

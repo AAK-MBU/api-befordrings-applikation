@@ -805,22 +805,13 @@ class BevillingService:
 
         if status_result.get("rows_updated", 0) > 0:
             new_status = status_result["status_text"]
-            if br_changed and new_data.get("revurderet_af_br") and new_status == "Aktiv":
-                self._log_event(
-                    cpr,
-                    f"Status sat til {new_status}",
-                    kommentar="Sagen er gennemgået revurdering og markeret som revurderet af BR",
-                    relateret_bevilling_id=bevilling_id,
-                    udfoert_af=udfoert_af,
-                )
-            else:
-                self._log_event(
-                    cpr,
-                    f"Status sat til {new_status}",
-                    kommentar=status_result.get("status_reason") or self._STATUS_KOMMENTAR.get(new_status),
-                    relateret_bevilling_id=bevilling_id,
-                    udfoert_af=udfoert_af,
-                )
+            self._log_event(
+                cpr,
+                f"Status sat til {new_status}",
+                kommentar=status_result.get("status_reason") or self._STATUS_KOMMENTAR.get(new_status),
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
 
 
     def update_koerselsraekke(

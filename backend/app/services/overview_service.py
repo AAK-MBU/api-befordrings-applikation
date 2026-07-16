@@ -78,6 +78,7 @@ class OverviewService:
             "esdh_noegle": bevilling.get("esdh_noegle"),
             "sagsbehandler": bevilling.get("sagsbehandler"),
             "ppr_sagsbehandler": bevilling.get("ppr_sagsbehandler_tekst"),
+            "revurdering": bevilling.get("revurdering"),
         }
 
 
@@ -185,30 +186,6 @@ class OverviewService:
         ]
 
 
-    def get_reassessments(self):
-        """Get bevillinger with status Revurdering.
-
-        Returns:
-            A list of simplified reassessment/revurdering records.
-
-        Notes:
-            This is used for the part of the overview that highlights cases
-            needing reassessment.
-        """
-
-        service = BevillingService(db=self.db)
-
-        records = service.get_bevillinger(
-            view_name="[befordring].[view_All_Bevillinger]",
-            status="Revurdering",
-        )
-
-        return [
-            self._map_bevilling_overview_record(record)
-            for record in records
-        ]
-
-
     def search_bevillinger(self, q: str):
         """Search bevillinger by CPR or name (partial match).
 
@@ -287,11 +264,8 @@ class OverviewService:
             INNER JOIN
                 [befordring].[Bevilling] b
                 ON b.bevilling_id = vbk.bevilling_id
-            INNER JOIN
-                [befordring].[Status] s
-                ON s.status_id = b.status_id
             WHERE
-                s.status_tekst = N'Revurdering'
+                b.revurdering = 1
             ORDER BY
                 vbk.bevilling_id,
                 vbk.gyldig_til DESC

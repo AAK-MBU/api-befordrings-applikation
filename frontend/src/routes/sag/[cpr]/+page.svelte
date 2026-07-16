@@ -49,9 +49,8 @@
   let { stamdata, parents, bevillinger, lookupOptions, aktiviteter } = data;
 
   const initialHash = window.location.hash.slice(1);
-  let activeTab = (initialHash === "sagsforloeb" || initialHash === "stamdata")
-    ? initialHash
-    : "stamdata";
+  const validTabs = ["elev", "parter", "sagsforloeb"];
+  let activeTab = validTabs.includes(initialHash) ? initialHash : "elev";
 
   function switchTab(tab: string) {
     activeTab = tab;
@@ -63,6 +62,7 @@
 
   $: anyPprRevurderet = (bevillinger as any[]).some((b) => b.revurderet_af_ppr);
   $: anyBrRevurderet  = (bevillinger as any[]).some((b) => b.revurderet_af_br);
+  $: anyRevurdering   = (bevillinger as any[]).some((b) => b.revurdering);
 
   // If any bevilling is Aktiv, always show Aktiv.
   // Otherwise show the status of the bevilling with the latest gyldig_til
@@ -460,7 +460,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
     showCreateBevillingModal = false;
     resetCreateBevillingForm();
   }
@@ -637,7 +637,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
 
     return true;
   }
@@ -680,7 +680,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
 
     return true;
   }
@@ -783,7 +783,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
 
     return true;
   }
@@ -838,6 +838,11 @@
               {displayStatus}
             </span>
           {/if}
+          {#if anyRevurdering}
+            <span class="ml-1.5 inline-block px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+              Revurdering
+            </span>
+          {/if}
         </div>
         <p class="text-sm text-gray-500 mt-0.5">
           <span class="font-mono">{formatCpr(stamdata?.cpr)}</span>
@@ -856,12 +861,23 @@
       <button
         type="button"
         class="px-4 py-2 text-sm font-medium rounded border transition-colors"
-        style={activeTab === "stamdata"
+        style={activeTab === "elev"
           ? "background-color: #032A42; color: #ffffff; border-color: #032A42;"
           : "background-color: #ffffff; color: #374151; border-color: #d1d5db;"}
-        on:click={() => switchTab("stamdata")}
+        on:click={() => switchTab("elev")}
       >
-        Stamdata
+        Elev
+      </button>
+
+      <button
+        type="button"
+        class="px-4 py-2 text-sm font-medium rounded border transition-colors"
+        style={activeTab === "parter"
+          ? "background-color: #032A42; color: #ffffff; border-color: #032A42;"
+          : "background-color: #ffffff; color: #374151; border-color: #d1d5db;"}
+        on:click={() => switchTab("parter")}
+      >
+        Parter
       </button>
 
       <button
@@ -879,8 +895,8 @@
   </div>
 
 
-  <!-- STAMDATA TAB -->
-  {#if activeTab === "stamdata"}
+  <!-- ELEV TAB -->
+  {#if activeTab === "elev"}
 
     <!-- Elevoplysninger card -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
@@ -962,6 +978,12 @@
     </div>
 
 
+  {/if}
+
+
+  <!-- PARTER TAB -->
+  {#if activeTab === "parter"}
+
     <!-- Oplysninger om forældre -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
       <div class="flex items-center gap-2 mb-4">
@@ -975,12 +997,11 @@
         />
     </div>
 
-
   {/if}
 
 
-  <!-- BEVILLINGER (shown in stamdata tab) -->
-  {#if activeTab === "stamdata"}
+  <!-- BEVILLINGER (shown in Elev tab) -->
+  {#if activeTab === "elev"}
 
     <!-- Bevillinger section header -->
     <div class="flex items-center justify-between mb-4 mt-2">

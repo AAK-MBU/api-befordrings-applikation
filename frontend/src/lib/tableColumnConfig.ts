@@ -35,6 +35,18 @@ export function getStatusBadgeClass(status: string | null | undefined) {
 }
 
 
+// Yellow "Revurdering" pill shown NEXT TO the real status when a bevilling row
+// carries the revurdering flag. Returns an HTML string for {@html} render
+// contexts (DataTable columns); Svelte components inline the equivalent markup.
+export function revurderingPillHtml(row: any): string {
+  if (!row?.revurdering) return "";
+  const reason = row.statusbemaerkning
+    ? ` title="${String(row.statusbemaerkning).replace(/"/g, "&quot;")}"`
+    : "";
+  return `<span class="ml-1.5 inline-block px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses.revurdering}"${reason}>Revurdering</span>`;
+}
+
+
 // -----------------------------
 // Table action buttons
 // -----------------------------

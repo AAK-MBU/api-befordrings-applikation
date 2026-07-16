@@ -42,12 +42,35 @@
   let distanceErrorFrom: 'edit' | 'new' | null = null;   // persists after finally for display
   let distanceError: string | null = null;
 
-  function isEgenbefordring(typeId: string | number | null | undefined): boolean {
-    if (!typeId) return false;
-    const type = lookupOptions.koerselstyper?.find(
+  // Kørselstyper where Taxa-ID is relevant.
+  const TAXA_TYPES = new Set(['rutekørsel', 'skånekørsel', 'solokørsel', 'variabel kørsel']);
+
+  function normalizeType(label: string | null | undefined): string {
+    return String(label ?? '').trim().toLowerCase();
+  }
+
+  function labelForType(typeId: string | number | null | undefined): string | undefined {
+    if (!typeId) return undefined;
+    return lookupOptions.koerselstyper?.find(
       (t: any) => Number(t.id) === Number(typeId)
-    );
-    return type?.label?.toLowerCase() === 'egenbefordring';
+    )?.label;
+  }
+
+  // Tolerate both "Egen befordring" and "Egenbefordring".
+  function labelIsEgenbefordring(label: string | null | undefined): boolean {
+    return normalizeType(label).replace(/\s/g, '') === 'egenbefordring';
+  }
+
+  function labelIsTaxa(label: string | null | undefined): boolean {
+    return TAXA_TYPES.has(normalizeType(label));
+  }
+
+  function isEgenbefordring(typeId: string | number | null | undefined): boolean {
+    return labelIsEgenbefordring(labelForType(typeId));
+  }
+
+  function isTaxaType(typeId: string | number | null | undefined): boolean {
+    return labelIsTaxa(labelForType(typeId));
   }
 
   async function calculateAndFillDistance(
@@ -559,9 +582,10 @@
           </select>
         </label>
 
+        {#if isEgenbefordring(newKoerselsraekke.befordringstype_id)}
         <label class="block">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
-            Bevilget km pr. vej *
+            Bevilget km pr. vej
             {#if isCalculatingDistance && distanceCalcTarget === 'new'}
               <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
             {/if}
@@ -575,6 +599,7 @@
             on:change={(e) => updateNewField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
           />
         </label>
+        {/if}
 
         <label class="block">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
@@ -596,6 +621,7 @@
           />
         </label>
 
+        {#if isTaxaType(newKoerselsraekke.befordringstype_id)}
         <label class="block">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
           <input
@@ -604,6 +630,7 @@
             on:change={(e) => updateNewField("taxa_id", e.currentTarget.value)}
           />
         </label>
+        {/if}
 
       </div>
 
@@ -739,9 +766,10 @@
             </select>
           </label>
 
+          {#if isEgenbefordring(editableKoerselsraekke.befordringstype_id)}
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
-              Km pr. vej
+              Bevilget km pr. vej
               {#if isCalculatingDistance && distanceCalcTarget === 'edit'}
                 <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
               {/if}
@@ -755,6 +783,7 @@
               on:change={(e) => updateField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
             />
           </label>
+          {/if}
 
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra</span>
@@ -776,6 +805,7 @@
             />
           </label>
 
+          {#if isTaxaType(editableKoerselsraekke.befordringstype_id)}
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
             <input
@@ -784,6 +814,7 @@
               on:change={(e) => updateField("taxa_id", e.currentTarget.value)}
             />
           </label>
+          {/if}
 
         </div>
 
@@ -861,28 +892,33 @@
       <!-- Compact view row -->
       <div class="mb-2 bg-white rounded-lg border shadow-sm overflow-hidden {row.final ? 'border-gray-200' : 'border-gray-300'}" style="border-left: 3px solid {row.final ? '#9ca3af' : '#2ab4a0'};">
 
-        <!-- Top: identifier badges + actions -->
-        <div class="flex items-center justify-between gap-3 px-4 py-3 flex-wrap">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            {#if row.tidspunkt_tekst}
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                {row.tidspunkt_tekst}
-              </span>
-            {/if}
-            {#if row.befordringstype_tekst}
-              <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-700">
-                {row.befordringstype_tekst}
-              </span>
-            {/if}
-            {#if row.tillaeg_tekst}
-              {#each row.tillaeg_tekst.split(',') as t}
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                  {t.trim()}
-                </span>
+        <div class="flex items-start justify-between gap-3 px-4 py-3">
+
+          <!-- Kørselsrække vist som serie (3 rækker) med labels -->
+          <div class="min-w-0 space-y-1">
+
+            <!-- Række 1: Kørselstype – Kørselstype tillæg – Tidspunkt – Dage -->
+            <p class="text-sm break-words leading-relaxed">
+              {#each [{ label: 'Kørselstype', value: row.befordringstype_tekst }, { label: 'Tillæg', value: row.tillaeg_tekst }, { label: 'Tidspunkt', value: row.tidspunkt_tekst }, { label: 'Dage', value: row.dage }].filter((f) => f.value) as f, i}
+                {#if i > 0}<span class="text-gray-300 mx-1.5">·</span>{/if}<span class="text-gray-400">{f.label}:</span> <span class="font-semibold text-gray-800">{f.value}</span>
               {/each}
+            </p>
+
+            <!-- Række 2: Gyldig fra – Gyldig til (+ Bevilget km pr. vej ved egenbefordring) -->
+            <p class="text-xs text-gray-700 leading-relaxed">
+              <span class="text-gray-400">Gyldig:</span> {formatDanishDate(row.gyldig_fra)} – {formatDanishDate(row.gyldig_til)}{#if labelIsEgenbefordring(row.befordringstype_tekst) && row.bevilget_koereafstand_pr_vej != null}<span class="text-gray-300 mx-1.5">·</span><span class="text-gray-400">Bevilget km pr. vej:</span> {String(parseFloat(row.bevilget_koereafstand_pr_vej)).replace('.', ',')}{/if}
+            </p>
+
+            <!-- Række 3: Kommentar (+ Taxa-ID ved taxa-kørsel) -->
+            {#if row.kommentar || (labelIsTaxa(row.befordringstype_tekst) && row.taxa_id)}
+              <p class="text-xs text-gray-700 leading-relaxed">
+                {#if row.kommentar}<span class="text-gray-400">Kommentar:</span> <span class="italic">{row.kommentar}</span>{/if}{#if labelIsTaxa(row.befordringstype_tekst) && row.taxa_id}{#if row.kommentar}<span class="text-gray-300 mx-1.5">·</span>{/if}<span class="text-gray-400">Taxa-ID:</span> {row.taxa_id}{/if}
+              </p>
             {/if}
+
           </div>
 
+          <!-- Handlinger -->
           <div class="flex items-center gap-2 shrink-0">
             {#if row.final}
               <!-- Locked state: static badge -->
@@ -915,45 +951,8 @@
               </button>
             {/if}
           </div>
-        </div>
 
-        <!-- Bottom: labeled detail grid -->
-        <div class="px-4 pb-3 pt-1 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
-          {#if row.dage}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Dage</p>
-              <p class="text-xs font-medium text-gray-700">{row.dage}</p>
-            </div>
-          {/if}
-          {#if row.gyldig_fra || row.gyldig_til}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Periode</p>
-              <p class="text-xs font-medium text-gray-700">
-                {formatDanishDate(row.gyldig_fra)} → {formatDanishDate(row.gyldig_til)}
-              </p>
-            </div>
-          {/if}
-          {#if row.bevilget_koereafstand_pr_vej != null}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Km pr. vej</p>
-              <p class="text-xs font-medium text-gray-700">
-                {parseFloat(row.bevilget_koereafstand_pr_vej).toFixed(2).replace(/\.?0+$/, '') || '0'}
-              </p>
-            </div>
-          {/if}
-          {#if row.taxa_id}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Taxa</p>
-              <p class="text-xs font-medium text-gray-700">{row.taxa_id}</p>
-            </div>
-          {/if}
         </div>
-
-        {#if row.kommentar}
-          <div class="px-4 pb-3 text-xs italic text-gray-500 border-t border-gray-100 pt-2">
-            {row.kommentar}
-          </div>
-        {/if}
 
       </div>
 
