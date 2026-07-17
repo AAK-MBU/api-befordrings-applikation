@@ -496,6 +496,11 @@ def create_letter(
 
     bevilling_service = BevillingService(db=db)
 
+    # Creating the letter is what marks the case as processed: stamp
+    # sagsbehandlingsdato to today BEFORE building the payload so the letter
+    # itself carries the correct behandlingsdato.
+    bevilling_service.set_sagsbehandlingsdato(bevilling_id=bevilling_id)
+
     # Fetch extra data from the database that is needed for the letter.
     # This keeps the frontend from having to know or send all database fields.
     bevilling_data = bevilling_service.get_letter_data(

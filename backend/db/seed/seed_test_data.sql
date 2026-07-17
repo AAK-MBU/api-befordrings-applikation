@@ -6,6 +6,10 @@
    seeded as Aktiv bevillinger with revurdering = 1 (see the UPDATE
    after the Bevilling inserts). Requires migrations 0005–0007 applied.
 
+   NOTE: sagsbehandlingsdato is not inserted directly. It is stamped when
+   a letter is created, so it is backfilled from each bevilling's
+   'Brev oprettet' Sagsaktivitet (see the UPDATE near the end).
+
    Runs inside a transaction that ROLLBACKs by default — change the
    final ROLLBACK to COMMIT once the previewed data looks correct.
    ============================================================ */
@@ -1011,6 +1015,52 @@ VALUES
 ('1010101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_10, ' — Status: Ny'), 'System', '2024-05-01T08:00:00', @bevilling_10),
 ('1010101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', '2024-08-01T06:00:00', @bevilling_10),
 ('1010101234', 'Status sat til Udløbet',   'Bevillingsperioden er udløbet',             'System', '2025-07-01T06:00:00', @bevilling_10);
+
+
+/* ============================================================
+   Brev oprettet — decision letters.
+
+   sagsbehandlingsdato is stamped automatically when the caseworker
+   creates the letter (see create_letter / set_sagsbehandlingsdato in
+   the backend). So every bevilling that reached a decision — Aktiv,
+   Udløbet, Ophørt or Afslag — has a 'Brev oprettet' activity, and the
+   UPDATE below backfills sagsbehandlingsdato to match each letter's date.
+   The kommentar mirrors each bevilling's assigned afgørelsesbrev.
+   (Martin's afslag letter is already inserted in the block above.)
+============================================================ */
+
+INSERT INTO [befordring].[Sagsaktivitet]
+    (cpr, aktivitetstype, kommentar, udfoert_af, oprettet_tidspunkt, relateret_bevilling_id)
+VALUES
+('0101101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Sofie', '2026-01-15T11:00:00', @bevilling_1),
+('0202101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  '2026-02-10T10:30:00', @bevilling_2),
+('0303101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)',    'Sofie', '2025-06-20T13:15:00', @bevilling_3),
+('0404101234', 'Brev oprettet', 'Afslag: § 26, stk. 6, § 36, stk. 3 (frit skolevalg)', 'Nina',  '2025-12-20T09:45:00', @bevilling_4),
+('1010101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  '2024-06-01T09:30:00', @bevilling_10),
+('1212101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  '2023-08-05T08:30:00', @bevilling_12),
+('1313101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Sofie', '2025-12-20T14:00:00', @bevilling_13),
+('1414101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  '2025-03-20T10:00:00', @bevilling_14);
+
+
+/* ============================================================
+   Backfill sagsbehandlingsdato from each bevilling's letter date.
+   Mirrors the runtime behaviour: the case is processed on the day its
+   decision letter is created. Uses the latest 'Brev oprettet' activity
+   per bevilling (there is one each here).
+============================================================ */
+
+UPDATE b
+SET b.sagsbehandlingsdato = CONVERT(date, la.letter_dato)
+FROM [befordring].[Bevilling] b
+INNER JOIN (
+    SELECT
+        relateret_bevilling_id,
+        MAX(oprettet_tidspunkt) AS letter_dato
+    FROM [befordring].[Sagsaktivitet]
+    WHERE aktivitetstype = 'Brev oprettet'
+      AND relateret_bevilling_id IS NOT NULL
+    GROUP BY relateret_bevilling_id
+) la ON la.relateret_bevilling_id = b.bevilling_id;
 
 
 /* ============================================================

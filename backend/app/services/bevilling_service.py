@@ -814,6 +814,52 @@ class BevillingService:
             )
 
 
+    def set_sagsbehandlingsdato(
+        self,
+        bevilling_id: int,
+        on_date: date | None = None,
+    ) -> date:
+        """Stamp the bevilling's sagsbehandlingsdato.
+
+        Called when a caseworker creates a letter: the case is considered
+        processed on the day the decision letter is generated, so the date is
+        set automatically (defaults to today).
+
+        The status engine does not read sagsbehandlingsdato, so this does NOT
+        trigger a status recalculation.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling to stamp.
+            on_date:
+                Date to set. Defaults to today when omitted.
+
+        Returns:
+            The date that was written.
+
+        Raises:
+            HTTPException:
+                404 if the bevilling does not exist.
+        """
+
+        bevilling = self.db.get(Bevilling, bevilling_id)
+
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        stamped = on_date or date.today()
+
+        bevilling.sagsbehandlingsdato = stamped
+        bevilling.updated_by = "letter_engine"
+
+        self.db.commit()
+
+        return stamped
+
+
     def update_koerselsraekke(
         self,
         koersel_id: int,
