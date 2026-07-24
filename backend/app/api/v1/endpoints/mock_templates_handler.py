@@ -132,7 +132,7 @@ def update_template_data(process: str):
     execute_sql(
         query=query,
         params=params,
-        conn_string=os.getenv("DBCONNECTIONSTRINGPROD"),
+        conn_string=os.getenv("DBCONNECTIONSTRINGDEV"),
     )
 
     return {"message": "Skabelondata blev succesfuldt opdateret."}
