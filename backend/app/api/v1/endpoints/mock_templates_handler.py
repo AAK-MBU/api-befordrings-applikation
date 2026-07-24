@@ -71,17 +71,28 @@ def update_template_data(process: str):
         **SHAREPOINT_KWARGS,
     )
 
+    # Sharepoint._auth() swallows auth errors and leaves ctx as None. Surface it
+    # instead of failing later with a confusing download/parse error.
+    if sharepoint.ctx is None:
+        raise HTTPException(
+            status_code=502,
+            detail="SharePoint-godkendelse fejlede (tjek TENANT/CLIENT_ID/"
+                   "APPREG_THUMBPRINT/GRAPH_CERT_PEM og TLS-opsætning i containeren).",
+        )
+
     folder_name = "Egenbefordring/Afgørelsesbreve"
 
     template_binary_docx = sharepoint.fetch_file_using_open_binary(
         file_name="skabelon.docx",
         folder_name=folder_name,
     )
+    _require_ooxml(template_binary_docx, folder_name, "skabelon.docx")
 
     binary_excel = sharepoint.fetch_file_using_open_binary(
         file_name="Afgørelsesbreve.xlsm",
         folder_name=folder_name,
     )
+    _require_ooxml(binary_excel, folder_name, "Afgørelsesbreve.xlsm")
 
     json_data = parse_workbook_afgoerelsesbrev(binary_excel=binary_excel)
 
@@ -125,6 +136,35 @@ def update_template_data(process: str):
     )
 
     return {"message": "Skabelondata blev succesfuldt opdateret."}
+
+
+def _require_ooxml(binary: bytes | None, folder_name: str, file_name: str) -> None:
+    """
+    Validate that a SharePoint download is a real Office (OOXML) file.
+
+    .docx / .xlsm are ZIP containers, so their bytes start with the ZIP magic
+    number "PK\\x03\\x04". fetch_file_using_open_binary does NOT raise on a 404 -
+    it returns the error response body - so without this check a missing/mis-
+    named file would flow into load_workbook and fail with a confusing
+    "File is not a zip file". Here we surface what actually came back instead.
+    """
+
+    path = f"{folder_name}/{file_name}"
+
+    if not binary:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Kunne ikke hente '{path}' fra SharePoint (tomt svar - "
+                   f"tjek at filen findes og at sti/navn er korrekt).",
+        )
+
+    if not binary.startswith(b"PK\x03\x04"):
+        # Not a zip -> almost certainly a SharePoint error body. Show a snippet.
+        snippet = binary[:300].decode("utf-8", errors="replace").strip()
+        raise HTTPException(
+            status_code=502,
+            detail=f"'{path}' var ikke en gyldig Office-fil. SharePoint svarede: {snippet}",
+        )
 
 
 def execute_sql(query: str, params: dict, conn_string: str) -> int:
