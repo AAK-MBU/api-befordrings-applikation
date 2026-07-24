@@ -17,6 +17,10 @@ services:
       # Point requests at the CA bundle *inside* the container (Linux path),
       # overriding the Windows path in .env. The file is mounted below.
       REQUESTS_CA_BUNDLE: /app/certs/aarhus_root.pem
+      APPREG_THUMBPRINT: ${APPREG_THUMBPRINT}
+      CLIENT_ID: ${CLIENT_ID}
+      TENANT: ${TENANT}
+      GRAPH_CERT_PEM: /app/certs/sharepoint-graph-client-fixed.pem
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s

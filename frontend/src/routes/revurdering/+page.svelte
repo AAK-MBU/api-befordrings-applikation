@@ -4,6 +4,7 @@
     import { formatDanishDate, getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
     import BevillingTable from "$lib/components/BevillingTable.svelte";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
+    import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
 
     export let data;
 
@@ -1379,6 +1380,8 @@
     </div>
 
     <div class="flex items-center gap-4 flex-wrap">
+
+      <UpdateTemplateButton class="px-3 py-1.5 text-xs" />
 
       {#if uniqueSkoler.length > 0}
         <select

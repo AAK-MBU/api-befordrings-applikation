@@ -14,6 +14,8 @@ services:
       OIDC_SCOPES: ${OIDC_SCOPES}
       OIDC_ENVIRONMENT: ${OIDC_ENVIRONMENT}
       SESSION_SECRET: ${SESSION_SECRET}
+      GRAPH_CERT_PUBLIC: /run/secrets/graph_client.cer
+      GRAPH_CERT_PEM: /run/secrets/graph_client.pem
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
@@ -24,7 +26,9 @@ services:
       - .env
     restart: unless-stopped
     volumes:
-       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - /etc/ssl/private/sharepoint-graph-client.cer:/run/secrets/graph_client.cer:ro
+      - /etc/ssl/private/sharepoint-graph-client-combined.pem:/run/secrets/graph_client.pem:ro
     networks:
       edge:
         aliases:

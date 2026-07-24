@@ -6,6 +6,7 @@
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import BevillingTable from "$lib/components/BevillingTable.svelte";
   import AddresseSearch from "$lib/components/AddresseSearch.svelte";
+  import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
   import {
     getStatusBadgeClass,
     formatCpr,
@@ -1039,6 +1040,8 @@
       >
         + Opret brev
       </button>
+
+      <UpdateTemplateButton class="px-4 py-2 text-sm" />
       </div>
     </div>
 
