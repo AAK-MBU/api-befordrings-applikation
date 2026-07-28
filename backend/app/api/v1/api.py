@@ -20,7 +20,7 @@ single api_router instead of importing every endpoint router individually.
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import require_auth
-from app.api.v1.endpoints import adresse, aktivitet, bevilling, citizen, lookup, overview, os2forms
+from app.api.v1.endpoints import adresse, aktivitet, bevilling, citizen, lookup, overview, os2forms, part
 # 🔥 TEMPORARY - remove together with endpoints/mock_templates_handler.py when api-skabelonmotor is live
 from app.api.v1.endpoints import mock_templates_handler
 from app.core.security import verify_api_key
@@ -97,6 +97,13 @@ api_router.include_router(
 # Register aktivitet routes.
 api_router.include_router(
     aktivitet.router,
+    dependencies=human_dependencies,
+)
+
+
+# Register part (associated parties) routes.
+api_router.include_router(
+    part.router,
     dependencies=human_dependencies,
 )
 

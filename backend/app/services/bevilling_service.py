@@ -512,7 +512,6 @@ class BevillingService:
         # a clear 422 instead of letting the DB raise a constraint violation.
         required_fields = {
             "adresse_id": "Adresse for bevilling",
-            "begrundelse_fra_formular": "Begrundelse",
         }
 
         missing = [

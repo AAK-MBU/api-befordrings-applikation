@@ -74,6 +74,25 @@
     return labelIsTaxa(labelForType(typeId));
   }
 
+  // Tillæg only applies to befordringstyper that are a form of "kørsel"
+  // (e.g. Rutekørsel, Skånekørsel) — not Skolerejsekort, Skolebus, Cykelbus, etc.
+  function labelIsKoersel(label: string | null | undefined): boolean {
+    return normalizeType(label).includes('kørsel');
+  }
+
+  function isKoerselType(typeId: string | number | null | undefined): boolean {
+    return labelIsKoersel(labelForType(typeId));
+  }
+
+  // Transporttid i bus / antal skift only apply to Skolerejsekort.
+  function labelIsSkolerejsekort(label: string | null | undefined): boolean {
+    return normalizeType(label) === 'skolerejsekort';
+  }
+
+  function isSkolerejsekort(typeId: string | number | null | undefined): boolean {
+    return labelIsSkolerejsekort(labelForType(typeId));
+  }
+
   async function calculateAndFillDistance(
     befordringtypeId: string | number | null,
     target: 'edit' | 'new'
@@ -291,7 +310,10 @@
       taxa_id: editableKoerselsraekke.taxa_id,
       kommentar: editableKoerselsraekke.kommentar,
 
-      tillaeg_ids: selectedTillaegIds,
+      transporttid_i_bus: isSkolerejsekort(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.transporttid_i_bus) : null,
+      skift_med_bus: isSkolerejsekort(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.skift_med_bus) : null,
+
+      tillaeg_ids: isKoerselType(editableKoerselsraekke.befordringstype_id) ? selectedTillaegIds : [],
       dag_ids: selectedDagIds
     };
 
@@ -394,7 +416,10 @@
       kommentar: newKoerselsraekke.kommentar || "",
       final: false,
 
-      tillaeg_ids: newSelectedTillaegIds,
+      transporttid_i_bus: isSkolerejsekort(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.transporttid_i_bus) : null,
+      skift_med_bus: isSkolerejsekort(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.skift_med_bus) : null,
+
+      tillaeg_ids: isKoerselType(newKoerselsraekke.befordringstype_id) ? newSelectedTillaegIds : [],
       dag_ids: newSelectedDagIds
     };
 
@@ -437,7 +462,28 @@
           </select>
         </label>
 
-        <!-- Kørselstype tillæg -->
+        <!-- Bevilget km pr. vej (kun egenbefordring) — placeret lige efter Kørselstype -->
+        {#if isEgenbefordring(newKoerselsraekke.befordringstype_id)}
+        <label class="block">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
+            Bevilget km pr. vej
+            {#if isCalculatingDistance && distanceCalcTarget === 'new'}
+              <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
+            {/if}
+          </span>
+          <input
+            type="number"
+            step="0.1"
+            class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'new' ? 'opacity-50' : ''}"
+            disabled={isCalculatingDistance && distanceCalcTarget === 'new'}
+            value={newKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
+            on:change={(e) => updateNewField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
+          />
+        </label>
+        {/if}
+
+        <!-- Kørselstype tillæg — only for "kørsel" befordringstyper -->
+        {#if isKoerselType(newKoerselsraekke.befordringstype_id)}
         <div>
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
           <TagMultiSelect
@@ -446,6 +492,7 @@
             placeholder="Tilføj tillæg"
           />
         </div>
+        {/if}
 
         <!-- Tidspunkt -->
         <label class="block">
@@ -472,8 +519,8 @@
           />
         </div>
 
-        <!-- Gyldig fra -->
-        <label class="block">
+        <!-- Gyldig fra — forced onto its own row so it doesn't backfill row 1 -->
+        <label class="block md:col-start-1">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
           <input
             type="date"
@@ -494,17 +541,7 @@
           />
         </label>
 
-        <!-- Række 3: Kommentar – Taxa-ID – Bevilget km pr. vej -->
-        <label class="block md:col-start-1">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-          <input
-            class={inputClass}
-            value={newKoerselsraekke.kommentar ?? ""}
-            on:change={(e) => updateNewField("kommentar", e.currentTarget.value)}
-          />
-        </label>
-
-        <!-- Taxa-ID (kun taxa-kørsel) -->
+        <!-- Taxa-ID (kun taxa-kørsel) — ved siden af Gyldig til -->
         {#if isTaxaType(newKoerselsraekke.befordringstype_id)}
         <label class="block">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
@@ -516,25 +553,39 @@
         </label>
         {/if}
 
-        <!-- Bevilget km pr. vej (kun egenbefordring) -->
-        {#if isEgenbefordring(newKoerselsraekke.befordringstype_id)}
+        <!-- Skolerejsekort-specifikke felter — ved siden af Gyldig til -->
+        {#if isSkolerejsekort(newKoerselsraekke.befordringstype_id)}
         <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
-            Bevilget km pr. vej
-            {#if isCalculatingDistance && distanceCalcTarget === 'new'}
-              <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
-            {/if}
-          </span>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Transporttid i bus (min.)</span>
           <input
             type="number"
-            step="0.1"
-            class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'new' ? 'opacity-50' : ''}"
-            disabled={isCalculatingDistance && distanceCalcTarget === 'new'}
-            value={newKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
-            on:change={(e) => updateNewField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
+            min="0"
+            class={inputClass}
+            value={newKoerselsraekke.transporttid_i_bus ?? ""}
+            on:change={(e) => updateNewField("transporttid_i_bus", e.currentTarget.value)}
+          />
+        </label>
+        <label class="block">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Antal skift</span>
+          <input
+            type="number"
+            min="0"
+            class={inputClass}
+            value={newKoerselsraekke.skift_med_bus ?? ""}
+            on:change={(e) => updateNewField("skift_med_bus", e.currentTarget.value)}
           />
         </label>
         {/if}
+
+        <!-- Kommentar — altid alene i bunden, fuld bredde -->
+        <label class="block md:col-start-1 md:col-span-4">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+          <input
+            class={inputClass}
+            value={newKoerselsraekke.kommentar ?? ""}
+            on:change={(e) => updateNewField("kommentar", e.currentTarget.value)}
+          />
+        </label>
 
       </div>
 
@@ -612,7 +663,28 @@
             </select>
           </label>
 
-          <!-- Kørselstype tillæg -->
+          <!-- Bevilget km pr. vej (kun egenbefordring) — placeret lige efter Kørselstype -->
+          {#if isEgenbefordring(editableKoerselsraekke.befordringstype_id)}
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
+              Bevilget km pr. vej
+              {#if isCalculatingDistance && distanceCalcTarget === 'edit'}
+                <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
+              {/if}
+            </span>
+            <input
+              type="number"
+              step="0.1"
+              class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'edit' ? 'opacity-50' : ''}"
+              disabled={isCalculatingDistance && distanceCalcTarget === 'edit'}
+              value={editableKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
+              on:change={(e) => updateField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
+            />
+          </label>
+          {/if}
+
+          <!-- Kørselstype tillæg — only for "kørsel" befordringstyper -->
+          {#if isKoerselType(editableKoerselsraekke.befordringstype_id)}
           <div>
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
             <TagMultiSelect
@@ -621,6 +693,7 @@
               placeholder="Tilføj tillæg"
             />
           </div>
+          {/if}
 
           <!-- Tidspunkt -->
           <label class="block">
@@ -647,8 +720,8 @@
             />
           </div>
 
-          <!-- Gyldig fra -->
-          <label class="block">
+          <!-- Gyldig fra — forced onto its own row so it doesn't backfill row 1 -->
+          <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra</span>
             <input
               type="date"
@@ -669,17 +742,7 @@
             />
           </label>
 
-          <!-- Række 3: Kommentar – Taxa-ID – Bevilget km pr. vej -->
-          <label class="block md:col-start-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-            <input
-              class={inputClass}
-              value={editableKoerselsraekke.kommentar ?? ""}
-              on:change={(e) => updateField("kommentar", e.currentTarget.value)}
-            />
-          </label>
-
-          <!-- Taxa-ID (kun taxa-kørsel) -->
+          <!-- Taxa-ID (kun taxa-kørsel) — ved siden af Gyldig til -->
           {#if isTaxaType(editableKoerselsraekke.befordringstype_id)}
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
@@ -691,25 +754,39 @@
           </label>
           {/if}
 
-          <!-- Bevilget km pr. vej (kun egenbefordring) -->
-          {#if isEgenbefordring(editableKoerselsraekke.befordringstype_id)}
+          <!-- Skolerejsekort-specifikke felter — ved siden af Gyldig til -->
+          {#if isSkolerejsekort(editableKoerselsraekke.befordringstype_id)}
           <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
-              Bevilget km pr. vej
-              {#if isCalculatingDistance && distanceCalcTarget === 'edit'}
-                <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
-              {/if}
-            </span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Transporttid i bus (min.)</span>
             <input
               type="number"
-              step="0.1"
-              class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'edit' ? 'opacity-50' : ''}"
-              disabled={isCalculatingDistance && distanceCalcTarget === 'edit'}
-              value={editableKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
-              on:change={(e) => updateField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
+              min="0"
+              class={inputClass}
+              value={editableKoerselsraekke.transporttid_i_bus ?? ""}
+              on:change={(e) => updateField("transporttid_i_bus", e.currentTarget.value)}
+            />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Antal skift</span>
+            <input
+              type="number"
+              min="0"
+              class={inputClass}
+              value={editableKoerselsraekke.skift_med_bus ?? ""}
+              on:change={(e) => updateField("skift_med_bus", e.currentTarget.value)}
             />
           </label>
           {/if}
+
+          <!-- Kommentar — altid alene i bunden, fuld bredde -->
+          <label class="block md:col-start-1 md:col-span-4">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+            <input
+              class={inputClass}
+              value={editableKoerselsraekke.kommentar ?? ""}
+              on:change={(e) => updateField("kommentar", e.currentTarget.value)}
+            />
+          </label>
 
         </div>
 
@@ -853,12 +930,13 @@
 </div>
 
 
+<svelte:window on:keydown={(e) => { if (e.key === 'Escape' && confirmingFinalizeId !== null) confirmingFinalizeId = null; }} />
+
 <!-- Finalize confirmation modal -->
 {#if confirmingFinalizeId !== null}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-    on:click|self={() => confirmingFinalizeId = null}
     role="presentation"
   >
     <div

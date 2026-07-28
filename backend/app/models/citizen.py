@@ -143,3 +143,64 @@ class Sagsaktivitet(Base):
 
     # Soft reference — no FK constraint in the DB.
     relateret_bevilling_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class Part(Base):
+    """A party associated with a student who is not a legal guardian but may be
+    informed about the child's bevillinger (e.g. a foster parent).
+
+    Kept separate from Foraelder ("Oplysninger om forældre"). Manually added
+    from the "Parter" tab; every person field is optional.
+    """
+
+    __tablename__ = "Part"
+    __table_args__ = {"schema": DB_SCHEMA}
+
+    part_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    cpr_elev: Mapped[str] = mapped_column(
+        String(10),
+        ForeignKey(f"{DB_SCHEMA}.Elev.cpr"),
+        nullable=False,
+    )
+
+    fulde_navn: Mapped[str | None] = mapped_column(Unicode(200), nullable=True)
+    cpr_nummer: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # Address reuses the shared Adresse table (same as Bevilling/Foraelder),
+    # populated from the address search dropdown.
+    adresse_id: Mapped[str | None] = mapped_column(
+        Unicode(36),
+        ForeignKey(f"{DB_SCHEMA}.Adresse.adresse_id"),
+        nullable=True,
+    )
+
+    relation: Mapped[str | None] = mapped_column(Unicode(50), nullable=True)
+    telefonnummer: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    oprettet_tidspunkt: Mapped[datetime] = mapped_column(
+        DATETIME2,
+        nullable=False,
+        server_default=text("sysdatetime()"),
+    )
+
+    oprettet_af: Mapped[str | None] = mapped_column(Unicode(100), nullable=True)
+
+    aktiv: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("1"),
+    )
+
+    elev = relationship("Elev")
+    adresse = relationship("Adresse")
+
+    @property
+    def adresse_tekst(self) -> str | None:
+        """Linked address text, surfaced flat on API responses for display."""
+
+        return self.adresse.adresse_tekst if self.adresse else None

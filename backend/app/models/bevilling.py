@@ -92,7 +92,7 @@ class Bevilling(Base):
     afstandskriterie_dato: Mapped[date | None] = mapped_column(Date, nullable=True)
     afstandskriterie_klassetrin: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    begrundelse_fra_formular: Mapped[str] = mapped_column(String, nullable=False)
+    begrundelse_fra_formular: Mapped[str | None] = mapped_column(String, nullable=True)
 
     revurderet_af_ppr: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     revurderet_af_br: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -169,6 +169,11 @@ class Koersel(Base):
 
     taxa_id: Mapped[str | None] = mapped_column(String, nullable=True)
     kommentar: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Skolerejsekort-specific values, entered on the koerselsrække form.
+    # Nullable and type-specific, exactly like taxa_id / bevilget_koereafstand_pr_vej.
+    transporttid_i_bus: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    skift_med_bus: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     final: Mapped[bool] = mapped_column(Boolean, nullable=False)
 

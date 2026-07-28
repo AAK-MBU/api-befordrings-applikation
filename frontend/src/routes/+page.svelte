@@ -38,6 +38,16 @@
       `
     },
     {
+      key: "bevilling_count",
+      label: "Bevillinger",
+      filterable: false,
+      render: (row) => `
+        <span class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+          ${row.bevilling_count ?? 0}
+        </span>
+      `
+    },
+    {
       key: "esdh_noegle",
       label: "Sags-ID",
       filterType: "text",

@@ -1,0 +1,44 @@
+# Local development overrides — layer on top of docker-compose.yml.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Source is bind-mounted and the servers run in watch/reload mode, so editing
+# code hot-reloads instead of needing `docker compose ... up --build`.
+#
+# Rebuild (add --build) ONLY when dependencies or a Dockerfile change:
+#   - backend:  pyproject.toml / uv.lock
+#   - frontend: package.json / package-lock.json
+#
+# This file is opt-in (not docker-compose.override.yml) so it never activates
+# automatically — the server keeps running the plain production compose.
+
+services:
+  api:
+    # Mount ONLY the source, not all of /app — mounting /app would shadow the
+    # image's /app/.venv and break the interpreter.
+    volumes:
+      - ./backend/app:/app/app
+    environment:
+      # Bind-mounted files on Windows/WSL2 don't emit reliable inotify events,
+      # so force the uvicorn reloader (watchfiles) to poll.
+      WATCHFILES_FORCE_POLLING: "true"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    # Stop at the builder stage — it has all deps (incl. dev) + the source, so
+    # the Vite dev server can run instead of the production `node build`.
+    build:
+      target: builder
+    volumes:
+      - ./frontend:/frontend
+      # Anonymous volume keeps the image's node_modules from being hidden by
+      # the source bind-mount above.
+      - /frontend/node_modules
+    environment:
+      # Vite/chokidar file watching over a Windows bind-mount needs polling.
+      CHOKIDAR_USEPOLLING: "true"
+    # Install deps into the node_modules volume on first start (only if vite is
+    # missing), then run the dev server. The bind-mount shadows the image's
+    # node_modules, so this guarantees deps exist regardless of how the volume
+    # populated. Subsequent starts skip npm ci and boot fast.
+    command: sh -c "test -x node_modules/.bin/vite || npm ci; exec npm run dev -- --host 0.0.0.0 --port 80"

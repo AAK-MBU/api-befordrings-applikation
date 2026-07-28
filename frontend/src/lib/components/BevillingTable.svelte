@@ -8,6 +8,7 @@
     formatDanishDate,
   } from "$lib/tableColumnConfig";
   import { backendFetch } from "$lib/client/backendFetch";
+  import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
   // -----------------------------
   // Props
@@ -466,7 +467,7 @@
 
           <!-- OPRETTET -->
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Oprettet</p>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Ansøgningsdato</p>
             <p class="text-sm text-gray-800">{formatDanishDate(bevilling.created_at?.slice(0, 10))}</p>
           </div>
 
@@ -648,13 +649,14 @@
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Hjemmel</p>
             {#if isEditing}
+              {@const editSkoleType = editableBevilling.ungdomsuddannelse_id && !editableBevilling.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
               <select
                 class={largeSelectClass}
                 value={editableBevilling.hjemmel_id ?? ""}
                 on:change={(e) => updateField("hjemmel_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each lookupOptions.hjemler ?? [] as option}
+                {#each filterHjemler(lookupOptions.hjemler ?? [], bevilling.ansoegningstype, editSkoleType) as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>
@@ -667,13 +669,14 @@
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Afgørelsesbrev</p>
             {#if isEditing}
+              {@const editSkoleType = editableBevilling.ungdomsuddannelse_id && !editableBevilling.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
               <select
                 class={largeSelectClass}
                 value={editableBevilling.afgoerelsesbrev_id ?? ""}
                 on:change={(e) => updateField("afgoerelsesbrev_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each lookupOptions.afgoerelsesbreve ?? [] as option}
+                {#each filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType) as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>
