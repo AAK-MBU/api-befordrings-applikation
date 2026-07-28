@@ -176,7 +176,7 @@ def get_ansoegningstype(payload: dict) -> str:
     if webform_id == "ny_ansoegning_om_midlertidig_koe":
         return "Midlertidig kørsel"
 
-    if webform_id == "ny_ansoegning_om_skolebus":
-        return "Skolebus"
-
+    # "Skolebus" is treated as regular "Kørsel" - they are the same koersel type;
+    # we only distinguish "Kørsel" from "Midlertidig kørsel". The skolebus webform
+    # therefore falls through to the "Kørsel" default below.
     return "Kørsel"

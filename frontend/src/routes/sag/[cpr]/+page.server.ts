@@ -29,6 +29,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   const [
     stamdataRes,
     parentsRes,
+    parterRes,
     bevillingerRes,
     aktiviteterRes,
     statusRes,
@@ -46,6 +47,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   ] = await Promise.all([
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}`),
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}/parents`),
+    backendApiFetch(fetch, `/part/${cpr}`),
     backendApiFetch(fetch, `/bevilling/get_student_bevillinger/${cpr}`),
     backendApiFetch(fetch, `/aktivitet/${cpr}`),
 
@@ -65,6 +67,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
   await assertResponseOk(parentsRes, "Failed to fetch parents");
+  await assertResponseOk(parterRes, "Failed to fetch parter");
   await assertResponseOk(bevillingerRes, "Failed to fetch bevillinger");
   await assertResponseOk(aktiviteterRes, "Failed to fetch aktiviteter");
   await assertResponseOk(statusRes, "Failed to fetch status");
@@ -82,6 +85,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 
   const stamdataResponse = await stamdataRes.json();
   const parents = await parentsRes.json();
+  const parter = await parterRes.json();
   const bevillinger: BevillingRecord[] = await bevillingerRes.json();
   const aktiviteter = await aktiviteterRes.json();
   const statuser = await statusRes.json();
@@ -118,18 +122,28 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     })
   );
 
-  // Sort bevillinger by the latest gyldig_til date across their koerselsraekker,
-  // descending — bevillinger with the most recent end date appear first.
-  // Bevillinger with no koerselsraekker sort to the bottom.
+  // Ordering: the active bevilling always comes first (active trumps a future
+  // or more recently created one). The rest follow, sorted by the latest
+  // gyldig_til across their koerselsraekker, descending (most recent end date
+  // first). Bevillinger with no koerselsraekker sort to the bottom.
   const maxGyldigTil = (b: BevillingRecord & { koerselsraekker: any[] }): string =>
     b.koerselsraekker.reduce(
       (max: string, k: any) => (k.gyldig_til > max ? k.gyldig_til : max),
       ""
     );
 
-  const sortedBevillinger = [...bevillingerWithKoerselsraekker].sort(
-    (a, b) => maxGyldigTil(b).localeCompare(maxGyldigTil(a))
-  );
+  const isActive = (b: BevillingRecord): number => (b.status_tekst === "Aktiv" ? 1 : 0);
+
+  const sortedBevillinger = [...bevillingerWithKoerselsraekker].sort((a, b) => {
+    // Active first.
+    const activeDiff = isActive(b) - isActive(a);
+    if (activeDiff !== 0) {
+      return activeDiff;
+    }
+
+    // Then by latest gyldig_til, descending.
+    return maxGyldigTil(b).localeCompare(maxGyldigTil(a));
+  });
 
   const stamdata = Array.isArray(stamdataResponse)
     ? stamdataResponse[0]
@@ -139,6 +153,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     cpr,
     stamdata,
     parents,
+    parter,
     bevillinger: sortedBevillinger,
     aktiviteter,
 

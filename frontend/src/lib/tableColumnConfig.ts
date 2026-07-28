@@ -7,11 +7,18 @@ export function formatDanishDate(dateStr: string | null | undefined): string {
 }
 
 
+export function formatCpr(cpr: string | null | undefined): string {
+  if (!cpr) return "—";
+  const digits = String(cpr).replace(/\D/g, "");
+  return digits.length === 10 ? `${digits.slice(0, 6)}-${digits.slice(6)}` : String(cpr);
+}
+
+
 export const statusBadgeClasses: Record<string, string> = {
   ny: "bg-blue-100 text-blue-700",
   aktiv: "bg-green-100 text-green-800",
   afslag: "bg-red-100 text-red-700",
-  ophørt: "bg-red-100 text-red-700",
+  ophørt: "bg-slate-100 text-slate-700",
   revurdering: "bg-yellow-100 text-yellow-700",
   påbegyndt: "bg-blue-100 text-blue-700",
   kommende: "bg-violet-100 text-violet-700",
@@ -25,6 +32,18 @@ export function getStatusBadgeClass(status: string | null | undefined) {
   const key = String(status ?? "").toLowerCase();
 
   return statusBadgeClasses[key] ?? statusBadgeClasses.default;
+}
+
+
+// Yellow "Revurdering" pill shown NEXT TO the real status when a bevilling row
+// carries the revurdering flag. Returns an HTML string for {@html} render
+// contexts (DataTable columns); Svelte components inline the equivalent markup.
+export function revurderingPillHtml(row: any): string {
+  if (!row?.revurdering) return "";
+  const reason = row.statusbemaerkning
+    ? ` title="${String(row.statusbemaerkning).replace(/"/g, "&quot;")}"`
+    : "";
+  return `<span class="ml-1.5 inline-block px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses.revurdering}"${reason}>Revurdering</span>`;
 }
 
 

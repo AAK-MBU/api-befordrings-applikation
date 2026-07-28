@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { backendFetch } from '$lib/client/backendFetch';
+  import { formatCpr } from '$lib/tableColumnConfig';
 
   let { children, data } = $props();
 
@@ -227,7 +228,7 @@
             >
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-gray-900 truncate">{result.adresseringsnavn ?? '—'}</p>
-                <p class="text-xs text-gray-400 mt-0.5">{result.cpr_elev}</p>
+                <p class="text-xs text-gray-400 mt-0.5">{formatCpr(result.cpr_elev)}</p>
               </div>
               <span class="ml-3 shrink-0 text-[11px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                 {result.bevilling_count} {result.bevilling_count === 1 ? 'bevilling' : 'bevillinger'}

@@ -15,6 +15,8 @@ Some overview data comes from BevillingService, while other overview data is
 read directly from dedicated overview tables.
 """
 
+from datetime import datetime
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -78,6 +80,7 @@ class OverviewService:
             "esdh_noegle": bevilling.get("esdh_noegle"),
             "sagsbehandler": bevilling.get("sagsbehandler"),
             "ppr_sagsbehandler": bevilling.get("ppr_sagsbehandler_tekst"),
+            "revurdering": bevilling.get("revurdering"),
         }
 
 
@@ -124,10 +127,15 @@ class OverviewService:
 
 
     def get_alle_bevillinger(self):
-        """Get all bevillinger for the overview.
+        """Get all bevillinger for the overview, one row per student.
+
+        Each student is shown once. The displayed bevilling is the active one
+        if the student has an active bevilling; otherwise the most recently
+        created bevilling. Each record also carries ``bevilling_count`` — how
+        many bevillinger the student has in total.
 
         Returns:
-            A list of simplified bevilling records across every status.
+            A list of simplified bevilling records, one per student.
         """
 
         service = BevillingService(db=self.db)
@@ -136,10 +144,32 @@ class OverviewService:
             view_name="[befordring].[view_All_Bevillinger]",
         )
 
-        return [
-            self._map_bevilling_overview_record(record)
-            for record in records
-        ]
+        # Selection priority per student: prefer an active bevilling, then the
+        # most recently created. Comparing tuples element-wise gives exactly
+        # that: is_active wins first, created_at breaks ties. The middle
+        # "has date" flag keeps None created_at out of a raw datetime compare.
+        def selection_key(record: dict):
+            created = record.get("created_at")
+            is_active = (record.get("status_tekst") or "").strip().lower() == "aktiv"
+            return (is_active, created is not None, created or datetime.min)
+
+        chosen: dict = {}
+        counts: dict = {}
+
+        for record in records:
+            cpr = record.get("cpr_elev")
+            counts[cpr] = counts.get(cpr, 0) + 1
+
+            if cpr not in chosen or selection_key(record) >= selection_key(chosen[cpr]):
+                chosen[cpr] = record
+
+        result = []
+        for cpr, record in chosen.items():
+            overview = self._map_bevilling_overview_record(record)
+            overview["bevilling_count"] = counts[cpr]
+            result.append(overview)
+
+        return result
 
 
     def get_active_bevillinger(self):
@@ -177,30 +207,6 @@ class OverviewService:
         records = service.get_bevillinger(
             view_name="[befordring].[view_All_Bevillinger]",
             status="Fejlet",
-        )
-
-        return [
-            self._map_bevilling_overview_record(record)
-            for record in records
-        ]
-
-
-    def get_reassessments(self):
-        """Get bevillinger with status Revurdering.
-
-        Returns:
-            A list of simplified reassessment/revurdering records.
-
-        Notes:
-            This is used for the part of the overview that highlights cases
-            needing reassessment.
-        """
-
-        service = BevillingService(db=self.db)
-
-        records = service.get_bevillinger(
-            view_name="[befordring].[view_All_Bevillinger]",
-            status="Revurdering",
         )
 
         return [
@@ -287,11 +293,8 @@ class OverviewService:
             INNER JOIN
                 [befordring].[Bevilling] b
                 ON b.bevilling_id = vbk.bevilling_id
-            INNER JOIN
-                [befordring].[Status] s
-                ON s.status_id = b.status_id
             WHERE
-                s.status_tekst = N'Revurdering'
+                b.revurdering = 1
             ORDER BY
                 vbk.bevilling_id,
                 vbk.gyldig_til DESC
