@@ -79,6 +79,10 @@ class KoerselsraekkeCreateRequest(BaseModel):
     kommentar: str | None = None
     final: bool = False
 
+    # Skolerejsekort-specific.
+    transporttid_i_bus: int | None = None
+    skift_med_bus: int | None = None
+
     tillaeg_ids: list[int] = Field(default_factory=list)
     dag_ids: list[int] = Field(default_factory=list)
 
@@ -99,6 +103,10 @@ class KoerselsraekkeUpdateRequest(BaseModel):
     taxa_id: str | None = None
     kommentar: str | None = None
     final: bool | None = None
+
+    # Skolerejsekort-specific.
+    transporttid_i_bus: int | None = None
+    skift_med_bus: int | None = None
 
 
 class KoerselTillaegUpdateRequest(BaseModel):

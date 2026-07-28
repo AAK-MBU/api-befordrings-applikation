@@ -3,6 +3,8 @@
   // Types
   // -----------------------------
 
+  import { onMount } from "svelte";
+
   import {
     tablePrimaryActionButtonClass,
     tableSaveActionButtonClass,
@@ -27,7 +29,7 @@
   // Props
   // -----------------------------
 
-  export let pageSize = 10;
+  export let pageSize = 100;
   export let data: any[] = [];
   export let columns: DataTableColumn[] = [];
 
@@ -54,19 +56,69 @@
 
   let filters: Record<string, string | string[]> = {};
   let currentPage = 1;
+
+  // Multi-select filter dropdown. The menu is portalled to <body> and
+  // fixed-positioned (see `portal` / `positionMenu`) so it can extend beyond
+  // the table's horizontal scroll box instead of being clipped inside it.
   let openDropdown: string | null = null;
+  let triggerEl: HTMLElement | null = null;
+  let menuEl: HTMLElement | null = null;
+  let menuStyle = "";
 
   $: hasActiveFilters = Object.values(filters).some((v) =>
     Array.isArray(v) ? v.length > 0 : v !== ""
   );
 
-  function clickOutside(node: HTMLElement, callback: () => void) {
-    const handle = (e: MouseEvent) => {
-      if (!node.contains(e.target as Node)) callback();
-    };
-    document.addEventListener("click", handle, true);
-    return { destroy() { document.removeEventListener("click", handle, true); } };
+  function positionMenu() {
+    if (!triggerEl) return;
+    const r = triggerEl.getBoundingClientRect();
+    menuStyle =
+      `position: fixed; top: ${Math.round(r.bottom + 4)}px; ` +
+      `left: ${Math.round(r.left)}px; min-width: ${Math.round(r.width)}px;`;
   }
+
+  function toggleDropdown(key: string, event: MouseEvent) {
+    if (openDropdown === key) {
+      openDropdown = null;
+      triggerEl = null;
+      return;
+    }
+    openDropdown = key;
+    triggerEl = event.currentTarget as HTMLElement;
+    positionMenu();
+  }
+
+  // Move a node to <body> so it escapes the table's overflow/stacking context.
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy() { node.remove(); } };
+  }
+
+  onMount(() => {
+    const reposition = () => { if (openDropdown) positionMenu(); };
+
+    const onDocClick = (e: MouseEvent) => {
+      if (!openDropdown) return;
+      const target = e.target as Node;
+      // Ignore clicks on the trigger (it toggles itself) or inside the menu
+      // (selecting checkboxes should not close it).
+      if (triggerEl?.contains(target) || menuEl?.contains(target)) return;
+      openDropdown = null;
+      triggerEl = null;
+    };
+
+    window.addEventListener("resize", reposition);
+    // capture=true so scrolling the table's own overflow box also repositions.
+    document.addEventListener("scroll", reposition, true);
+    // capture=true so this runs before the trigger's own click handler.
+    document.addEventListener("click", onDocClick, true);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("scroll", reposition, true);
+      document.removeEventListener("click", onDocClick, true);
+    };
+  });
 
   function getUniqueOptions(key: string): string[] {
     return Array.from(
@@ -172,11 +224,11 @@
 
                 {#if column.filterType === "select" && column.multiSelect}
 
-                  <div class="relative" use:clickOutside={() => { if (openDropdown === column.key) openDropdown = null; }}>
+                  <div class="relative">
                     <button
                       type="button"
                       class="h-7 w-full flex items-center justify-between border border-gray-200 rounded bg-white px-2 text-xs text-left"
-                      on:click={() => { openDropdown = openDropdown === column.key ? null : column.key; }}
+                      on:click={(e) => toggleDropdown(column.key, e)}
                     >
                       <span class="truncate text-slate-500">
                         {Array.isArray(filters[column.key]) && (filters[column.key] as string[]).length > 0
@@ -189,7 +241,14 @@
                     </button>
 
                     {#if openDropdown === column.key}
-                      <div class="absolute z-50 mt-1 min-w-full w-max bg-white border border-gray-200 rounded shadow-lg">
+                      <!-- Portalled to <body> and fixed-positioned so the menu can
+                           extend beyond the table's overflow-x-auto scroll box. -->
+                      <div
+                        bind:this={menuEl}
+                        use:portal
+                        style={menuStyle}
+                        class="z-50 max-h-72 overflow-auto bg-white border border-gray-200 rounded shadow-lg"
+                      >
                         {#each getUniqueOptions(column.key) as option}
                           {@const isSelected = Array.isArray(filters[column.key]) && (filters[column.key] as string[]).includes(option)}
                           <label class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 cursor-pointer whitespace-nowrap">

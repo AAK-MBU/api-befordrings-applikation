@@ -6,8 +6,12 @@
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import BevillingTable from "$lib/components/BevillingTable.svelte";
   import AddresseSearch from "$lib/components/AddresseSearch.svelte";
+  import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
+  import ParterTable from "$lib/components/ParterTable.svelte";
+  import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
   import {
     getStatusBadgeClass,
+    formatCpr,
   } from "$lib/tableColumnConfig";
 
   export let data;
@@ -45,12 +49,11 @@
       (k: any) => k.befordringstype_tekst === "Skolerejsekort"
     );
 
-  let { stamdata, parents, bevillinger, lookupOptions, aktiviteter } = data;
+  let { stamdata, parents, parter, bevillinger, lookupOptions, aktiviteter } = data;
 
   const initialHash = window.location.hash.slice(1);
-  let activeTab = (initialHash === "sagsforloeb" || initialHash === "stamdata")
-    ? initialHash
-    : "stamdata";
+  const validTabs = ["elev", "parter", "sagsforloeb"];
+  let activeTab = validTabs.includes(initialHash) ? initialHash : "elev";
 
   function switchTab(tab: string) {
     activeTab = tab;
@@ -62,6 +65,7 @@
 
   $: anyPprRevurderet = (bevillinger as any[]).some((b) => b.revurderet_af_ppr);
   $: anyBrRevurderet  = (bevillinger as any[]).some((b) => b.revurderet_af_br);
+  $: anyRevurdering   = (bevillinger as any[]).some((b) => b.revurdering);
 
   // If any bevilling is Aktiv, always show Aktiv.
   // Otherwise show the status of the bevilling with the latest gyldig_til
@@ -100,6 +104,7 @@
   $: if (data) {
     stamdata = data.stamdata;
     parents = data.parents;
+    parter = data.parter;
     bevillinger = data.bevillinger;
     lookupOptions = data.lookupOptions;
     aktiviteter = data.aktiviteter;
@@ -195,6 +200,18 @@
 
   let newBevilling: any = getEmptyBevilling();
 
+  // Restrict Hjemmel/Afgørelsesbrev options based on ansøgningstype (+ skoletype
+  // for Midlertidig kørsel). Other types keep the full list.
+  $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
+  $: visibleAfgoerelsesbreve = filterAfgoerelsesbreve(lookupOptions?.afgoerelsesbreve, newBevilling.ansoegningstype, skoleType);
+
+  // Clear the Hjemmel/Afgørelsesbrev selections when the allowed set changes
+  // (ansøgningstype or skoletype). Done imperatively from the change handlers,
+  // NOT in a reactive block, to avoid a visibleHjemler ↔ newBevilling cycle.
+  function resetLookupSelections() {
+    newBevilling = { ...newBevilling, hjemmel_id: "", afgoerelsesbrev_id: "" };
+  }
+
   const begrundelseOptions = [
     "Sygdom",
     "Afstand",
@@ -216,7 +233,8 @@
     },
     {
       key: "cpr_foraelder",
-      label: "Cpr-nummer"
+      label: "Cpr-nummer",
+      render: (row) => formatCpr(row.cpr_foraelder)
     },
     {
       key: "adresse_tekst",
@@ -458,7 +476,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
     showCreateBevillingModal = false;
     resetCreateBevillingForm();
   }
@@ -635,7 +653,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
 
     return true;
   }
@@ -678,7 +696,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
 
     return true;
   }
@@ -781,7 +799,7 @@
 
     await invalidateAll();
 
-    switchTab("stamdata");
+    switchTab("elev");
 
     return true;
   }
@@ -836,14 +854,16 @@
               {displayStatus}
             </span>
           {/if}
+          {#if anyRevurdering}
+            <span class="ml-1.5 inline-block px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+              Revurdering
+            </span>
+          {/if}
         </div>
         <p class="text-sm text-gray-500 mt-0.5">
-          <span class="font-mono">{stamdata?.cpr ?? ""}</span>
+          <span class="font-mono">{formatCpr(stamdata?.cpr)}</span>
           {#if studentAge !== null}
             <span class="mx-1.5 text-gray-300">·</span>{studentAge} år
-          {/if}
-          {#if stamdata?.adresse_tekst}
-            <span class="mx-1.5 text-gray-300">·</span>{stamdata.adresse_tekst}
           {/if}
         </p>
       </div>
@@ -854,12 +874,23 @@
       <button
         type="button"
         class="px-4 py-2 text-sm font-medium rounded border transition-colors"
-        style={activeTab === "stamdata"
+        style={activeTab === "elev"
           ? "background-color: #032A42; color: #ffffff; border-color: #032A42;"
           : "background-color: #ffffff; color: #374151; border-color: #d1d5db;"}
-        on:click={() => switchTab("stamdata")}
+        on:click={() => switchTab("elev")}
       >
-        Stamdata
+        Elev
+      </button>
+
+      <button
+        type="button"
+        class="px-4 py-2 text-sm font-medium rounded border transition-colors"
+        style={activeTab === "parter"
+          ? "background-color: #032A42; color: #ffffff; border-color: #032A42;"
+          : "background-color: #ffffff; color: #374151; border-color: #d1d5db;"}
+        on:click={() => switchTab("parter")}
+      >
+        Parter
       </button>
 
       <button
@@ -877,8 +908,8 @@
   </div>
 
 
-  <!-- STAMDATA TAB -->
-  {#if activeTab === "stamdata"}
+  <!-- ELEV TAB -->
+  {#if activeTab === "elev"}
 
     <!-- Elevoplysninger card -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
@@ -960,6 +991,12 @@
     </div>
 
 
+  {/if}
+
+
+  <!-- PARTER TAB -->
+  {#if activeTab === "parter"}
+
     <!-- Oplysninger om forældre -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
       <div class="flex items-center gap-2 mb-4">
@@ -973,12 +1010,20 @@
         />
     </div>
 
+    <!-- Øvrige parter (ikke-forældremyndige, som må orienteres) -->
+    <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-2.5 h-2.5 rounded-full bg-slate-400 flex-shrink-0"></div>
+        <h2 class="font-semibold text-gray-800">Øvrige parter</h2>
+      </div>
+      <ParterTable cpr={stamdata.cpr} parter={parter} />
+    </div>
 
   {/if}
 
 
-  <!-- BEVILLINGER (shown in stamdata tab) -->
-  {#if activeTab === "stamdata"}
+  <!-- BEVILLINGER (shown in Elev tab) -->
+  {#if activeTab === "elev"}
 
     <!-- Bevillinger section header -->
     <div class="flex items-center justify-between mb-4 mt-2">
@@ -1016,16 +1061,17 @@
       >
         + Opret brev
       </button>
+
+      <UpdateTemplateButton class="px-4 py-2 text-sm" />
       </div>
     </div>
 
 
     <!-- Create bevilling modal -->
     {#if showCreateBevillingModal}
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
       <div
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        on:click|self={() => { showCreateBevillingModal = false; resetCreateBevillingForm(); }}
         role="presentation"
       >
         <div
@@ -1046,12 +1092,11 @@
 
               <!-- STEP 1: Ansøgningstype (always first) -->
               <label class="text-sm font-medium text-gray-700 col-span-2">
-                Ansøgningstype *
-                <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype}>
+                Ansøgningstype
+                <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={resetLookupSelections}>
                   <option value="">Vælg ansøgningstype</option>
                   <option value="Kørsel">Kørsel</option>
                   <option value="Midlertidig kørsel">Midlertidig kørsel</option>
-                  <option value="Skolebus">Skolebus</option>
                 </select>
               </label>
 
@@ -1060,7 +1105,7 @@
 
                 <!-- Toggle between folkeskole and ungdomsuddannelse -->
                 <div class="col-span-2">
-                  <p class="text-sm font-medium text-gray-700 mb-2">Skole type *</p>
+                  <p class="text-sm font-medium text-gray-700 mb-2">Skole type</p>
                   <div class="flex gap-2">
                     <button
                       type="button"
@@ -1068,7 +1113,7 @@
                       style={skoleType === 'folkeskole'
                         ? 'background-color: #032A42; color: #fff; border-color: #032A42;'
                         : 'background-color: #fff; color: #374151; border-color: #d1d5db;'}
-                      on:click={() => skoleType = 'folkeskole'}
+                      on:click={() => { skoleType = 'folkeskole'; resetLookupSelections(); }}
                     >
                       Folkeskole
                     </button>
@@ -1078,7 +1123,7 @@
                       style={skoleType === 'ungdomsuddannelse'
                         ? 'background-color: #032A42; color: #fff; border-color: #032A42;'
                         : 'background-color: #fff; color: #374151; border-color: #d1d5db;'}
-                      on:click={() => skoleType = 'ungdomsuddannelse'}
+                      on:click={() => { skoleType = 'ungdomsuddannelse'; resetLookupSelections(); }}
                     >
                       Ungdomsuddannelse
                     </button>
@@ -1146,7 +1191,7 @@
                 Hjemmel
                 <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.hjemmel_id}>
                   <option value="">Vælg</option>
-                  {#each lookupOptions.hjemler ?? [] as option}
+                  {#each visibleHjemler as option}
                     <option value={String(option.id)}>{option.label}</option>
                   {/each}
                 </select>
@@ -1156,7 +1201,7 @@
                 Afgørelsesbrev
                 <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afgoerelsesbrev_id}>
                   <option value="">Vælg</option>
-                  {#each lookupOptions.afgoerelsesbreve ?? [] as option}
+                  {#each visibleAfgoerelsesbreve as option}
                     <option value={String(option.id)}>{option.label}</option>
                   {/each}
                 </select>
@@ -1222,26 +1267,6 @@
                 <input type="number" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_klassetrin} />
               </label>
 
-              <label class="text-sm font-medium text-gray-700 col-span-2">
-                Begrundelse
-                <div class="mt-1.5 border border-gray-300 rounded p-3">
-                  <div class="mb-2 flex flex-wrap gap-1.5">
-                    {#each selectedBegrundelser as begrundelse}
-                      <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                        {begrundelse}
-                        <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold" on:click={() => removeBegrundelse(begrundelse)}>×</button>
-                      </span>
-                    {/each}
-                  </div>
-                  <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" bind:value={begrundelseSelectValue} on:change={addBegrundelse}>
-                    <option value="">Tilføj begrundelse</option>
-                    {#each begrundelseOptions.filter((opt) => !selectedBegrundelser.includes(opt)) as opt}
-                      <option value={opt}>{opt}</option>
-                    {/each}
-                  </select>
-                </div>
-              </label>
-
               {/if}
 
             </div>
@@ -1257,8 +1282,7 @@
             </button>
             <button
               type="button"
-              disabled={!newBevilling.adresse_id}
-              class="px-5 py-2 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
+              class="px-5 py-2 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
               on:click={handleCreateBevilling}
             >
               Opret bevilling
@@ -1272,10 +1296,9 @@
 
     <!-- Create letter modal -->
     {#if showCreateLetterModal}
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
       <div
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        on:click|self={() => { showCreateLetterModal = false; resetCreateLetterForm(); }}
         role="presentation"
       >
         <div

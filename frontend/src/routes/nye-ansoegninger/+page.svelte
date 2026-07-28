@@ -2,7 +2,7 @@
   import { invalidateAll } from "$app/navigation";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import { backendFetch } from "$lib/client/backendFetch";
-  import { formatDanishDate, getStatusBadgeClass } from "$lib/tableColumnConfig";
+  import { formatDanishDate, getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
 
   export let data;
 
@@ -113,7 +113,8 @@
     },
     {
       key: "cpr_elev",
-      label: "CPR"
+      label: "CPR",
+      render: (row: any) => formatCpr(row.cpr_elev)
     },
     {
       key: "esdh_noegle",

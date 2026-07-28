@@ -512,7 +512,6 @@ class BevillingService:
         # a clear 422 instead of letting the DB raise a constraint violation.
         required_fields = {
             "adresse_id": "Adresse for bevilling",
-            "begrundelse_fra_formular": "Begrundelse",
         }
 
         missing = [
@@ -805,22 +804,59 @@ class BevillingService:
 
         if status_result.get("rows_updated", 0) > 0:
             new_status = status_result["status_text"]
-            if br_changed and new_data.get("revurderet_af_br") and new_status == "Aktiv":
-                self._log_event(
-                    cpr,
-                    f"Status sat til {new_status}",
-                    kommentar="Sagen er gennemgået revurdering og markeret som revurderet af BR",
-                    relateret_bevilling_id=bevilling_id,
-                    udfoert_af=udfoert_af,
-                )
-            else:
-                self._log_event(
-                    cpr,
-                    f"Status sat til {new_status}",
-                    kommentar=status_result.get("status_reason") or self._STATUS_KOMMENTAR.get(new_status),
-                    relateret_bevilling_id=bevilling_id,
-                    udfoert_af=udfoert_af,
-                )
+            self._log_event(
+                cpr,
+                f"Status sat til {new_status}",
+                kommentar=status_result.get("status_reason") or self._STATUS_KOMMENTAR.get(new_status),
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
+
+
+    def set_sagsbehandlingsdato(
+        self,
+        bevilling_id: int,
+        on_date: date | None = None,
+    ) -> date:
+        """Stamp the bevilling's sagsbehandlingsdato.
+
+        Called when a caseworker creates a letter: the case is considered
+        processed on the day the decision letter is generated, so the date is
+        set automatically (defaults to today).
+
+        The status engine does not read sagsbehandlingsdato, so this does NOT
+        trigger a status recalculation.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling to stamp.
+            on_date:
+                Date to set. Defaults to today when omitted.
+
+        Returns:
+            The date that was written.
+
+        Raises:
+            HTTPException:
+                404 if the bevilling does not exist.
+        """
+
+        bevilling = self.db.get(Bevilling, bevilling_id)
+
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        stamped = on_date or date.today()
+
+        bevilling.sagsbehandlingsdato = stamped
+        bevilling.updated_by = "letter_engine"
+
+        self.db.commit()
+
+        return stamped
 
 
     def update_koerselsraekke(

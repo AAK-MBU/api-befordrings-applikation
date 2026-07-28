@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import KoerselsraekkeTable from "$lib/components/KoerselsraekkeTable.svelte";
   import AddresseSearch from "$lib/components/AddresseSearch.svelte";
 
@@ -7,6 +8,7 @@
     formatDanishDate,
   } from "$lib/tableColumnConfig";
   import { backendFetch } from "$lib/client/backendFetch";
+  import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
   // -----------------------------
   // Props
@@ -51,6 +53,16 @@
   // -----------------------------
 
   let expandedRows = new Set<number>();
+
+  // On load, auto-expand the active bevilling (or the newest one if none is
+  // active) so its kørselsrækker are visible immediately. The others stay
+  // collapsed — their status is still shown in the row header.
+  onMount(() => {
+    const target = bevillinger.find((b) => b.status_tekst === "Aktiv") ?? bevillinger[0];
+    if (target?.bevilling_id != null) {
+      expandedRows = new Set([target.bevilling_id]);
+    }
+  });
 
   let editingBevillingId: number | null = null;
   let editableBevilling: any = {};
@@ -371,15 +383,20 @@
               <span class="inline-block px-2 py-0.5 rounded text-xs font-medium {getStatusBadgeClass(bevilling.status_tekst)}">
                 {bevilling.status_tekst ?? ""}
               </span>
+              {#if bevilling.revurdering}
+                <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700" title={bevilling.statusbemaerkning ?? ''}>
+                  Revurdering
+                </span>
+              {/if}
               {#if bevilling.statusbemaerkning}
-                <span class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium {getStatusBemaerkningClass(bevilling.status_tekst)}">
-                  {#if getStatusBemaerkningIcon(bevilling.status_tekst) === "error"}
+                <span class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium {getStatusBemaerkningClass(bevilling.revurdering ? 'Revurdering' : bevilling.status_tekst)}">
+                  {#if getStatusBemaerkningIcon(bevilling.revurdering ? 'Revurdering' : bevilling.status_tekst) === "error"}
                     <!-- X-circle -->
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="9"/>
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15 9l-6 6M9 9l6 6"/>
                     </svg>
-                  {:else if getStatusBemaerkningIcon(bevilling.status_tekst) === "warning"}
+                  {:else if getStatusBemaerkningIcon(bevilling.revurdering ? 'Revurdering' : bevilling.status_tekst) === "warning"}
                     <!-- Triangle warning -->
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -450,7 +467,7 @@
 
           <!-- OPRETTET -->
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Oprettet</p>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Ansøgningsdato</p>
             <p class="text-sm text-gray-800">{formatDanishDate(bevilling.created_at?.slice(0, 10))}</p>
           </div>
 
@@ -632,13 +649,14 @@
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Hjemmel</p>
             {#if isEditing}
+              {@const editSkoleType = editableBevilling.ungdomsuddannelse_id && !editableBevilling.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
               <select
                 class={largeSelectClass}
                 value={editableBevilling.hjemmel_id ?? ""}
                 on:change={(e) => updateField("hjemmel_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each lookupOptions.hjemler ?? [] as option}
+                {#each filterHjemler(lookupOptions.hjemler ?? [], bevilling.ansoegningstype, editSkoleType) as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>
@@ -651,13 +669,14 @@
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Afgørelsesbrev</p>
             {#if isEditing}
+              {@const editSkoleType = editableBevilling.ungdomsuddannelse_id && !editableBevilling.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
               <select
                 class={largeSelectClass}
                 value={editableBevilling.afgoerelsesbrev_id ?? ""}
                 on:change={(e) => updateField("afgoerelsesbrev_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each lookupOptions.afgoerelsesbreve ?? [] as option}
+                {#each filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType) as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>

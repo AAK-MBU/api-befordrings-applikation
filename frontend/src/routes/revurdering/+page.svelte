@@ -1,9 +1,11 @@
   <script lang="ts">
     import { invalidateAll } from "$app/navigation";
     import { backendFetch } from "$lib/client/backendFetch";
-    import { formatDanishDate, getStatusBadgeClass } from "$lib/tableColumnConfig";
+    import { formatDanishDate, getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
     import BevillingTable from "$lib/components/BevillingTable.svelte";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
+    import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
+    import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
     export let data;
 
@@ -371,6 +373,19 @@
 
     let skoleType: 'folkeskole' | 'ungdomsuddannelse' | null = null;
     let newBevilling: any = {};
+
+    // Restrict Hjemmel/Afgørelsesbrev options based on ansøgningstype (+ skoletype
+    // for Midlertidig kørsel). Other types keep the full list.
+    $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
+    $: visibleAfgoerelsesbreve = filterAfgoerelsesbreve(lookupOptions?.afgoerelsesbreve, newBevilling.ansoegningstype, skoleType);
+
+    // Clear the Hjemmel/Afgørelsesbrev selections when the allowed set changes
+    // (ansøgningstype or skoletype). Done imperatively from the change handlers,
+    // NOT in a reactive block, to avoid a visibleHjemler ↔ newBevilling cycle.
+    function resetLookupSelections() {
+      newBevilling = { ...newBevilling, hjemmel_id: "", afgoerelsesbrev_id: "" };
+    }
+
     let selectedBegrundelser: string[] = [];
     let begrundelseSelectValue = "";
     const begrundelseOptions = ["Sygdom", "Afstand", "Farlig skolevej"];
@@ -779,6 +794,8 @@
   if (showCreateBevillingModal) { showCreateBevillingModal = false; resetCreateBevillingForm(); createBevillingStep = 1; }
   if (showCreateLetterModal) { showCreateLetterModal = false; }
   if (showCommentModal) { showCommentModal = false; }
+  if (pprConfirmFor) { pprConfirmFor = null; }
+  if (brConfirmFor) { brConfirmFor = null; }
 }} />
 
 <svelte:head>
@@ -795,8 +812,6 @@
     role="dialog"
     aria-modal="true"
     tabindex="-1"
-    on:click|self={() => (pprConfirmFor = null)}
-    on:keydown={(e) => { if (e.key === 'Escape') pprConfirmFor = null; }}
   >
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
       <div class="flex items-center justify-between px-5 py-4" style="background:#032A42;">
@@ -837,8 +852,6 @@
     role="dialog"
     aria-modal="true"
     tabindex="-1"
-    on:click|self={() => (brConfirmFor = null)}
-    on:keydown={(e) => { if (e.key === 'Escape') brConfirmFor = null; }}
   >
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
       <div class="flex items-center justify-between px-5 py-4" style="background:#032A42;">
@@ -874,10 +887,9 @@
      Create bevilling modal
      ========================================================= -->
 {#if showCreateBevillingModal}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-    on:click|self={() => { showCreateBevillingModal = false; resetCreateBevillingForm(); createBevillingStep = 1; }}
     role="presentation"
   >
     <div class="w-[750px] max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
@@ -894,27 +906,26 @@
         <div class="grid grid-cols-2 gap-5">
 
           <label class="text-sm font-medium text-gray-700 col-span-2">
-            Ansøgningstype *
-            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype}>
+            Ansøgningstype
+            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={resetLookupSelections}>
               <option value="">Vælg ansøgningstype</option>
               <option value="Kørsel">Kørsel</option>
               <option value="Midlertidig kørsel">Midlertidig kørsel</option>
-              <option value="Skolebus">Skolebus</option>
             </select>
           </label>
 
           {#if newBevilling.ansoegningstype === "Midlertidig kørsel"}
             <div class="col-span-2">
-              <p class="text-sm font-medium text-gray-700 mb-2">Skole type *</p>
+              <p class="text-sm font-medium text-gray-700 mb-2">Skole type</p>
               <div class="flex gap-2">
                 <button type="button"
                   class="flex-1 py-2 text-sm font-medium rounded border transition-colors"
                   style={skoleType === 'folkeskole' ? 'background-color:#032A42;color:#fff;border-color:#032A42;' : 'background-color:#fff;color:#374151;border-color:#d1d5db;'}
-                  on:click={() => skoleType = 'folkeskole'}>Folkeskole</button>
+                  on:click={() => { skoleType = 'folkeskole'; resetLookupSelections(); }}>Folkeskole</button>
                 <button type="button"
                   class="flex-1 py-2 text-sm font-medium rounded border transition-colors"
                   style={skoleType === 'ungdomsuddannelse' ? 'background-color:#032A42;color:#fff;border-color:#032A42;' : 'background-color:#fff;color:#374151;border-color:#d1d5db;'}
-                  on:click={() => skoleType = 'ungdomsuddannelse'}>Ungdomsuddannelse</button>
+                  on:click={() => { skoleType = 'ungdomsuddannelse'; resetLookupSelections(); }}>Ungdomsuddannelse</button>
               </div>
             </div>
             {#if skoleType === 'folkeskole'}
@@ -969,7 +980,7 @@
               Hjemmel
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.hjemmel_id}>
                 <option value="">Vælg</option>
-                {#each lookupOptions.hjemler ?? [] as option}
+                {#each visibleHjemler as option}
                   <option value={String(option.id)}>{option.label}</option>
                 {/each}
               </select>
@@ -979,7 +990,7 @@
               Afgørelsesbrev
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afgoerelsesbrev_id}>
                 <option value="">Vælg</option>
-                {#each lookupOptions.afgoerelsesbreve ?? [] as option}
+                {#each visibleAfgoerelsesbreve as option}
                   <option value={String(option.id)}>{option.label}</option>
                 {/each}
               </select>
@@ -1045,25 +1056,6 @@
               <input type="number" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_klassetrin} />
             </label>
 
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Begrundelse
-              <div class="mt-1.5 border border-gray-300 rounded p-3">
-                <div class="mb-2 flex flex-wrap gap-1.5">
-                  {#each selectedBegrundelser as begrundelse}
-                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                      {begrundelse}
-                      <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold" on:click={() => removeBegrundelse(begrundelse)}>×</button>
-                    </span>
-                  {/each}
-                </div>
-                <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" bind:value={begrundelseSelectValue} on:change={addBegrundelse}>
-                  <option value="">Tilføj begrundelse</option>
-                  {#each begrundelseOptions.filter((opt) => !selectedBegrundelser.includes(opt)) as opt}
-                    <option value={opt}>{opt}</option>
-                  {/each}
-                </select>
-              </div>
-            </label>
 
           {/if}
 
@@ -1206,8 +1198,7 @@
           Annullér
         </button>
         <button type="button"
-          disabled={!newBevilling.adresse_id}
-          class="px-5 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-5 py-2 text-sm font-medium text-white rounded transition-colors"
           style="background-color: #032A42;"
           on:click={handleCreateBevilling}>
           Opret bevilling
@@ -1251,10 +1242,9 @@
      Create letter modal
      ========================================================= -->
 {#if showCreateLetterModal}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-    on:click|self={() => { showCreateLetterModal = false; }}
     role="presentation"
   >
     <div class="w-[560px] bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
@@ -1329,10 +1319,9 @@
      Add comment modal
      ========================================================= -->
 {#if showCommentModal}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-    on:click|self={() => { showCommentModal = false; }}
     role="presentation"
   >
     <div class="w-full max-w-md bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
@@ -1379,6 +1368,8 @@
     </div>
 
     <div class="flex items-center gap-4 flex-wrap">
+
+      <UpdateTemplateButton class="px-3 py-1.5 text-xs" />
 
       {#if uniqueSkoler.length > 0}
         <select
@@ -1527,7 +1518,7 @@
                 </a>
               </div>
               <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="text-gray-400 text-xs whitespace-nowrap">{bev.cpr_elev}</span>
+                <span class="text-gray-400 text-xs whitespace-nowrap">{formatCpr(bev.cpr_elev)}</span>
                 {#if bev.skole_navn}
                   <span class="text-gray-300 text-xs">·</span>
                   <span class="text-gray-500 text-xs whitespace-nowrap truncate">{bev.skole_navn}</span>
@@ -1727,13 +1718,14 @@
                     <div>
                       <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Hjemmel</p>
                       {#if isEditingFields}
+                        {@const editSkoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
                         <select
                           class="w-full border border-gray-300 rounded pl-1.5 pr-6 py-0.5 text-xs focus:border-blue-400 focus:ring-0 bg-white"
                           value={editFields.hjemmel_id ?? ""}
                           on:change={(e) => editFields = { ...editFields, hjemmel_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}
                         >
                           <option value="">—</option>
-                          {#each hjemler as opt}
+                          {#each filterHjemler(hjemler, bev.ansoegningstype, editSkoleType) as opt}
                             <option value={opt.id}>{opt.label}</option>
                           {/each}
                         </select>
@@ -1745,13 +1737,14 @@
                     <div>
                       <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Afgørelsesbrev</p>
                       {#if isEditingFields}
+                        {@const editSkoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
                         <select
                           class="w-full border border-gray-300 rounded pl-1.5 pr-6 py-0.5 text-xs focus:border-blue-400 focus:ring-0 bg-white"
                           value={editFields.afgoerelsesbrev_id ?? ""}
                           on:change={(e) => editFields = { ...editFields, afgoerelsesbrev_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}
                         >
                           <option value="">—</option>
-                          {#each afgoerelsesbreve as opt}
+                          {#each filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType) as opt}
                             <option value={opt.id}>{opt.label}</option>
                           {/each}
                         </select>

@@ -18,6 +18,9 @@ dependencies = [
     "fastapi>=0.109.0",
     "fastapi-pagination>=0.14.3",
     "mbu-dev-shared-components >= 0.4.1",
+    # 🔥 TEMPORARY - only needed by endpoints/mock_templates_handler.py while
+    # api-skabelonmotor is not yet live. Remove together with that file.
+    "mbu_msoffice_integration>=1.0.1",
     "office365-rest-python-client",
     "openpyxl >= 3.1.2",
     "pandas",
