@@ -89,10 +89,10 @@ def update_template_data(process: str):
     _require_ooxml(template_binary_docx, folder_name, "skabelon.docx")
 
     binary_excel = sharepoint.fetch_file_using_open_binary(
-        file_name="Afgørelsesbreve.xlsm",
+        file_name="Afgørelsesbreve.xlsx",
         folder_name=folder_name,
     )
-    _require_ooxml(binary_excel, folder_name, "Afgørelsesbreve.xlsm")
+    _require_ooxml(binary_excel, folder_name, "Afgørelsesbreve.xlsx")
 
     json_data = parse_workbook_afgoerelsesbrev(binary_excel=binary_excel)
 
