@@ -66,7 +66,7 @@ def update_template_data(process: str):
 
     sharepoint = Sharepoint(
         site_url="https://aarhuskommune.sharepoint.com/",
-        site_name="MBURPA",
+        site_name="BudgetogRegnskab-Samarbejdsprojekter-Befordring",
         document_library="Delte dokumenter",
         **SHAREPOINT_KWARGS,
     )
@@ -80,13 +80,13 @@ def update_template_data(process: str):
                    "APPREG_THUMBPRINT/GRAPH_CERT_PEM og TLS-opsætning i containeren).",
         )
 
-    folder_name = "Egenbefordring/Afgørelsesbreve"
+    folder_name = "Afgørelsesbreve"
 
     template_binary_docx = sharepoint.fetch_file_using_open_binary(
-        file_name="skabelon.docx",
+        file_name="Skabelon.docx",
         folder_name=folder_name,
     )
-    _require_ooxml(template_binary_docx, folder_name, "skabelon.docx")
+    _require_ooxml(template_binary_docx, folder_name, "Skabelon.docx")
 
     binary_excel = sharepoint.fetch_file_using_open_binary(
         file_name="Afgørelsesbreve.xlsx",
@@ -278,7 +278,9 @@ def parse_workbook_afgoerelsesbrev(binary_excel: bytes) -> list[dict]:
 
         "Bekendtgørelse af lov om befordringsrabat til uddannelsessøgende i ungdomsuddannelser m.v": "https://www.retsinformation.dk/eli/lta/2026/379#P10",
 
-        "Behandling af personoplysninger i Børn og Unge (aarhus.dk)": "https://aarhus.dk/om-kommunen/databeskyttelse/behandling-af-personoplysninger-i-boern-og-unge"
+        "Behandling af personoplysninger i Børn og Unge (aarhus.dk)": "https://aarhus.dk/om-kommunen/databeskyttelse/behandling-af-personoplysninger-i-boern-og-unge",
+        
+        "Ansøg om bevilling af kørsel": "https://aarhus.dk/borger/pasning-skole-og-uddannelse/skole-sfo-og-klub/naar-dit-barn-gaar-i-skole/koersel-af-skoleelever/ansoeg-om-bevilling-af-koersel"
     }
 
     def inject_links(entry_text: str) -> str:
