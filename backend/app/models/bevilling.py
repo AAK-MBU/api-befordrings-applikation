@@ -162,6 +162,14 @@ class Koersel(Base):
         nullable=False,
     )
 
+    # Which route the kørsel covers (e.g. home↔school, home↔club). Nullable —
+    # befordring is not always strictly between home and school.
+    rutetype_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Rutetype.rutetype_id"),
+        nullable=True,
+    )
+
     bevilget_koereafstand_pr_vej: Mapped[float | None] = mapped_column(
         Float,
         nullable=True,

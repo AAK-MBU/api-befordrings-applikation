@@ -22,11 +22,12 @@
     $: pprSagsbehandlere    = data.pprSagsbehandlere    ?? [];
     $: hjaelpemidler        = data.hjaelpemidler        ?? [];
     $: ungdomsuddannelser   = data.ungdomsuddannelser   ?? [];
+    $: rutetyper            = data.rutetyper            ?? [];
 
     $: lookupOptions = {
       koerselstyper, tidspunkter, koerselstypeTillaeg, dage,
       statuser, skolematrikler, hjemler, afgoerelsesbreve,
-      sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser,
+      sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser, rutetyper,
     };
 
     // ---------------------------------------------------------------------------
@@ -998,12 +999,12 @@
 
             <label class="text-sm font-medium text-gray-700">
               Revurdering
-              <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
+              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
             </label>
 
             <label class="text-sm font-medium text-gray-700">
               Befordringsudvalg
-              <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
+              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
             </label>
 
             <label class="text-sm font-medium text-gray-700">
@@ -1033,7 +1034,7 @@
 
             <label class="text-sm font-medium text-gray-700">
               Sagsbehandlingsdato
-              <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
+              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
             </label>
 
             <label class="text-sm font-medium text-gray-700">
@@ -1043,12 +1044,12 @@
 
             <label class="text-sm font-medium text-gray-700">
               Dato for første kørsel
-              <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
+              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
             </label>
 
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie dato
-              <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
+              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
             </label>
 
             <label class="text-sm font-medium text-gray-700">
@@ -1104,12 +1105,12 @@
 
           <label class="text-sm font-medium text-gray-700">
             Gyldig fra *
-            <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_fra} />
+            <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_fra} />
           </label>
 
           <label class="text-sm font-medium text-gray-700">
             Gyldig til *
-            <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_til} />
+            <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_til} />
           </label>
 
           <label class="text-sm font-medium text-gray-700">
@@ -1291,7 +1292,7 @@
         {#if selectedLetterBevillingIsOphoert}
           <label class="block text-sm font-medium text-gray-700">
             Ophørsdato
-            <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
+            <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
           </label>
         {/if}
       </div>
@@ -1756,7 +1757,7 @@
                     <div>
                       <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Afstandskriterie dato</p>
                       {#if isEditingFields}
-                        <input type="date" class="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:border-blue-400 focus:ring-0" bind:value={editFields.afstandskriterie_dato} />
+                        <input type="date" max="9999-12-31" class="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:border-blue-400 focus:ring-0" bind:value={editFields.afstandskriterie_dato} />
                       {:else}
                         <p class="text-xs text-gray-700">{formatDanishDate(bev.afstandskriterie_dato) ?? "—"}</p>
                       {/if}
@@ -1775,7 +1776,7 @@
                     <div>
                       <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Revurderingsdato</p>
                       {#if isEditingFields}
-                        <input type="date" class="w-full border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:border-blue-400 focus:ring-0" bind:value={editFields.revurderingsdato} />
+                        <input type="date" max="9999-12-31" class="w-full border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:border-blue-400 focus:ring-0" bind:value={editFields.revurderingsdato} />
                       {:else}
                         <p class="text-xs text-gray-700">{formatDanishDate(bev.revurderingsdato) ?? "—"}</p>
                       {/if}

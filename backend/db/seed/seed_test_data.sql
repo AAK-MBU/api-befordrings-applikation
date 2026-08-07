@@ -6,10 +6,6 @@
    seeded as Aktiv bevillinger with revurdering = 1 (see the UPDATE
    after the Bevilling inserts). Requires migrations 0005–0007 applied.
 
-   NOTE: sagsbehandlingsdato is not inserted directly. It is stamped when
-   a letter is created, so it is backfilled from each bevilling's
-   'Brev oprettet' Sagsaktivitet (see the UPDATE near the end).
-
    Runs inside a transaction that ROLLBACKs by default — change the
    final ROLLBACK to COMMIT once the previewed data looks correct.
    ============================================================ */
@@ -30,6 +26,7 @@ DELETE FROM [befordring].[Koersel];
 DELETE FROM [befordring].[Bevilling];
 
 DELETE FROM [befordring].[Foraelder];
+DELETE FROM [befordring].[Part];
 DELETE FROM [befordring].[Elev];
 
 DELETE FROM [befordring].[Afgoerelsesbrev];
@@ -38,6 +35,7 @@ DELETE FROM [befordring].[Hjaelpemiddel];
 DELETE FROM [befordring].[Hjemmel];
 DELETE FROM [befordring].[KoerselstypeTillaeg];
 DELETE FROM [befordring].[PPR_Sagsbehandler];
+DELETE FROM [befordring].[Rutetype];
 DELETE FROM [befordring].[Sagsbehandler];
 DELETE FROM [befordring].[Sagsaktivitet];
 DELETE FROM [befordring].[Skolematrikel];
@@ -64,6 +62,7 @@ DBCC CHECKIDENT ('[befordring].[Status]', RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Tidspunkt]', RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Ugedag]', RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Ungdomsuddannelse]', RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Rutetype]', RESEED, 0);
 
 
 PRINT 'Starting test data insert';
@@ -184,27 +183,36 @@ VALUES
 INSERT INTO [befordring].[Hjemmel]
     (hjemmel_tekst, beskrivelse, aktiv)
 VALUES
-    ('§ 26, stk. 1 afstand',              '', 1),
-    ('§ 26, stk. 2 sygdom',               '', 1),
-    ('§ 26, stk. 1 og 2',                 '', 1),
-    ('§ 36, stk. 3 frit skolevalg',       '', 1),
+    ('§ 26, stk. 1 afstand',               '', 1),
+    ('§ 26, stk. 2 sygdom',                '', 1),
+    ('§ 26, stk. 1 og 2',                  '', 1),
+    ('§ 36, stk. 3 frit skolevalg',		   '', 1),
     ('§ 36, stk. 4 retten til at forblive','', 1),
-    ('§ 9, stk. 4 UngiAarhus',            '', 1);
+    ('§ 9,  stk. 4 UngiAarhus',             '', 1),
+    ('§ 10 (brækket ben)',				   '', 1);
 
 
 INSERT INTO [befordring].[Afgoerelsesbrev]
     (afgoerelsesbrev_tekst, beskrivelse, aktiv)
 VALUES
-    ('Afslag: § 9, stk. 4 (UngiAarhus)',                                '', 1),
-    ('Afslag: § 26, stk. 1, nr. 1 (afstand)',                           '', 1),
-    ('Afslag: § 26, stk. 1, nr. 2 (farlig skolevej)',                   '', 1),
-    ('Afslag: § 26, stk. 6, § 36, stk. 3 (frit skolevalg)',            '', 1),
-    ('Afslag: § 33, stk. 3 (ungdomsskolen)',                            '', 1),
-    ('Bevilling: § 26, stk. 1, nr. 1 (afstand)',                        '', 1),
-    ('Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)',                '', 1),
-    ('Bevilling: § 26, stk. 2 (sygdom)',                                '', 1),
-    ('Bevilling: § 26, stk. 2, § 36, stk. 3 (frit skolevalg)',         '', 1),
-    ('Bevilling: § 26, stk. 2, § 36, stk. 4 (retten til at forblive)', '', 1);
+    ('Afslag: § 9, stk. 4 (UngiAarhus)',										 '', 1),
+    ('Afslag: § 26, stk. 1, nr. 1 (afstand)',									 '', 1),
+    ('Afslag: § 26, stk. 1, nr. 2 (farlig skolevej)',							 '', 1),
+    ('Afslag: § 26, stk. 6, § 36, stk. 3 (frit skolevalg)',						 '', 1),
+    ('Afslag: § 33, stk. 3 (ungdomsskolen)',									 '', 1),
+    ('Bevilling: § 26, stk. 1, nr. 1 (afstand)',								 '', 1),
+    ('Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)',						 '', 1),
+    ('Bevilling: § 26, stk. 2 (sygdom)',										 '', 1),
+    ('Bevilling: § 26, stk. 2, § 36, stk. 3 (frit skolevalg)',					 '', 1),
+    ('Bevilling: § 26, stk. 2, § 36, stk. 4 (retten til at forblive)',			 '', 1),
+    ('Påtænkt afslag: § 26, stk. 1, nr. 2 (farlig skolevej)',                    '', 1),
+    ('Påtænkt afslag: § 26, stk. 2 (sygdom)',                                    '', 1),
+    ('Påtænkt afslag: § 26, stk. 2, § 36, stk. 4 (retten til at forblive)',      '', 1),
+    ('Påtænkt ophør: § 26, stk. 2 (sygdom)',                                     '', 1),
+    ('Midlertidig kørsel bevilling: § 26, stk. 2 (brækket ben folkeskole)',      '', 1),
+    ('Midlertidig kørsel afslag: § 26, stk. 2 (brækket ben folkeskole)',         '', 1),
+    ('Midlertidig kørsel bevilling: § 10 (brækket ben ungdomssuddannelse)',      '', 1),
+    ('Midlertidig kørsel afslag: § 10 (brækket ben ungdomssuddannelse)',         '', 1);
 
 
 INSERT INTO [befordring].[KoerselstypeTillaeg]
@@ -236,6 +244,20 @@ VALUES
     ('Morgen',                '', 1),
     ('Eftermiddag',           '', 1),
     ('Morgen og eftermiddag', '', 1);
+
+
+INSERT INTO [befordring].[Rutetype]
+    (rutetype_tekst, beskrivelse, aktiv)
+VALUES
+    ('Mellem hjem og skole',    '', 1),
+    ('Mellem hjem og klub',     '', 1),
+    ('Mellem skole og klub',    '', 1),
+    ('Hjem til skole',          '', 1),
+    ('Hjem til klub',           '', 1),
+    ('Skole til hjem',          '', 1),
+    ('Skole til klub',          '', 1),
+    ('Klub til hjem',           '', 1),
+    ('Klub til skole',          '', 1);
 
 
 INSERT INTO [befordring].[Ugedag]
@@ -329,6 +351,10 @@ DECLARE @befordringstype_egen      int = (SELECT TOP 1 befordringstype_id FROM [
 DECLARE @befordringstype_skaane    int = (SELECT TOP 1 befordringstype_id FROM [befordring].[Befordringstype] WHERE befordringstype_tekst = 'Skånekørsel'     ORDER BY befordringstype_id DESC);
 DECLARE @befordringstype_rejsekort int = (SELECT TOP 1 befordringstype_id FROM [befordring].[Befordringstype] WHERE befordringstype_tekst = 'Skolerejsekort'  ORDER BY befordringstype_id DESC);
 DECLARE @befordringstype_variabel  int = (SELECT TOP 1 befordringstype_id FROM [befordring].[Befordringstype] WHERE befordringstype_tekst = 'Variabel kørsel' ORDER BY befordringstype_id DESC);
+
+-- Rutetyper
+DECLARE @rutetype_skole int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Mellem hjem og skole' ORDER BY rutetype_id DESC);
+DECLARE @rutetype_klub  int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Mellem hjem og klub'  ORDER BY rutetype_id DESC);
 
 -- Tillaeg
 DECLARE @tillaeg_fast_forsaede int = (SELECT TOP 1 tillaeg_id FROM [befordring].[KoerselstypeTillaeg] WHERE tillaeg_tekst = 'Fast forsæde'  ORDER BY tillaeg_id DESC);
@@ -504,7 +530,7 @@ VALUES
     '0101101234', '000021C5-E9EE-411D-B2D8-EC9161780CCD', @status_aktiv, @matrikel_1, NULL,
     @hjemmel_1, @afgoerelsesbrev_6, '2027-06-30', '2027-06-20',
     'ESDH-TEST-001', @sagsbehandler_1, @ppr_1,
-    '2026-01-01', '2026-01-10', 'Forældremyndighed',
+    '2026-01-01', NULL, 'Forældremyndighed',
     '2026-02-01', 'Kørsel',
     '2027-06-30', 2,
     'Sygdom', 'test_seed', 'test_seed', 1
@@ -526,7 +552,7 @@ VALUES
     '0202101234', '00002732-733C-433A-A5DA-A7D428A980CF', @status_aktiv, @matrikel_2, NULL,
     @hjemmel_2, @afgoerelsesbrev_8, '2027-06-30', '2027-06-20',
     'ESDH-TEST-002', @sagsbehandler_2, @ppr_2,
-    '2026-02-01', '2026-02-10', 'Forældremyndighed',
+    '2026-02-01', NULL, 'Forældremyndighed',
     '2026-03-01', 'Kørsel',
     '2027-06-30', 3,
     'Farlig trafikvej', 'test_seed', 'test_seed', 1
@@ -548,7 +574,7 @@ VALUES
     '0303101234', '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0', @status_aktiv, @matrikel_3,
     @hjemmel_3, @afgoerelsesbrev_7, '2026-05-30', '2026-05-15',
     'ESDH-TEST-003', @sagsbehandler_1, @ppr_1,
-    '2025-06-01', '2025-06-10', 'Forældremyndighed',
+    '2025-06-01', NULL, 'Forældremyndighed',
     '2025-08-01', 'Kørsel',
     '2026-06-30', 4,
     'Afstand', 'test_seed', 'test_seed', 1
@@ -570,7 +596,7 @@ VALUES
     '0404101234', '000059B7-1FE6-4ED2-8386-D9578B2A8859', @status_aktiv, @matrikel_4, NULL,
     @hjemmel_4, @afgoerelsesbrev_4, '2026-06-30', '2026-06-15',
     'ESDH-TEST-004', @sagsbehandler_2, @ppr_2,
-    '2025-12-01', '2025-12-10', 'Værge',
+    '2025-12-01', NULL, 'Værge',
     '2026-01-01', 'Kørsel',
     '2026-06-30', 4,
     'Afstand', 'test_seed', 'test_seed', 1
@@ -593,7 +619,7 @@ VALUES
     NULL, NULL, NULL, NULL,
     'ESDH-TEST-005', NULL, NULL,
     '2026-05-10', NULL, 'Forældremyndighed',
-    '2026-08-01', 'Skolebus',
+    '2026-08-01', 'Kørsel',
     NULL, NULL,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -634,7 +660,7 @@ VALUES
     '0707101234', '00009E24-9877-4F17-8020-04A0B29E704F', @status_paabegundt, @matrikel_7, NULL,
     @hjemmel_1, NULL, '2027-06-30', NULL,
     'ESDH-TEST-007', @sagsbehandler_1, @ppr_1,
-    '2026-05-01', '2026-05-15', 'Mor',
+    '2026-05-01', NULL, 'Mor',
     '2026-08-01', 'Kørsel',
     '2027-06-30', 2,
     'Afstand', 'test_seed', 'test_seed', 1
@@ -655,7 +681,7 @@ VALUES
     '0808101234', '0000BF23-21F1-4FBB-85AE-3089BC6CF623', @status_afslag, @matrikel_8, NULL,
     @hjemmel_1, @afgoerelsesbrev_2, NULL, NULL,
     'ESDH-TEST-008', @sagsbehandler_2, @ppr_1,
-    '2025-11-01', '2025-11-20', 'Far',
+    '2025-11-01', NULL, 'Far',
     NULL, 'Kørsel',
     NULL, 3,
     'Afstand', 'test_seed', 'test_seed', 1
@@ -676,7 +702,7 @@ VALUES
     '0909101234', '0000C127-AB48-48C7-9770-EDA49D39EB5A', @status_kommende, @matrikel_9, NULL,
     @hjemmel_1, @afgoerelsesbrev_6, '2027-06-30', NULL,
     'ESDH-TEST-009', @sagsbehandler_1, @ppr_2,
-    '2026-04-15', '2026-05-01', 'Mor',
+    '2026-04-15', NULL, 'Mor',
     '2026-08-10', 'Kørsel',
     '2027-06-30', 5,
     'Afstand', 'test_seed', 'test_seed', 1
@@ -698,7 +724,7 @@ VALUES
     '1010101234', '0000E92C-BB46-4745-A0AE-90950142AF79', @status_udloebet, @matrikel_10, NULL,
     @hjemmel_2, @afgoerelsesbrev_8, '2025-06-30', '2025-06-10',
     'ESDH-TEST-010', @sagsbehandler_2, @ppr_1,
-    '2024-05-01', '2024-05-15', 'Far',
+    '2024-05-01', NULL, 'Far',
     '2024-08-01', 'Kørsel',
     '2025-06-30', 7,
     'Sygdom', 'test_seed', 'test_seed', 1
@@ -741,7 +767,7 @@ VALUES
     '1212101234', '0000F131-D663-4434-A585-D30CA601B571', @status_ophoert, @matrikel_12, NULL,
     @hjemmel_1, @afgoerelsesbrev_6, '2025-06-30', NULL,
     'ESDH-TEST-012', @sagsbehandler_2, @ppr_2,
-    '2023-08-01', '2023-08-10', 'Far',
+    '2023-08-01', NULL, 'Far',
     '2023-08-15', 'Kørsel',
     '2025-06-30', 8,
     'Afstand', 'test_seed', 'test_seed', 1
@@ -763,7 +789,7 @@ VALUES
     '1313101234', '0000F5F4-9278-43A5-9BA8-24C21D76610C', @status_aktiv, NULL, @ungdomsuddannelse_2,
     @hjemmel_2, @afgoerelsesbrev_8, '2027-06-30', NULL,
     'ESDH-TEST-013', @sagsbehandler_1, @ppr_2,
-    '2025-12-01', '2026-01-05', 'Mor',
+    '2025-12-01', NULL, 'Mor',
     '2026-02-01', 'Midlertidig kørsel',
     '2027-06-30', 10,
     'Sygdom', 'test_seed', 'test_seed', 1
@@ -785,7 +811,7 @@ VALUES
     '1414101234', '0000AAF0-826F-4458-B26F-4317AD2A4979', @status_aktiv, @matrikel_13, NULL,
     @hjemmel_1, @afgoerelsesbrev_6, '2026-05-31', '2026-05-20',
     'ESDH-TEST-014', @sagsbehandler_2, @ppr_1,
-    '2025-03-01', '2025-03-15', 'Far',
+    '2025-03-01', NULL, 'Far',
     '2025-04-01', 'Kørsel',
     '2026-06-30', 6,
     'Afstand', 'test_seed', 'test_seed', 1
@@ -833,64 +859,64 @@ VALUES
 -- Kasper: aktiv rutekørsel begge tidspunkter
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_1, '2026-02-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-001', 'Rutekørsel begge tidspunkter.', 1);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_1, '2026-02-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-001', 'Rutekørsel begge tidspunkter.', 1, @rutetype_skole);
 DECLARE @koersel_1 int = SCOPE_IDENTITY();
 
 -- Kristian: aktiv skånekørsel begge tidspunkter
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_2, '2026-03-01', '2027-07-01', @tidspunkt_begge, @befordringstype_skaane, NULL, 'TAXA-002', 'Skånekørsel begge tidspunkter.', 1);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_2, '2026-03-01', '2027-07-01', @tidspunkt_begge, @befordringstype_skaane, NULL, 'TAXA-002', 'Skånekørsel begge tidspunkter.', 1, @rutetype_klub);
 DECLARE @koersel_2 int = SCOPE_IDENTITY();
 
 -- Rikke: egenbefordring begge tidspunkter (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_3, '2025-08-01', '2027-07-01', @tidspunkt_begge, @befordringstype_egen, 6.1, NULL, 'Egen befordring begge tidspunkter.', 0);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_3, '2025-08-01', '2027-07-01', @tidspunkt_begge, @befordringstype_egen, 6.1, NULL, 'Egen befordring begge tidspunkter.', 0, @rutetype_skole);
 DECLARE @koersel_3 int = SCOPE_IDENTITY();
 
 -- Rasmus: rutekørsel alle dage (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_4, '2026-01-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-003', 'Rutekørsel alle dage.', 0);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_4, '2026-01-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-003', 'Rutekørsel alle dage.', 0, @rutetype_skole);
 DECLARE @koersel_4 int = SCOPE_IDENTITY();
 
 -- Sofie: kommende skolerejsekort (starter næste skoleår, ikke finaliseret endnu)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_9, '2026-08-10', '2027-07-01', @tidspunkt_morgen, @befordringstype_rejsekort, NULL, NULL, 'Skolerejsekort morgen.', 0);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_9, '2026-08-10', '2027-07-01', @tidspunkt_morgen, @befordringstype_rejsekort, NULL, NULL, 'Skolerejsekort morgen.', 0, @rutetype_skole);
 DECLARE @koersel_9 int = SCOPE_IDENTITY();
 
 -- Peter: udløbet rutekørsel (forrige skoleår)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_10, '2024-08-01', '2025-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-010', 'Udløbet rutekørsel.', 1);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_10, '2024-08-01', '2025-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-010', 'Udløbet rutekørsel.', 1, @rutetype_skole);
 DECLARE @koersel_10 int = SCOPE_IDENTITY();
 
 -- Anders: ophørt rutekørsel (afsluttet da eleven skiftede distrikt)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_12, '2023-08-15', '2025-01-15', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-012', 'Ophørt rutekørsel.', 1);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_12, '2023-08-15', '2025-01-15', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-012', 'Ophørt rutekørsel.', 1, @rutetype_skole);
 DECLARE @koersel_12 int = SCOPE_IDENTITY();
 
 -- Mette: aktiv egenbefordring til ungdomsuddannelse
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_13, '2026-02-01', '2027-07-01', @tidspunkt_morgen, @befordringstype_egen, 12.1, NULL, 'Egen befordring morgen til Diakonhøjskolen.', 1);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_13, '2026-02-01', '2027-07-01', @tidspunkt_morgen, @befordringstype_egen, 12.1, NULL, 'Egen befordring morgen til Diakonhøjskolen.', 1, @rutetype_skole);
 DECLARE @koersel_13 int = SCOPE_IDENTITY();
 
 -- Thomas: rutekørsel (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
-     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final)
-VALUES (@bevilling_14, '2025-04-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-014', 'Rutekørsel begge tidspunkter — bevilling under revurdering.', 0);
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_14, '2025-04-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-014', 'Rutekørsel begge tidspunkter — bevilling under revurdering.', 0, @rutetype_skole);
 DECLARE @koersel_14 int = SCOPE_IDENTITY();
 
 
@@ -1015,52 +1041,6 @@ VALUES
 ('1010101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_10, ' — Status: Ny'), 'System', '2024-05-01T08:00:00', @bevilling_10),
 ('1010101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', '2024-08-01T06:00:00', @bevilling_10),
 ('1010101234', 'Status sat til Udløbet',   'Bevillingsperioden er udløbet',             'System', '2025-07-01T06:00:00', @bevilling_10);
-
-
-/* ============================================================
-   Brev oprettet — decision letters.
-
-   sagsbehandlingsdato is stamped automatically when the caseworker
-   creates the letter (see create_letter / set_sagsbehandlingsdato in
-   the backend). So every bevilling that reached a decision — Aktiv,
-   Udløbet, Ophørt or Afslag — has a 'Brev oprettet' activity, and the
-   UPDATE below backfills sagsbehandlingsdato to match each letter's date.
-   The kommentar mirrors each bevilling's assigned afgørelsesbrev.
-   (Martin's afslag letter is already inserted in the block above.)
-============================================================ */
-
-INSERT INTO [befordring].[Sagsaktivitet]
-    (cpr, aktivitetstype, kommentar, udfoert_af, oprettet_tidspunkt, relateret_bevilling_id)
-VALUES
-('0101101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Sofie', '2026-01-15T11:00:00', @bevilling_1),
-('0202101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  '2026-02-10T10:30:00', @bevilling_2),
-('0303101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)',    'Sofie', '2025-06-20T13:15:00', @bevilling_3),
-('0404101234', 'Brev oprettet', 'Afslag: § 26, stk. 6, § 36, stk. 3 (frit skolevalg)', 'Nina',  '2025-12-20T09:45:00', @bevilling_4),
-('1010101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  '2024-06-01T09:30:00', @bevilling_10),
-('1212101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  '2023-08-05T08:30:00', @bevilling_12),
-('1313101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Sofie', '2025-12-20T14:00:00', @bevilling_13),
-('1414101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  '2025-03-20T10:00:00', @bevilling_14);
-
-
-/* ============================================================
-   Backfill sagsbehandlingsdato from each bevilling's letter date.
-   Mirrors the runtime behaviour: the case is processed on the day its
-   decision letter is created. Uses the latest 'Brev oprettet' activity
-   per bevilling (there is one each here).
-============================================================ */
-
-UPDATE b
-SET b.sagsbehandlingsdato = CONVERT(date, la.letter_dato)
-FROM [befordring].[Bevilling] b
-INNER JOIN (
-    SELECT
-        relateret_bevilling_id,
-        MAX(oprettet_tidspunkt) AS letter_dato
-    FROM [befordring].[Sagsaktivitet]
-    WHERE aktivitetstype = 'Brev oprettet'
-      AND relateret_bevilling_id IS NOT NULL
-    GROUP BY relateret_bevilling_id
-) la ON la.relateret_bevilling_id = b.bevilling_id;
 
 
 /* ============================================================

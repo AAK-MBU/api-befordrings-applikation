@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
     pprSagsbehandlereRes,
     hjaelpemidlerRes,
     ungdomsuddannelserRes,
+    rutetyperRes,
   ] = await Promise.all([
     backendApiFetch(fetch, "/overview/revurderinger"),
     backendApiFetch(fetch, "/lookup/koerselstyper"),
@@ -31,6 +32,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
     backendApiFetch(fetch, "/lookup/ppr_sagsbehandlere"),
     backendApiFetch(fetch, "/lookup/hjaelpemidler"),
     backendApiFetch(fetch, "/lookup/ungdomsuddannelser"),
+    backendApiFetch(fetch, "/lookup/rutetyper"),
   ]);
 
   if (!revurderingerRes.ok) {
@@ -39,14 +41,14 @@ export const load: PageServerLoad = async ({ fetch }) => {
       revurderinger: [],
       koerselstyper: [], tidspunkter: [], hjemler: [], afgoerelsesbreve: [],
       koerselstypeTillaeg: [], dage: [], statuser: [], skolematrikler: [],
-      sagsbehandlere: [], pprSagsbehandlere: [], hjaelpemidler: [], ungdomsuddannelser: [],
+      sagsbehandlere: [], pprSagsbehandlere: [], hjaelpemidler: [], ungdomsuddannelser: [], rutetyper: [],
     };
   }
 
   const [
     revurderinger, koerselstyper, tidspunkter, hjemler, afgoerelsesbreve,
     koerselstypeTillaeg, dage, statuser, skolematrikler,
-    sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser,
+    sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser, rutetyper,
   ] = await Promise.all([
     revurderingerRes.json(),
     koerselstyperRes.ok ? koerselstyperRes.json() : [],
@@ -61,11 +63,12 @@ export const load: PageServerLoad = async ({ fetch }) => {
     pprSagsbehandlereRes.ok ? pprSagsbehandlereRes.json() : [],
     hjaelpemidlerRes.ok ? hjaelpemidlerRes.json() : [],
     ungdomsuddannelserRes.ok ? ungdomsuddannelserRes.json() : [],
+    rutetyperRes.ok ? rutetyperRes.json() : [],
   ]);
 
   return {
     revurderinger, koerselstyper, tidspunkter, hjemler, afgoerelsesbreve,
     koerselstypeTillaeg, dage, statuser, skolematrikler,
-    sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser,
+    sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser, rutetyper,
   };
 };

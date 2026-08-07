@@ -9,6 +9,7 @@
   import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
   import ParterTable from "$lib/components/ParterTable.svelte";
   import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
+  import { firstInvalidDate } from "$lib/dates";
   import {
     getStatusBadgeClass,
     formatCpr,
@@ -24,8 +25,8 @@
   let letterType = "";
   let befordringsudvalgResultat = "";
   let tidligereAfgoerelseDato = "";
-  let transporttidIBus: number | "" = "";
-  let skiftMedBus: number | "" = "";
+  let koerselStartdato = "";
+  let datoForSenesteBevilling = "";
 
   let creatingLetter = false;
   let showCreateLetterModal = false;
@@ -44,10 +45,6 @@
   $: selectedLetterBevillingIsOphoert =
     selectedLetterBevilling?.status_tekst == "Ophørt";
 
-  $: selectedLetterBevillingHasSkolerejsekort =
-    (selectedLetterBevilling?.koerselsraekker ?? []).some(
-      (k: any) => k.befordringstype_tekst === "Skolerejsekort"
-    );
 
   let { stamdata, parents, parter, bevillinger, lookupOptions, aktiviteter } = data;
 
@@ -309,8 +306,8 @@
     letterType = "";
     befordringsudvalgResultat = "";
     tidligereAfgoerelseDato = "";
-    transporttidIBus = "";
-    skiftMedBus = "";
+    koerselStartdato = "";
+    datoForSenesteBevilling = "";
   }
 
 
@@ -508,13 +505,23 @@
       return;
     }
 
-    if (selectedLetterBevillingHasSkolerejsekort && transporttidIBus === "") {
-      alert("Angiv transporttid i bus");
-      return;
-    }
+    const invalidDate = firstInvalidDate(
+      {
+        koersel_startdato: koerselStartdato,
+        dato_for_seneste_bevilling: datoForSenesteBevilling,
+        dato_for_tidligere_afgoerelse: tidligereAfgoerelseDato,
+        ophoersdato,
+      },
+      [
+        "koersel_startdato",
+        "dato_for_seneste_bevilling",
+        "dato_for_tidligere_afgoerelse",
+        "ophoersdato",
+      ],
+    );
 
-    if (selectedLetterBevillingHasSkolerejsekort && skiftMedBus === "") {
-      alert("Angiv antal skift med bus");
+    if (invalidDate) {
+      alert("Angiv en gyldig dato (åååå-mm-dd).");
       return;
     }
 
@@ -522,6 +529,10 @@
 
     const payload = {
       brev_i_forbindelse_med: letterType,
+
+      koersel_startdato: koerselStartdato || null,
+
+      dato_for_seneste_bevilling: datoForSenesteBevilling || null,
 
       befordringsudvalg_resultat: selectedLetterBevillingHasBefordringsudvalg
         ? befordringsudvalgResultat
@@ -533,14 +544,6 @@
 
       ophoersdato: selectedLetterBevillingIsOphoert
         ? ophoersdato
-        : null,
-
-      transporttid_i_bus: selectedLetterBevillingHasSkolerejsekort
-        ? Number(transporttidIBus)
-        : null,
-
-      skift_med_bus: selectedLetterBevillingHasSkolerejsekort
-        ? Number(skiftMedBus)
         : null
     };
 
@@ -1209,12 +1212,12 @@
 
               <label class="text-sm font-medium text-gray-700">
                 Revurdering
-                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
+                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
               </label>
 
               <label class="text-sm font-medium text-gray-700">
                 Befordringsudvalg
-                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
+                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
               </label>
 
               <label class="text-sm font-medium text-gray-700">
@@ -1244,7 +1247,7 @@
 
               <label class="text-sm font-medium text-gray-700">
                 Sagsbehandlingsdato
-                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
+                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
               </label>
 
               <label class="text-sm font-medium text-gray-700">
@@ -1254,12 +1257,12 @@
 
               <label class="text-sm font-medium text-gray-700">
                 Dato for første kørsel
-                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
+                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
               </label>
 
               <label class="text-sm font-medium text-gray-700">
                 Afstandskriterie dato
-                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
+                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
               </label>
 
               <label class="text-sm font-medium text-gray-700">
@@ -1337,6 +1340,16 @@
               </select>
             </label>
 
+            <label class="block text-sm font-medium text-gray-700">
+              Startdato for kørsel
+              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={koerselStartdato} />
+            </label>
+
+            <label class="block text-sm font-medium text-gray-700">
+              Dato for seneste bevilling
+              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={datoForSenesteBevilling} />
+            </label>
+
             {#if selectedLetterBevillingHasBefordringsudvalg}
               <label class="block text-sm font-medium text-gray-700">
                 Resultat af befordringsudvalgsmøde
@@ -1348,25 +1361,14 @@
               </label>
               <label class="block text-sm font-medium text-gray-700">
                 Dato for tidligere afgørelse
-                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={tidligereAfgoerelseDato} />
-              </label>
-            {/if}
-
-            {#if selectedLetterBevillingHasSkolerejsekort}
-              <label class="block text-sm font-medium text-gray-700">
-                Transporttid i bus (i minutter)
-                <input type="number" min="0" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={transporttidIBus} />
-              </label>
-              <label class="block text-sm font-medium text-gray-700">
-                Skift med bus (antal)
-                <input type="number" min="0" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={skiftMedBus} />
+                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={tidligereAfgoerelseDato} />
               </label>
             {/if}
 
             {#if selectedLetterBevillingIsOphoert}
               <label class="block text-sm font-medium text-gray-700">
                 Ophørsdato
-                <input type="date" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
+                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
               </label>
             {/if}
           </div>
@@ -1375,7 +1377,7 @@
             <button
               type="button"
               class="px-5 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-white transition-colors"
-              on:click={() => { showCreateLetterModal = false; selectedLetterBevillingId = ""; letterType = ""; }}
+              on:click={() => { showCreateLetterModal = false; resetCreateLetterForm(); }}
             >
               Annullér
             </button>

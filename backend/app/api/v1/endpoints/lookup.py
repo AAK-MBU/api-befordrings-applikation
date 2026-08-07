@@ -167,6 +167,20 @@ def get_koerselstyper(db: DbSession):
     return service.get_koerselstyper()
 
 
+@router.get("/rutetyper")
+def get_rutetyper(db: DbSession):
+    """Get available rutetyper.
+
+    Returns:
+        A list of route types (e.g. home↔school, home↔club) used when
+        creating or updating kørselsrækker.
+    """
+
+    service = LookupService(db=db)
+
+    return service.get_rutetyper()
+
+
 @router.get("/koerselstype_tillaeg")
 def get_koerselstype_tillaeg(db: DbSession):
     """Get available kørselstype tillæg.

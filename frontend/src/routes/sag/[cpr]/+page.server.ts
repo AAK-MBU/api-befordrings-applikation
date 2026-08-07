@@ -43,7 +43,8 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     koerselstyperRes,
     koerselstypeTillaegRes,
     dageRes,
-    ungdomsuddannelserRes
+    ungdomsuddannelserRes,
+    rutetyperRes
   ] = await Promise.all([
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}`),
     backendApiFetch(fetch, `/citizen/stamdata/${cpr}/parents`),
@@ -62,7 +63,8 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     backendApiFetch(fetch, "/lookup/koerselstyper"),
     backendApiFetch(fetch, "/lookup/koerselstype_tillaeg"),
     backendApiFetch(fetch, "/lookup/dage"),
-    backendApiFetch(fetch, "/lookup/ungdomsuddannelser")
+    backendApiFetch(fetch, "/lookup/ungdomsuddannelser"),
+    backendApiFetch(fetch, "/lookup/rutetyper")
   ]);
 
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
@@ -82,6 +84,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   await assertResponseOk(koerselstypeTillaegRes, "Failed to fetch koerselstype tillaeg");
   await assertResponseOk(dageRes, "Failed to fetch dage");
   await assertResponseOk(ungdomsuddannelserRes, "Failed to fetch ungdomsuddannelser");
+  await assertResponseOk(rutetyperRes, "Failed to fetch rutetyper");
 
   const stamdataResponse = await stamdataRes.json();
   const parents = await parentsRes.json();
@@ -100,6 +103,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   const koerselstypeTillaeg = await koerselstypeTillaegRes.json();
   const dage = await dageRes.json();
   const ungdomsuddannelser = await ungdomsuddannelserRes.json();
+  const rutetyper = await rutetyperRes.json();
 
   const bevillingerWithKoerselsraekker = await Promise.all(
     bevillinger.map(async (bevilling) => {
@@ -169,7 +173,8 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
       koerselstyper,
       koerselstypeTillaeg,
       dage,
-      ungdomsuddannelser
+      ungdomsuddannelser,
+      rutetyper
     }
   };
 };
