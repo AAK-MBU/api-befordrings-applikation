@@ -27,6 +27,7 @@ from app.models.lookup import (
     Hjemmel,
     KoerselstypeTillaeg,
     PPRSagsbehandler,
+    Rutetype,
     Sagsbehandler,
     Skolematrikel,
     Status,
@@ -263,6 +264,20 @@ class LookupService:
             model=Befordringstype,
             id_column=Befordringstype.befordringstype_id,
             label_column=Befordringstype.befordringstype_tekst,
+        )
+
+
+    def get_rutetyper(self):
+        """Get available rutetyper.
+
+        Returns:
+            A list of rutetype records as id/label dictionaries.
+        """
+
+        return self._get_lookup_records(
+            model=Rutetype,
+            id_column=Rutetype.rutetype_id,
+            label_column=Rutetype.rutetype_tekst,
         )
 
 

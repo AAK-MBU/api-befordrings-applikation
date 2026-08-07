@@ -1,6 +1,24 @@
+import re
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+# A valid date in this system is a real calendar date with an exactly-4-digit
+# year written as YYYY-MM-DD. Native date pickers happily accept absurd years
+# (HTML allows up to 275760), so this guards the untyped letter payload.
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _is_valid_iso_date(value: str) -> bool:
+    if not _ISO_DATE_RE.match(value):
+        return False
+
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+
+    return True
 
 
 class BevillingCreateRequest(BaseModel):
@@ -73,6 +91,7 @@ class KoerselsraekkeCreateRequest(BaseModel):
     gyldig_til: date
     tidspunkt_id: int
     befordringstype_id: int
+    rutetype_id: int | None = None
     bevilget_koereafstand_pr_vej: float | None = None
 
     taxa_id: str | None = None
@@ -97,6 +116,7 @@ class KoerselsraekkeUpdateRequest(BaseModel):
 
     tidspunkt_id: int | None = None
     befordringstype_id: int | None = None
+    rutetype_id: int | None = None
     bevilget_koereafstand_pr_vej: float | None = None
     gyldig_fra: date | None = None
     gyldig_til: date | None = None
@@ -123,3 +143,31 @@ class KoerselDageUpdateRequest(BaseModel):
 
 class LetterCreateRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="after")
+    def _validate_date_fields(self) -> "LetterCreateRequest":
+        """Reject any date-named extra field that is not a valid ISO date.
+
+        The letter payload is dynamic (``extra="allow"``), so its date values
+        (e.g. ``dato_for_seneste_bevilling``, ``ophoersdato``) arrive as raw
+        strings with no type coercion. Any extra field whose name contains
+        "dato" must therefore be a real calendar date with a 4-digit year, or
+        empty/None.
+        """
+
+        extras = self.__pydantic_extra__ or {}
+
+        for key, value in extras.items():
+            if "dato" not in key.lower():
+                continue
+
+            if value in (None, ""):
+                continue
+
+            if not isinstance(value, str) or not _is_valid_iso_date(value):
+                raise ValueError(
+                    f"Feltet '{key}' skal være en gyldig dato på formen "
+                    f"åååå-mm-dd."
+                )
+
+        return self

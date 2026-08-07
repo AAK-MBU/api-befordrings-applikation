@@ -468,7 +468,7 @@
           <!-- OPRETTET -->
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Ansøgningsdato</p>
-            <p class="text-sm text-gray-800">{formatDanishDate(bevilling.created_at?.slice(0, 10))}</p>
+            <p class="text-sm text-gray-800">{formatDanishDate(bevilling.ansoegningsdato?.slice(0, 10))}</p>
           </div>
 
           <!-- SAGSBEHANDLINGSDATO -->
@@ -477,6 +477,7 @@
             {#if isEditing}
               <input
                 type="date"
+                max="9999-12-31"
                 class={inputClass}
                 value={editableBevilling.sagsbehandlingsdato ?? ""}
                 on:change={(e) => updateField("sagsbehandlingsdato", emptyToNull(e.currentTarget.value))}
@@ -585,6 +586,7 @@
             {#if isEditing}
               <input
                 type="date"
+                max="9999-12-31"
                 class={inputClass}
                 value={editableBevilling.afstandskriterie_dato ?? ""}
                 on:change={(e) => updateField("afstandskriterie_dato", emptyToNull(e.currentTarget.value))}
@@ -621,6 +623,7 @@
             {#if isEditing}
               <input
                 type="date"
+                max="9999-12-31"
                 class={inputClass}
                 value={editableBevilling.revurderingsdato ?? ""}
                 on:change={(e) => updateField("revurderingsdato", emptyToNull(e.currentTarget.value))}
@@ -636,6 +639,7 @@
             {#if isEditing}
               <input
                 type="date"
+                max="9999-12-31"
                 class={inputClass}
                 value={editableBevilling.befordringsudvalg ?? ""}
                 on:change={(e) => updateField("befordringsudvalg", emptyToNull(e.currentTarget.value))}

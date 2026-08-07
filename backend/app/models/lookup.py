@@ -154,3 +154,13 @@ class Ugedag(Base):
     dag_tekst: Mapped[str] = mapped_column(String, nullable=False)
     beskrivelse: Mapped[str | None] = mapped_column(String, nullable=True)
     aktiv: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class Rutetype(Base):
+    __tablename__ = "Rutetype"
+    __table_args__ = {"schema": DB_SCHEMA}
+
+    rutetype_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    rutetype_tekst: Mapped[str] = mapped_column(String, nullable=False)
+    beskrivelse: Mapped[str | None] = mapped_column(String, nullable=True)
+    aktiv: Mapped[bool] = mapped_column(Boolean, nullable=False)

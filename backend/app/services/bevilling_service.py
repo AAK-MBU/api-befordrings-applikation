@@ -1300,6 +1300,8 @@ class BevillingService:
                 "bevilling_til": row.get("bevilling_til"),
                 "koerselstype_tillaeg": row.get("koerselstype_tillaeg"),
                 "bevilget_koereafstand_pr_vej": row.get("bevilget_koereafstand_pr_vej"),
+                "transporttid_i_bus": row.get("transporttid_i_bus"),
+                "skift_med_bus": row.get("skift_med_bus"),
             }
             for row in koersel_records
         ]
