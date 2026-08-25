@@ -107,3 +107,19 @@ def get_udfoert_af(
 # Reusable dependency that yields the display name of the current caller,
 # used for audit attribution on write endpoints (Sagsaktivitet.udfoert_af).
 CurrentUser = Annotated[str, Depends(get_udfoert_af)]
+
+
+def user_can_delete(principal: Annotated[object, Depends(require_auth)]) -> bool:
+    """Check whether the current user is allowed to soft-delete records.
+
+    TODO: Replace the stub below with a real group/role check once the OIDC
+    group claims are available.  Example (Azure AD):
+        groups = getattr(principal, "groups", []) or []
+        return "befordring-admin" in groups
+
+    Until then, all authenticated users can delete.
+    """
+    return True
+
+
+CanDelete = Annotated[bool, Depends(user_can_delete)]

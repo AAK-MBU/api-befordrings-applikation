@@ -185,6 +185,16 @@ class Koersel(Base):
 
     final: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
+    # Soft-delete flag. Rows are hidden (aktiv = 0) rather than hard-deleted so
+    # history is preserved. Requires the DB column:
+    #   ALTER TABLE [befordring].[Koersel] ADD aktiv BIT NOT NULL DEFAULT 1
+    # (see backend/db/migrations/001_add_koersel_aktiv.sql).
+    aktiv: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("1"),
+    )
+
     bevilling = relationship(
         "Bevilling",
         back_populates="koerselsraekker",

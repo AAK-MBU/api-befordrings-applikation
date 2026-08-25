@@ -19,6 +19,38 @@ function normalize(text: string): string {
   return String(text ?? "").replace(/\s+/g, " ").trim();
 }
 
+// Allowed afgørelsesbrev texts per selected hjemmel.
+const HJEMMEL_AFGOERELSESBREVE: Record<string, string[]> = {
+  "§ 26, stk. 1 (afstand)": [
+    "Afslag: § 26, stk. 1, nr. 1 (afstand)",
+    "Afslag: § 26, stk. 1, nr. 2 (farlig skolevej)",
+    "Bevilling: § 26, stk. 1, nr. 1 (afstand)",
+    "Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)",
+    "Påtænkt afslag: § 26, stk. 1, nr. 2 (farlig skolevej)",
+  ],
+  "§ 26, stk. 2 (sygdom)": [
+    "Bevilling: § 26, stk. 2 (sygdom)",
+  ],
+  "§ 26, stk. 1 og 2": [
+    "Påtænkt afslag: § 26, stk. 2 (sygdom)",
+    "Påtænkt ophør: § 26, stk. 2 (sygdom)",
+  ],
+  "§ 33, stk. 3 (ungdomsskolen)": [
+    "Afslag: § 33, stk. 3 (ungdomsskolen)",
+  ],
+  "§ 36, stk. 3 (frit skolevalg)": [
+    "Afslag: § 26, stk. 6, § 36, stk. 3 (frit skolevalg)",
+    "Bevilling: § 26, stk. 2, § 36, stk. 3 (frit skolevalg)",
+  ],
+  "§ 36, stk. 4 (retten til at forblive)": [
+    "Bevilling: § 26, stk. 2, § 36, stk. 4 (retten til at forblive)",
+    "Påtænkt afslag: § 26, stk. 2, § 36, stk. 4 (retten til at forblive)",
+  ],
+  "§ 9, stk. 4 (UngiAarhus)": [
+    "Afslag: § 9, stk. 4 (UngiAarhus)",
+  ],
+};
+
 // Allowed afgørelsesbrev texts per "Midlertidig kørsel" + school type.
 const AFGOERELSESBREV_ALLOW: Record<string, string[]> = {
   [`${MIDLERTIDIG}|folkeskole`]: [
@@ -86,8 +118,20 @@ export function filterHjemler(
 export function filterAfgoerelsesbreve(
   all: LookupOption[] | undefined,
   ansoegningstype: string | null | undefined,
-  skoleType: SkoleType
+  skoleType: SkoleType,
+  selectedHjemmelLabel?: string | null
 ): LookupOption[] {
   const key = ruleKey(ansoegningstype, skoleType);
-  return applyRule(all, key ? AFGOERELSESBREV_ALLOW[key] : undefined, MIDLERTIDIG_ONLY_AFGOERELSESBREVE);
+  let filtered = applyRule(all, key ? AFGOERELSESBREV_ALLOW[key] : undefined, MIDLERTIDIG_ONLY_AFGOERELSESBREVE);
+
+  if (selectedHjemmelLabel) {
+    const normalizedHjemmel = normalize(selectedHjemmelLabel);
+    const mappingKey = Object.keys(HJEMMEL_AFGOERELSESBREVE).find(k => normalize(k) === normalizedHjemmel);
+    if (mappingKey) {
+      const allowed = new Set(HJEMMEL_AFGOERELSESBREVE[mappingKey].map(normalize));
+      filtered = filtered.filter(opt => allowed.has(normalize(opt.label)));
+    }
+  }
+
+  return filtered;
 }

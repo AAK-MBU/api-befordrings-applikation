@@ -244,6 +244,7 @@ class OverviewService:
             LEFT JOIN
                 [befordring].[Bevilling] b
                 ON b.cpr_elev = s.cpr
+                AND b.aktiv = 1
             WHERE
                 s.cpr LIKE :q
                 OR s.adresseringsnavn LIKE :q
@@ -284,15 +285,21 @@ class OverviewService:
         koersel_sql = text("""
             SELECT
                 vbk.*,
-                k.final
+                k.final,
+                bt.befordringstype_tekst
             FROM
                 [befordring].[view_Bevilling_Koerselsraekker] vbk
             INNER JOIN
                 [befordring].[Koersel] k
                 ON k.koersel_id = vbk.koersel_id
+                AND k.aktiv = 1
             INNER JOIN
                 [befordring].[Bevilling] b
                 ON b.bevilling_id = vbk.bevilling_id
+                AND b.aktiv = 1
+            LEFT JOIN
+                [befordring].[Befordringstype] bt
+                ON bt.befordringstype_id = k.befordringstype_id
             WHERE
                 b.revurdering = 1
             ORDER BY
