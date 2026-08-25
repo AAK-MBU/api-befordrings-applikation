@@ -10,6 +10,13 @@
   import { backendFetch } from "$lib/client/backendFetch";
   import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
+  const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
+  const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
+
+  function isDateOutOfRange(value: string | null | undefined): boolean {
+    return !!value && (value < minDate || value > maxDate);
+  }
+
   // -----------------------------
   // Props
   // -----------------------------
@@ -29,25 +36,30 @@
   export let onSaveBevilling: (
     bevillingId: number,
     updates: any
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
 
   export let onSaveKoerselsraekke: (
     koerselId: number,
     updates: any
-  ) => Promise<boolean> = async () => false;
+  ) => Promise<string | null> = async () => null;
 
   export let onCreateKoerselsraekke: (
     bevillingId: number,
     updates: any
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
 
   export let onFinalizeKoerselsraekke: (
     koerselId: number
-  ) => Promise<boolean> = async () => false;
+  ) => Promise<string | null> = async () => null;
 
   export let readonlyKoerselsraekker: boolean = false;
 
+  // Optional delete handlers — if not provided, delete buttons are hidden.
+  // Wire these up from the parent page only for users with the correct role.
+  export let onDeleteBevilling: ((bevillingId: number) => Promise<string | null>) | undefined = undefined;
+  export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
 
+  
   // -----------------------------
   // Table state
   // -----------------------------
@@ -66,9 +78,29 @@
 
   let editingBevillingId: number | null = null;
   let editableBevilling: any = {};
+  let editError: string | null = null;
 
   let selectedHjaelpemiddelIds: number[] = [];
   let hjaelpemiddelSelectValue = "";
+
+  // -----------------------------
+  // Delete state
+  // -----------------------------
+
+  let confirmingDeleteBevillingId: number | null = null;
+  let isDeleting = false;
+  let deleteError: string | null = null;
+
+  async function doDeleteBevilling() {
+    if (confirmingDeleteBevillingId === null || !onDeleteBevilling) return;
+    isDeleting = true;
+    deleteError = null;
+    const id = confirmingDeleteBevillingId;
+    confirmingDeleteBevillingId = null;
+    const error = await onDeleteBevilling(id);
+    if (error) deleteError = error;
+    isDeleting = false;
+  }
 
 
   // -----------------------------
@@ -291,6 +323,7 @@
   function cancelEdit() {
     editingBevillingId = null;
     editableBevilling = {};
+    editError = null;
 
     selectedHjaelpemiddelIds = [];
     hjaelpemiddelSelectValue = "";
@@ -306,6 +339,20 @@
 
 
   async function saveEdit(bevilling: any) {
+    editError = null;
+    const dateFields: [string | null | undefined, string][] = [
+      [editableBevilling.sagsbehandlingsdato,   'Sagsbehandlingsdato'],
+      [editableBevilling.afstandskriterie_dato,  'Afstandskriterie dato'],
+      [editableBevilling.revurderingsdato,       'Revurderingsdato'],
+      [editableBevilling.befordringsudvalg,      'Befordringsudvalg'],
+    ];
+    for (const [value, label] of dateFields) {
+      if (isDateOutOfRange(value)) {
+        editError = `${label}: Dato er ugyldig — kontrollér årstallet`;
+        return;
+      }
+    }
+
     // null status_id means the user selected "Auto" — ask the SP to recalculate
     // freely instead of sending a manual status_id.
     const statusField = editableBevilling.status_id
@@ -337,9 +384,10 @@
     const adresseLat      = editableBevilling.adresse_lat;
     const adresseLon      = editableBevilling.adresse_lon;
 
-    const success = await onSaveBevilling(bevilling.bevilling_id, updates);
-
-    if (success) {
+    const error = await onSaveBevilling(bevilling.bevilling_id, updates);
+    if (error) {
+      editError = error;
+    } else {
       if ((addressChanged || schoolChanged) && newMatrikelId && adresseLat && adresseLon) {
         await recalculateEgenbefordringRows(koerselsraekker, adresseLat, adresseLon, newMatrikelId);
       }
@@ -368,6 +416,8 @@
         <!-- Card header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div class="flex items-center gap-3">
+            <span class="font-mono text-xs bg-[#032A42] text-white rounded px-2 py-0.5">Bevilling #{bevilling.bevilling_id}</span>
+            <span class="text-gray-300 select-none">|</span>
             {#if isEditing}
               <select
                 class="border border-gray-300 px-2 py-1 pr-6 text-sm rounded focus:border-blue-400 focus:ring-0"
@@ -432,6 +482,30 @@
               >
                 Annullér
               </button>
+              {#if !readonlyKoerselsraekker}
+                <button
+                  type="button"
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  on:click={() => toggleRow(bevilling.bevilling_id)}
+                >
+                  Kørselsrækker {koerselCount}
+                  <span class="text-xs opacity-60">{isExpanded ? "▲" : "▼"}</span>
+                </button>
+              {/if}
+              {#if onDeleteBevilling}
+                <span class="w-px h-5 bg-gray-200 mx-1"></span>
+                <button
+                  type="button"
+                  title="Slet bevilling"
+                  class="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                  on:click={() => { confirmingDeleteBevillingId = bevilling.bevilling_id; deleteError = null; }}
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v
+6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              {/if}
             {:else}
               <button
                 type="button"
@@ -440,17 +514,16 @@
               >
                 Redigér
               </button>
-            {/if}
-
-            {#if !readonlyKoerselsraekker}
-              <button
-                type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                on:click={() => toggleRow(bevilling.bevilling_id)}
-              >
-                Kørselsrækker {koerselCount}
-                <span class="text-xs opacity-60">{isExpanded ? "▲" : "▼"}</span>
-              </button>
+              {#if !readonlyKoerselsraekker}
+                <button
+                  type="button"
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  on:click={() => toggleRow(bevilling.bevilling_id)}
+                >
+                  Kørselsrækker {koerselCount}
+                  <span class="text-xs opacity-60">{isExpanded ? "▲" : "▼"}</span>
+                </button>
+              {/if}
             {/if}
           </div>
         </div>
@@ -477,7 +550,7 @@
             {#if isEditing}
               <input
                 type="date"
-                max="9999-12-31"
+                min={minDate} max={maxDate}
                 class={inputClass}
                 value={editableBevilling.sagsbehandlingsdato ?? ""}
                 on:change={(e) => updateField("sagsbehandlingsdato", emptyToNull(e.currentTarget.value))}
@@ -586,7 +659,7 @@
             {#if isEditing}
               <input
                 type="date"
-                max="9999-12-31"
+                min={minDate} max={maxDate}
                 class={inputClass}
                 value={editableBevilling.afstandskriterie_dato ?? ""}
                 on:change={(e) => updateField("afstandskriterie_dato", emptyToNull(e.currentTarget.value))}
@@ -600,12 +673,16 @@
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Afstandskriterie klassetrin</p>
             {#if isEditing}
-              <input
-                type="number"
-                class="{inputClass} w-24"
+              <select
+                class={mediumSelectClass}
                 value={editableBevilling.afstandskriterie_klassetrin ?? ""}
                 on:change={(e) => updateField("afstandskriterie_klassetrin", numberOrNull(e.currentTarget.value))}
-              />
+              >
+                <option value="">Vælg</option>
+                {#each [3, 6, 7, 9, 10] as trin}
+                  <option value={trin}>{trin}</option>
+                {/each}
+              </select>  
             {:else}
               <p class="text-sm text-gray-800">{bevilling.afstandskriterie_klassetrin ?? "—"}</p>
             {/if}
@@ -614,7 +691,23 @@
           <!-- ANSØGER RELATION -->
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Ansøger relation</p>
-            <p class="text-sm text-gray-800">{bevilling.relation_til_barnet ?? "—"}</p>
+            {#if isEditing}
+              <select
+                class={mediumSelectClass}
+                value={editableBevilling.relation_til_barnet ?? ""}
+                on:change={(e) => updateField("relation_til_barnet", emptyToNull(e.currentTarget.value))}
+              >
+                <option value="">Vælg</option>
+                <option value="Forældremyndig">Forældremyndig</option>
+                <option value="Værge">Værge</option>
+                <option value="Plejeforælder">Plejeforælder</option>
+                <option value="Uddannelsesinstitution">Uddannelsesinstitution</option>
+                <option value="Sagsbehandler">Sagsbehandler</option>
+                <option value="Bosted">Bosted</option>
+              </select>
+            {:else}
+              <p class="text-sm text-gray-800">{bevilling.relation_til_barnet ?? "—"}</p>
+            {/if}
           </div>
 
           <!-- REVURDERING -->
@@ -623,7 +716,7 @@
             {#if isEditing}
               <input
                 type="date"
-                max="9999-12-31"
+                min={minDate} max={maxDate}
                 class={inputClass}
                 value={editableBevilling.revurderingsdato ?? ""}
                 on:change={(e) => updateField("revurderingsdato", emptyToNull(e.currentTarget.value))}
@@ -639,7 +732,7 @@
             {#if isEditing}
               <input
                 type="date"
-                max="9999-12-31"
+                min={minDate} max={maxDate}
                 class={inputClass}
                 value={editableBevilling.befordringsudvalg ?? ""}
                 on:change={(e) => updateField("befordringsudvalg", emptyToNull(e.currentTarget.value))}
@@ -729,6 +822,12 @@
 
         </div>
 
+        {#if isEditing && editError}
+          <div class="mx-4 md:mx-6 mb-4 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
+            {editError}
+          </div>
+        {/if}
+
 
         <!-- Kørselsrækker section (expanded) -->
         {#if isExpanded || readonlyKoerselsraekker}
@@ -748,6 +847,7 @@
                 onSaveKoerselsraekke={onSaveKoerselsraekke}
                 onCreateKoerselsraekke={(updates) => onCreateKoerselsraekke(bevilling.bevilling_id, updates)}
                 onFinalizeKoerselsraekke={onFinalizeKoerselsraekke}
+                onDeleteKoerselsraekke={onDeleteKoerselsraekke}
               />
             </div>
 
@@ -761,3 +861,65 @@
   {/if}
 
 </div>
+
+
+<svelte:window on:keydown={(e) => {
+  if (e.key === 'Escape' && confirmingDeleteBevillingId !== null) confirmingDeleteBevillingId = null;
+}} />
+
+<!-- Delete bevilling confirmation modal -->
+{#if confirmingDeleteBevillingId !== null}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    role="presentation"
+  >
+    <div
+      class="w-[440px] bg-white rounded-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="px-6 py-5 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v
+6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900">Slet bevilling</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Bevilling #{confirmingDeleteBevillingId}</p>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4">
+        <p class="text-sm text-gray-700">
+          Er du sikker på, at du vil slette denne bevilling og alle tilhørende kørselsrækker?
+          Bevillingen vil blive skjult for brugere, men bevares i databasen.
+        </p>
+        {#if deleteError}
+          <p class="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{deleteError}</p>
+        {/if}
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+          on:click={() => confirmingDeleteBevillingId = null}
+        >
+          Annullér
+        </button>
+        <button
+          type="button"
+          disabled={isDeleting}
+          class="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+          on:click={doDeleteBevilling}
+        >
+          {isDeleting ? "Sletter…" : "Slet bevilling"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+

@@ -21,7 +21,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.dependencies import CurrentUser, DbSession
+from app.api.dependencies import CanDelete, CurrentUser, DbSession
 from app.schemas.bevilling import (
     BevillingCreateRequest,
     BevillingUpdateRequest,
@@ -246,27 +246,37 @@ def update_bevilling(
 
 
 @router.delete("/{bevilling_id}")
-def delete_bevilling(bevilling_id: int, db: DbSession, udfoert_af: CurrentUser):
-    """Delete or deactivate a bevilling.
+def delete_bevilling(bevilling_id: int, db: DbSession, udfoert_af: CurrentUser, can_delete: CanDelete):
+    """Soft-delete a bevilling and all its kørselsrækker.
 
     Args:
         bevilling_id:
-            The ID of the bevilling to delete.
-
-        db:
-            The database session injected by FastAPI.
-
-    Returns:
-        A deletion result from the service.
-
-    Notes:
-        Whether this performs a hard delete or soft delete depends on the
-        implementation inside BevillingService.delete_bevilling.
+            The ID of the bevilling to soft-delete.
     """
+
+    if not can_delete:
+        raise HTTPException(status_code=403, detail="Ikke tilladelse til at slette")
 
     service = BevillingService(db=db)
 
     return service.delete_bevilling(bevilling_id=bevilling_id, udfoert_af=udfoert_af)
+
+
+@router.delete("/koerselsraekke/{koersel_id}")
+def delete_koerselsraekke(koersel_id: int, db: DbSession, udfoert_af: CurrentUser, can_delete: CanDelete):
+    """Soft-delete a kørselsrække.
+
+    Args:
+        koersel_id:
+            The ID of the kørselsrække to soft-delete.
+    """
+
+    if not can_delete:
+        raise HTTPException(status_code=403, detail="Ikke tilladelse til at slette")
+
+    service = BevillingService(db=db)
+
+    return service.delete_koerselsraekke(koersel_id=koersel_id, udfoert_af=udfoert_af)
 
 
 @router.put("/{bevilling_id}/hjaelpemidler")

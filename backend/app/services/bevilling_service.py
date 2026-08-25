@@ -21,7 +21,7 @@ The router should stay thin and delegate most logic to this service.
 from datetime import date
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select, text, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.models.bevilling import (
@@ -454,6 +454,7 @@ class BevillingService:
             INNER JOIN
                 [befordring].[Koersel] k
                 ON k.koersel_id = vbk.koersel_id
+                AND k.aktiv = 1
             WHERE
                 vbk.bevilling_id = :bevilling_id
             ORDER BY
@@ -901,11 +902,9 @@ class BevillingService:
                 detail=f"Kørselsrække not found: {koersel_id}",
             )
 
-        if koersel.final:
-            raise HTTPException(
-                status_code=409,
-                detail="Kørselsrækken er afsluttet og kan ikke redigeres.",
-            )
+        # NB: no `final` edit-guard — a finalized (locked) kørselsrække can be
+        # reopened and edited (see the "Lås"/reopen flow in the frontend), so
+        # updates to final rows are allowed here on purpose.
 
         # Validate the final date range by combining existing dates with any
         # new date values supplied in the update payload.
@@ -1101,43 +1100,95 @@ class BevillingService:
 
 
     def delete_bevilling(self, bevilling_id: int, udfoert_af: str = "System"):
-        """Delete a bevilling.
+        """Soft-delete a bevilling and all its kørselsrækker.
+
+        Sets aktiv=False on the bevilling and all related Koersel rows so that
+        history is preserved in the database. Soft-deleted records are excluded
+        from all normal queries and the frontend.
 
         Args:
             bevilling_id:
-                ID of the bevilling to delete.
+                ID of the bevilling to soft-delete.
 
         Returns:
             Dictionary containing deleted row count.
 
         Raises:
             HTTPException:
-                404 if the bevilling does not exist.
-
-        Notes:
-            This currently performs a hard delete using self.db.delete(...).
-            If the system should keep history, this should probably be changed
-            to a soft delete by setting aktiv=False instead.
+                404 if the bevilling does not exist or is already deleted.
         """
 
         bevilling = self.db.get(Bevilling, bevilling_id)
 
-        if bevilling is None:
+        if bevilling is None or not bevilling.aktiv:
             raise HTTPException(
                 status_code=404,
                 detail=f"Bevilling not found: {bevilling_id}",
             )
 
-        # Captured before delete — cpr_elev is inaccessible after commit.
         cpr = bevilling.cpr_elev
 
-        self.db.delete(bevilling)
+        # Soft-delete all related koerselsrækker in the same transaction.
+        self.db.execute(
+            sa_update(Koersel)
+            .where(Koersel.bevilling_id == bevilling_id)
+            .values(aktiv=False)
+        )
+
+        bevilling.aktiv = False
+        bevilling.updated_by = udfoert_af
         self.db.commit()
 
         self._log_event(
             cpr,
             "Bevilling slettet",
             kommentar=f"Bevilling ID: {bevilling_id}",
+            relateret_bevilling_id=bevilling_id,
+            udfoert_af=udfoert_af,
+        )
+
+        return {
+            "rows_deleted": 1,
+        }
+
+
+    def delete_koerselsraekke(self, koersel_id: int, udfoert_af: str = "System"):
+        """Soft-delete a single kørselsrække.
+
+        Sets aktiv=False so history is preserved. The row is excluded from all
+        normal queries and the frontend after deletion.
+
+        Args:
+            koersel_id:
+                ID of the kørselsrække to soft-delete.
+
+        Returns:
+            Dictionary containing deleted row count.
+
+        Raises:
+            HTTPException:
+                404 if the kørselsrække does not exist or is already deleted.
+        """
+
+        koersel = self.db.get(Koersel, koersel_id)
+
+        if koersel is None or not koersel.aktiv:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Kørselsrække not found: {koersel_id}",
+            )
+
+        bevilling_id = koersel.bevilling_id
+        cpr = koersel.bevilling.cpr_elev
+
+        koersel.aktiv = False
+        self.db.commit()
+
+        self._log_event(
+            cpr,
+            "Kørselsrække slettet",
+            kommentar=f"Koersel ID: {koersel_id}, Bevilling ID: {bevilling_id}",
+            relateret_bevilling_id=bevilling_id,
             udfoert_af=udfoert_af,
         )
 

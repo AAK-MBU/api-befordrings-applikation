@@ -3,6 +3,13 @@
   import { backendFetch } from "$lib/client/backendFetch";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
 
+  const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
+  const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
+
+  function isDateOutOfRange(value: string | null | undefined): boolean {
+    return !!value && (value < minDate || value > maxDate);
+  }
+
   // -----------------------------
   // Props
   // -----------------------------
@@ -13,25 +20,30 @@
     tidspunkter: [],
     koerselstyper: [],
     koerselstypeTillaeg: [],
-    dage: []
+    dage: [],
+    rutetyper: []
   };
 
   export let onCreateKoerselsraekke: (
     updates: any
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
 
   export let onSaveKoerselsraekke: (
     koerselId: number,
     updates: any
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
 
   export let onFinalizeKoerselsraekke: (
     koerselId: number
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
 
   export let adresseForBevilling: string = "";
   export let matrikelId: number | null = null;
   export let readonly: boolean = false;
+
+  // Optional — if not provided, the delete button is hidden entirely.
+  // Wire this up from the parent page only for users with the correct role.
+  export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
 
 
   // -----------------------------
@@ -77,7 +89,7 @@
   // Tillæg only applies to befordringstyper that are a form of "kørsel"
   // (e.g. Rutekørsel, Skånekørsel) — not Skolerejsekort, Skolebus, Cykelbus, etc.
   function labelIsKoersel(label: string | null | undefined): boolean {
-    return normalizeType(label).includes('kørsel');
+    return TAXA_TYPES.has(normalizeType(label));
   }
 
   function isKoerselType(typeId: string | number | null | undefined): boolean {
@@ -189,14 +201,47 @@
 
   let confirmingFinalizeId: number | null = null;
   let isFinalizing = false;
+  let finalizeError: string | null = null;
 
   async function doFinalize() {
     if (confirmingFinalizeId === null) return;
     isFinalizing = true;
     const id = confirmingFinalizeId;
     confirmingFinalizeId = null;
-    await onFinalizeKoerselsraekke(id);
+    const error = await onFinalizeKoerselsraekke(id);
+    if (error) finalizeError = error;
     isFinalizing = false;
+  }
+
+  let lockedEditRow: any | null = null;
+
+  // -----------------------------
+  // Delete state
+  // -----------------------------
+
+  let confirmingDeleteKoerselId: number | null = null;
+  let isDeleting = false;
+  let deleteError: string | null = null;
+
+  async function doDeleteKoerselsraekke() {
+    if (confirmingDeleteKoerselId === null || !onDeleteKoerselsraekke) return;
+    isDeleting = true;
+    deleteError = null;
+    const id = confirmingDeleteKoerselId;
+    confirmingDeleteKoerselId = null;
+    const error = await onDeleteKoerselsraekke(id);
+    if (error) deleteError = error;
+    isDeleting = false;
+  }
+
+  function doLockedEdit() {
+    if (!lockedEditRow) return;
+    const row = lockedEditRow;
+    lockedEditRow = null;
+    editingKoerselId = row.koersel_id;
+    editableKoerselsraekke = { ...row };
+    selectedTillaegIds = parseIds(row.tillaeg_ids);
+    selectedDagIds = parseIds(row.dag_ids);
   }
 
 
@@ -206,6 +251,7 @@
 
   let editingKoerselId: number | null = null;
   let editableKoerselsraekke: any = {};
+  let editError: string | null = null;
 
   let selectedTillaegIds: number[] = [];
   let selectedDagIds: number[] = [];
@@ -217,6 +263,7 @@
 
   let isCreating = false;
   let newKoerselsraekke: any = {};
+  let createError: string | null = null;
 
   let newSelectedTillaegIds: number[] = [];
   let newSelectedDagIds: number[] = [];
@@ -275,7 +322,7 @@
   // -----------------------------
 
   function startEdit(row: any) {
-    if (row.final) return;
+    if (row.final) { lockedEditRow = row; return; }
     editingKoerselId = row.koersel_id;
     editableKoerselsraekke = { ...row };
 
@@ -287,6 +334,7 @@
   function cancelEdit() {
     editingKoerselId = null;
     editableKoerselsraekke = {};
+    editError = null;
 
     selectedTillaegIds = [];
     selectedDagIds = [];
@@ -302,6 +350,21 @@
 
 
   async function saveEdit(row: any) {
+    editError = null;
+    if (isDateOutOfRange(editableKoerselsraekke.gyldig_fra)) {
+      editError = "Gyldig fra: Dato er ugyldig — kontrollér årstallet";
+      return;
+    }
+    if (isDateOutOfRange(editableKoerselsraekke.gyldig_til)) {
+      editError = "Gyldig til: Dato er ugyldig — kontrollér årstallet";
+      return;
+    }
+    if (editableKoerselsraekke.gyldig_fra && editableKoerselsraekke.gyldig_til &&
+        editableKoerselsraekke.gyldig_fra > editableKoerselsraekke.gyldig_til) {
+      editError = "Gyldig fra kan ikke være efter gyldig til";
+      return;
+    }
+
     const updates = {
       tidspunkt_id: editableKoerselsraekke.tidspunkt_id,
       befordringstype_id: editableKoerselsraekke.befordringstype_id,
@@ -311,6 +374,7 @@
       taxa_id: editableKoerselsraekke.taxa_id,
       kommentar: editableKoerselsraekke.kommentar,
       rutetype_id: numberOrNull(editableKoerselsraekke.rutetype_id),
+      final: false,
 
       transporttid_i_bus: isSkolerejsekort(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.transporttid_i_bus) : null,
       skift_med_bus: isSkolerejsekort(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.skift_med_bus) : null,
@@ -319,9 +383,12 @@
       dag_ids: selectedDagIds
     };
 
-    const success = await onSaveKoerselsraekke(row.koersel_id, updates);
+    const error = await onSaveKoerselsraekke(row.koersel_id, updates);
 
-    if (success) {
+    if (error) {
+      editError = error;
+    } else {
+
       cancelEdit();
     }
   }
@@ -365,6 +432,7 @@
   function cancelCreate() {
     isCreating = false;
     newKoerselsraekke = {};
+    createError = null;
 
     newSelectedTillaegIds = [];
     newSelectedDagIds = [];
@@ -378,34 +446,23 @@
     };
   }
 
-
-  function validateNewKoerselsraekke() {
-    if (!newKoerselsraekke.tidspunkt_id) {
-      alert("Tidspunkt skal udfyldes");
-      return false;
-    }
-
-    if (!newKoerselsraekke.befordringstype_id) {
-      alert("Kørselstype skal udfyldes");
-      return false;
-    }
-
-    if (!newKoerselsraekke.gyldig_fra) {
-      alert("Bevilling fra skal udfyldes");
-      return false;
-    }
-
-    if (!newKoerselsraekke.gyldig_til) {
-      alert("Bevilling til skal udfyldes");
-      return false;
-    }
-
-    return true;
+  function validateNewKoerselsraekke(): string | null {
+    if (!newKoerselsraekke.tidspunkt_id) return "Tidspunkt skal udfyldes";
+    if (!newKoerselsraekke.befordringstype_id) return "Kørselstype skal udfyldes";
+    if (!newKoerselsraekke.gyldig_fra) return "Gyldig fra skal udfyldes";
+    if (!newKoerselsraekke.gyldig_til) return "Gyldig til skal udfyldes";
+    if (isDateOutOfRange(newKoerselsraekke.gyldig_fra)) return "Gyldig fra: Dato er ugyldig — kontrollér årstallet";
+    if (isDateOutOfRange(newKoerselsraekke.gyldig_til)) return "Gyldig til: Dato er ugyldig — kontrollér årstallet";
+    if (newKoerselsraekke.gyldig_fra > newKoerselsraekke.gyldig_til) return "Gyldig fra kan ikke være efter gyldig til";
+    return null;
   }
 
 
   async function saveNew() {
-    if (!validateNewKoerselsraekke()) {
+    createError = null;
+    const validationError = validateNewKoerselsraekke();
+    if (validationError) {
+      createError = validationError;
       return;
     }
 
@@ -427,9 +484,11 @@
       dag_ids: newSelectedDagIds
     };
 
-    const success = await onCreateKoerselsraekke(updates);
+    const error = await onCreateKoerselsraekke(updates);
 
-    if (success) {
+    if (error) {
+      createError = error;
+    } else {
       cancelCreate();
     }
   }
@@ -437,6 +496,12 @@
 
 
 <div class="space-y-0">
+
+  {#if finalizeError}
+    <div class="mb-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
+      {finalizeError}
+    </div>
+  {/if}
 
   <!-- + Ny kørselsrække button / create form — above the rows -->
   {#if !readonly}
@@ -447,7 +512,7 @@
 
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4 mb-4">
 
-        <!-- Kørselstype -->
+        <!-- Kørselstype — always col 1 -->
         <label class="block">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselstype *</span>
           <select
@@ -456,6 +521,7 @@
             on:change={(e) => {
               const id = numberOrNull(e.currentTarget.value);
               updateNewField("befordringstype_id", id);
+              if (!isTaxaType(id)) newSelectedTillaegIds = [];
               calculateAndFillDistance(id, 'new');
             }}
           >
@@ -466,153 +532,163 @@
           </select>
         </label>
 
-        <!-- Bevilget km pr. vej (kun egenbefordring) — placeret lige efter Kørselstype -->
         {#if isEgenbefordring(newKoerselsraekke.befordringstype_id)}
-        <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
-            Bevilget km pr. vej
-            {#if isCalculatingDistance && distanceCalcTarget === 'new'}
-              <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
-            {/if}
-          </span>
-          <input
-            type="number"
-            step="0.1"
-            class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'new' ? 'opacity-50' : ''}"
-            disabled={isCalculatingDistance && distanceCalcTarget === 'new'}
-            value={newKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
-            on:change={(e) => updateNewField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
-          />
-        </label>
+          <!-- Egenbefordring: Bevilget km pr. vej | Tidspunkt | Dage -->
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
+              Bevilget km pr. vej
+              {#if isCalculatingDistance && distanceCalcTarget === 'new'}
+                <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
+              {/if}
+            </span>
+            <input
+              type="number"
+              step="0.1"
+              class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'new' ? 'opacity-50' : ''}"
+              disabled={isCalculatingDistance && distanceCalcTarget === 'new'}
+              value={newKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
+              on:change={(e) => updateNewField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
+            />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
+            <select class={selectClass} value={newKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateNewField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+            </select>
+          </label>
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+            <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={newSelectedDagIds} placeholder="Tilføj dag" />
+          </div>
+          <label class="block md:col-start-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+          </label>
+          <label class="block md:col-start-1 md:col-span-4">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+          </label>
+
+        {:else if isTaxaType(newKoerselsraekke.befordringstype_id)}
+          <!-- TAXA: Tillæg | Tidspunkt | Dage -->
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
+            <TagMultiSelect options={lookupOptions.koerselstypeTillaeg ?? []} bind:selected={newSelectedTillaegIds} placeholder="Tilføj tillæg" />
+          </div>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
+            <select class={selectClass} value={newKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateNewField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+            </select>
+          </label>
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+            <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={newSelectedDagIds} placeholder="Tilføj dag" />
+          </div>
+          <label class="block md:col-start-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
+            <input class={inputClass} value={newKoerselsraekke.taxa_id ?? ""} on:change={(e) => updateNewField("taxa_id", e.currentTarget.value)} />
+          </label>
+          <label class="block md:col-start-1 md:col-span-4">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+          </label>
+
+        {:else if isSkolerejsekort(newKoerselsraekke.befordringstype_id)}
+          <!-- Skolerejsekort: Tidspunkt | Dage -->
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
+            <select class={selectClass} value={newKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateNewField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+            </select>
+          </label>
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+            <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={newSelectedDagIds} placeholder="Tilføj dag" />
+          </div>
+          <label class="block md:col-start-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Transporttid i bus (min.)</span>
+            <input type="number" min="0" class={inputClass} value={newKoerselsraekke.transporttid_i_bus ?? ""} on:change={(e) => updateNewField("transporttid_i_bus", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Antal skift</span>
+            <input type="number" min="0" class={inputClass} value={newKoerselsraekke.skift_med_bus ?? ""} on:change={(e) => updateNewField("skift_med_bus", e.currentTarget.value)} />
+          </label>
+          <label class="block md:col-span-4">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+          </label>
+
+        {:else}
+          <!-- Default (Skolebus, Gåbus, Cykelbus, etc.): Tidspunkt | Dage -->
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
+            <select class={selectClass} value={newKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateNewField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+            </select>
+          </label>
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+            <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={newSelectedDagIds} placeholder="Tilføj dag" />
+          </div>
+          <label class="block md:col-start-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+          </label>
+          <label class="block md:col-start-1 md:col-span-4">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+          </label>
         {/if}
 
-        <!-- Kørselstype tillæg — only for "kørsel" befordringstyper -->
-        {#if isKoerselType(newKoerselsraekke.befordringstype_id)}
-        <div>
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
-          <TagMultiSelect
-            options={lookupOptions.koerselstypeTillaeg ?? []}
-            bind:selected={newSelectedTillaegIds}
-            placeholder="Tilføj tillæg"
-          />
-        </div>
-        {/if}
-
-        <!-- Tidspunkt -->
-        <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
-          <select
-            class={selectClass}
-            value={newKoerselsraekke.tidspunkt_id ?? ""}
-            on:change={(e) => updateNewField("tidspunkt_id", numberOrNull(e.currentTarget.value))}
-          >
-            <option value="">Vælg</option>
-            {#each lookupOptions.tidspunkter ?? [] as option}
-              <option value={option.id}>{option.label}</option>
-            {/each}
-          </select>
-        </label>
-
-        <!-- Dage -->
-        <div>
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
-          <TagMultiSelect
-            options={lookupOptions.dage ?? []}
-            bind:selected={newSelectedDagIds}
-            placeholder="Tilføj dag"
-          />
-        </div>
-
-        <!-- Gyldig fra — forced onto its own row so it doesn't backfill row 1 -->
+        <!-- Rutetype — applies to all kørselstyper -->
         <label class="block md:col-start-1">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-          <input
-            type="date"
-            max="9999-12-31"
-            class={inputClass}
-            value={newKoerselsraekke.gyldig_fra ?? ""}
-            on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)}
-          />
-        </label>
-
-        <!-- Gyldig til -->
-        <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-          <input
-            type="date"
-            max="9999-12-31"
-            class={inputClass}
-            value={newKoerselsraekke.gyldig_til ?? ""}
-            on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)}
-          />
-        </label>
-
-        <!-- Taxa-ID (kun taxa-kørsel) — ved siden af Gyldig til -->
-        {#if isTaxaType(newKoerselsraekke.befordringstype_id)}
-        <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
-          <input
-            class={inputClass}
-            value={newKoerselsraekke.taxa_id ?? ""}
-            on:change={(e) => updateNewField("taxa_id", e.currentTarget.value)}
-          />
-        </label>
-        {/if}
-
-        <!-- Skolerejsekort-specifikke felter — ved siden af Gyldig til -->
-        {#if isSkolerejsekort(newKoerselsraekke.befordringstype_id)}
-        <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Transporttid i bus (min.)</span>
-          <input
-            type="number"
-            min="0"
-            class={inputClass}
-            value={newKoerselsraekke.transporttid_i_bus ?? ""}
-            on:change={(e) => updateNewField("transporttid_i_bus", e.currentTarget.value)}
-          />
-        </label>
-        <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Antal skift</span>
-          <input
-            type="number"
-            min="0"
-            class={inputClass}
-            value={newKoerselsraekke.skift_med_bus ?? ""}
-            on:change={(e) => updateNewField("skift_med_bus", e.currentTarget.value)}
-          />
-        </label>
-        {/if}
-
-        <!-- Kommentar — altid alene i bunden, fuld bredde -->
-        <label class="block md:col-start-1 md:col-span-4">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-          <input
-            class={inputClass}
-            value={newKoerselsraekke.kommentar ?? ""}
-            on:change={(e) => updateNewField("kommentar", e.currentTarget.value)}
-          />
-        </label>
-
-        <!-- Rutetype — under kommentar -->
-        <label class="block md:col-start-1 md:col-span-2">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype</span>
-          <select
-            class={selectClass}
-            value={newKoerselsraekke.rutetype_id ?? ""}
-            on:change={(e) => updateNewField("rutetype_id", numberOrNull(e.currentTarget.value))}
-          >
+          <select class={selectClass} value={newKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateNewField("rutetype_id", numberOrNull(e.currentTarget.value))}>
             <option value="">Vælg</option>
-            {#each lookupOptions.rutetyper ?? [] as option}
-              <option value={option.id}>{option.label}</option>
-            {/each}
+            {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
           </select>
         </label>
-
+        
       </div>
 
       {#if distanceError && distanceErrorFrom === 'new'}
-        <div class="mb-4 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded">
+        <div class="mb-3 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded">
           {distanceError}
+        </div>
+      {/if}
+
+      {#if createError}
+        <div class="mb-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
+          {createError}
         </div>
       {/if}
 
@@ -663,178 +739,8 @@
 
       <!-- Edit form -->
       <div class="border border-blue-200 rounded-lg p-4 mb-3 bg-blue-50">
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4 mb-3">
 
-          <!-- Kørselstype -->
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselstype</span>
-            <select
-              class={selectClass}
-              value={editableKoerselsraekke.befordringstype_id ?? ""}
-              on:change={(e) => {
-                const id = numberOrNull(e.currentTarget.value);
-                updateField("befordringstype_id", id);
-                calculateAndFillDistance(id, 'edit');
-              }}
-            >
-              <option value="">Vælg</option>
-              {#each lookupOptions.koerselstyper ?? [] as option}
-                <option value={option.id}>{option.label}</option>
-              {/each}
-            </select>
-          </label>
-
-          <!-- Bevilget km pr. vej (kun egenbefordring) — placeret lige efter Kørselstype -->
-          {#if isEgenbefordring(editableKoerselsraekke.befordringstype_id)}
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
-              Bevilget km pr. vej
-              {#if isCalculatingDistance && distanceCalcTarget === 'edit'}
-                <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
-              {/if}
-            </span>
-            <input
-              type="number"
-              step="0.1"
-              class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'edit' ? 'opacity-50' : ''}"
-              disabled={isCalculatingDistance && distanceCalcTarget === 'edit'}
-              value={editableKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
-              on:change={(e) => updateField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
-            />
-          </label>
-          {/if}
-
-          <!-- Kørselstype tillæg — only for "kørsel" befordringstyper -->
-          {#if isKoerselType(editableKoerselsraekke.befordringstype_id)}
-          <div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
-            <TagMultiSelect
-              options={lookupOptions.koerselstypeTillaeg ?? []}
-              bind:selected={selectedTillaegIds}
-              placeholder="Tilføj tillæg"
-            />
-          </div>
-          {/if}
-
-          <!-- Tidspunkt -->
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt</span>
-            <select
-              class={selectClass}
-              value={editableKoerselsraekke.tidspunkt_id ?? ""}
-              on:change={(e) => updateField("tidspunkt_id", numberOrNull(e.currentTarget.value))}
-            >
-              <option value="">Vælg</option>
-              {#each lookupOptions.tidspunkter ?? [] as option}
-                <option value={option.id}>{option.label}</option>
-              {/each}
-            </select>
-          </label>
-
-          <!-- Dage -->
-          <div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
-            <TagMultiSelect
-              options={lookupOptions.dage ?? []}
-              bind:selected={selectedDagIds}
-              placeholder="Tilføj dag"
-            />
-          </div>
-
-          <!-- Gyldig fra — forced onto its own row so it doesn't backfill row 1 -->
-          <label class="block md:col-start-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra</span>
-            <input
-              type="date"
-              max="9999-12-31"
-              class={inputClass}
-              value={editableKoerselsraekke.gyldig_fra ?? ""}
-              on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)}
-            />
-          </label>
-
-          <!-- Gyldig til -->
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til</span>
-            <input
-              type="date"
-              max="9999-12-31"
-              class={inputClass}
-              value={editableKoerselsraekke.gyldig_til ?? ""}
-              on:change={(e) => updateField("gyldig_til", e.currentTarget.value)}
-            />
-          </label>
-
-          <!-- Taxa-ID (kun taxa-kørsel) — ved siden af Gyldig til -->
-          {#if isTaxaType(editableKoerselsraekke.befordringstype_id)}
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
-            <input
-              class={inputClass}
-              value={editableKoerselsraekke.taxa_id ?? ""}
-              on:change={(e) => updateField("taxa_id", e.currentTarget.value)}
-            />
-          </label>
-          {/if}
-
-          <!-- Skolerejsekort-specifikke felter — ved siden af Gyldig til -->
-          {#if isSkolerejsekort(editableKoerselsraekke.befordringstype_id)}
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Transporttid i bus (min.)</span>
-            <input
-              type="number"
-              min="0"
-              class={inputClass}
-              value={editableKoerselsraekke.transporttid_i_bus ?? ""}
-              on:change={(e) => updateField("transporttid_i_bus", e.currentTarget.value)}
-            />
-          </label>
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Antal skift</span>
-            <input
-              type="number"
-              min="0"
-              class={inputClass}
-              value={editableKoerselsraekke.skift_med_bus ?? ""}
-              on:change={(e) => updateField("skift_med_bus", e.currentTarget.value)}
-            />
-          </label>
-          {/if}
-
-          <!-- Kommentar — altid alene i bunden, fuld bredde -->
-          <label class="block md:col-start-1 md:col-span-4">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-            <input
-              class={inputClass}
-              value={editableKoerselsraekke.kommentar ?? ""}
-              on:change={(e) => updateField("kommentar", e.currentTarget.value)}
-            />
-          </label>
-
-          <!-- Rutetype — under kommentar -->
-          <label class="block md:col-start-1 md:col-span-2">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype</span>
-            <select
-              class={selectClass}
-              value={editableKoerselsraekke.rutetype_id ?? ""}
-              on:change={(e) => updateField("rutetype_id", numberOrNull(e.currentTarget.value))}
-            >
-              <option value="">Vælg</option>
-              {#each lookupOptions.rutetyper ?? [] as option}
-                <option value={option.id}>{option.label}</option>
-              {/each}
-            </select>
-          </label>
-
-        </div>
-
-        {#if distanceError && distanceErrorFrom === 'edit'}
-          <div class="mb-3 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded">
-            {distanceError}
-          </div>
-        {/if}
-
-        <div class="flex gap-2">
+        <div class="flex justify-end items-center gap-2 mb-4">
           <button
             type="button"
             class="px-4 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
@@ -849,10 +755,210 @@
           >
             Annullér
           </button>
+          {#if onDeleteKoerselsraekke}
+            <span class="w-px h-5 bg-blue-200 mx-1"></span>
+            <button
+              type="button"
+              title="Slet kørselsrække"
+              class="p-1 text-gray-400 hover:text-red-600 transition-colors"
+              on:click={() => { confirmingDeleteKoerselId = row.koersel_id; deleteError = null; }}
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          {/if}
         </div>
+
+        {#if editError}
+          <div class="mb-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
+            {editError}
+          </div>
+        {/if}
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4 mb-3">
+
+          <!-- Kørselstype -->
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselstype</span>
+            <select
+              class={selectClass}
+              value={editableKoerselsraekke.befordringstype_id ?? ""}
+              on:change={(e) => {
+                const id = numberOrNull(e.currentTarget.value);
+                updateField("befordringstype_id", id);
+                if (!isTaxaType(id)) selectedTillaegIds = [];
+                calculateAndFillDistance(id, 'edit');
+              }}
+            >
+              <option value="">Vælg</option>
+              {#each lookupOptions.koerselstyper ?? [] as option}
+                <option value={option.id}>{option.label}</option>
+              {/each}
+            </select>
+          </label>
+
+          {#if isEgenbefordring(editableKoerselsraekke.befordringstype_id)}
+            <!-- Egenbefordring: Bevilget km pr. vej | Tidspunkt | Dage -->
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
+                Bevilget km pr. vej
+                {#if isCalculatingDistance && distanceCalcTarget === 'edit'}
+                  <span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>
+                {/if}
+              </span>
+              <input
+                type="number"
+                step="0.1"
+                class="{inputClass} {isCalculatingDistance && distanceCalcTarget === 'edit' ? 'opacity-50' : ''}"
+                disabled={isCalculatingDistance && distanceCalcTarget === 'edit'}
+                value={editableKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
+                on:change={(e) => updateField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
+              />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt</span>
+              <select class={selectClass} value={editableKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+                <option value="">Vælg</option>
+                {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+              </select>
+            </label>
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+              <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={selectedDagIds} placeholder="Tilføj dag" />
+            </div>
+            <label class="block md:col-start-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+            </label>
+            <label class="block md:col-start-1 md:col-span-4">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+            </label>
+
+          {:else if isTaxaType(editableKoerselsraekke.befordringstype_id)}
+            <!-- TAXA: Tillæg | Tidspunkt | Dage -->
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
+              <TagMultiSelect options={lookupOptions.koerselstypeTillaeg ?? []} bind:selected={selectedTillaegIds} placeholder="Tilføj tillæg" />
+            </div>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt</span>
+              <select class={selectClass} value={editableKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+                <option value="">Vælg</option>
+                {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+              </select>
+            </label>
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+              <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={selectedDagIds} placeholder="Tilføj dag" />
+            </div>
+            <label class="block md:col-start-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
+              <input class={inputClass} value={editableKoerselsraekke.taxa_id ?? ""} on:change={(e) => updateField("taxa_id", e.currentTarget.value)} />
+            </label>
+            <label class="block md:col-start-1 md:col-span-4">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+            </label>
+
+          {:else if isSkolerejsekort(editableKoerselsraekke.befordringstype_id)}
+            <!-- Skolerejsekort: Tidspunkt | Dage -->
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt</span>
+              <select class={selectClass} value={editableKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+                <option value="">Vælg</option>
+                {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+              </select>
+            </label>
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+              <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={selectedDagIds} placeholder="Tilføj dag" />
+            </div>
+            <label class="block md:col-start-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Transporttid i bus (min.)</span>
+              <input type="number" min="0" class={inputClass} value={editableKoerselsraekke.transporttid_i_bus ?? ""} on:change={(e) => updateField("transporttid_i_bus", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Antal skift</span>
+              <input type="number" min="0" class={inputClass} value={editableKoerselsraekke.skift_med_bus ?? ""} on:change={(e) => updateField("skift_med_bus", e.currentTarget.value)} />
+            </label>
+            <label class="block md:col-span-4">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+            </label>
+
+          {:else}
+            <!-- Default (Skolebus, Gåbus, Cykelbus, etc.): Tidspunkt | Dage -->
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt</span>
+              <select class={selectClass} value={editableKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
+                <option value="">Vælg</option>
+                {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+              </select>
+            </label>
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage</span>
+              <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={selectedDagIds} placeholder="Tilføj dag" />
+            </div>
+            <label class="block md:col-start-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til</span>
+              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+            </label>
+            <label class="block md:col-start-1 md:col-span-4">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+            </label>
+          {/if}
+
+          <!-- Rutetype — applies to all kørselstyper -->
+          <label class="block md:col-start-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype</span>
+            <select class={selectClass} value={editableKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateField("rutetype_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+            </select>
+          </label>
+
+        </div>
+
+        {#if distanceError && distanceErrorFrom === 'edit'}
+          <div class="mb-3 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded">
+            {distanceError}
+          </div>
+        {/if}
+
       </div>
 
     {:else}
+    
+      {@const isEgb = labelIsEgenbefordring(row.befordringstype_tekst)}
+      {@const isTxa = labelIsTaxa(row.befordringstype_tekst)}
+      {@const isSRK = labelIsSkolerejsekort(row.befordringstype_tekst)}
 
       <!-- Labeled field grid view (matches the bevilling header card) -->
       <div class="mb-2 bg-white rounded-lg border shadow-sm overflow-hidden {row.final ? 'border-gray-200' : 'border-gray-300'}" style="border-left: 3px solid {row.final ? '#9ca3af' : '#2ab4a0'};">
@@ -861,79 +967,139 @@
 
           <div class="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4">
 
-            <!-- Kørselstype -->
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselstype</p>
-              <p class="text-sm font-semibold text-gray-800 break-words">{row.befordringstype_tekst ?? "—"}</p>
-            </div>
+            {#if isEgb}
+              <!-- Egenbefordring: Kørselstype | Bevilget km pr. vej | Tidspunkt | Dage -->
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselstype</p>
+                <p class="text-sm font-semibold text-gray-800 break-words">{row.befordringstype_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Bevilget km pr. vej</p>
+                <p class="text-sm text-gray-800">{row.bevilget_koereafstand_pr_vej != null ? String(parseFloat(row.bevilget_koereafstand_pr_vej)).replace('.', ',') : "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tidspunkt</p>
+                <p class="text-sm text-gray-800 break-words">{row.tidspunkt_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Dage</p>
+                <p class="text-sm text-gray-800 break-words">{row.dage ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig fra</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_fra)}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig til</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_til)}</p>
+              </div>
+              <div class="md:col-start-1 md:col-span-4">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
+                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+              </div>
 
-            <!-- Bevilget km pr. vej (kun egenbefordring) — lige efter Kørselstype -->
-            {#if labelIsEgenbefordring(row.befordringstype_tekst) && row.bevilget_koereafstand_pr_vej != null}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Bevilget km pr. vej</p>
-              <p class="text-sm text-gray-800">{String(parseFloat(row.bevilget_koereafstand_pr_vej)).replace('.', ',')}</p>
-            </div>
+
+            {:else if isTxa}
+              <!-- TAXA: Kørselstype | Tillæg | Tidspunkt | Dage -->
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselstype</p>
+                <p class="text-sm font-semibold text-gray-800 break-words">{row.befordringstype_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tillæg</p>
+                <p class="text-sm text-gray-800 break-words">{row.tillaeg_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tidspunkt</p>
+                <p class="text-sm text-gray-800 break-words">{row.tidspunkt_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Dage</p>
+                <p class="text-sm text-gray-800 break-words">{row.dage ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig fra</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_fra)}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig til</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_til)}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Taxa-ID</p>
+                <p class="text-sm text-gray-800 break-words">{row.taxa_id || "—"}</p>
+              </div>
+              <div class="md:col-start-1 md:col-span-4">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
+                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+              </div>
+
+
+            {:else if isSRK}
+              <!-- Skolerejsekort: Kørselstype | Tidspunkt | Dage -->
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselstype</p>
+                <p class="text-sm font-semibold text-gray-800 break-words">{row.befordringstype_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tidspunkt</p>
+                <p class="text-sm text-gray-800 break-words">{row.tidspunkt_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Dage</p>
+                <p class="text-sm text-gray-800 break-words">{row.dage ?? "—"}</p>
+              </div>
+              <div class="md:col-start-1">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig fra</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_fra)}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig til</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_til)}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Transporttid i bus (min.)</p>
+                <p class="text-sm text-gray-800">{row.transporttid_i_bus ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Antal skift</p>
+                <p class="text-sm text-gray-800">{row.skift_med_bus ?? "—"}</p>
+              </div>
+              <div class="md:col-span-4">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
+                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+              </div>
+
+
+            {:else}
+              <!-- Default (Skolebus, Gåbus, Cykelbus, etc.): Kørselstype | Tidspunkt | Dage -->
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselstype</p>
+                <p class="text-sm font-semibold text-gray-800 break-words">{row.befordringstype_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tidspunkt</p>
+                <p class="text-sm text-gray-800 break-words">{row.tidspunkt_tekst ?? "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Dage</p>
+                <p class="text-sm text-gray-800 break-words">{row.dage ?? "—"}</p>
+              </div>
+              <div class="md:col-start-1">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig fra</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_fra)}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig til</p>
+                <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_til)}</p>
+              </div>
+              <div class="md:col-start-1 md:col-span-4">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
+                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+              </div>
             {/if}
 
-            <!-- Tillæg (kun kørsels-typer) -->
-            {#if labelIsKoersel(row.befordringstype_tekst)}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tillæg</p>
-              <p class="text-sm text-gray-800 break-words">{row.tillaeg_tekst ?? "—"}</p>
-            </div>
-            {/if}
-
-            <!-- Tidspunkt -->
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tidspunkt</p>
-              <p class="text-sm text-gray-800 break-words">{row.tidspunkt_tekst ?? "—"}</p>
-            </div>
-
-            <!-- Dage -->
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Dage</p>
-              <p class="text-sm text-gray-800 break-words">{row.dage ?? "—"}</p>
-            </div>
-
-            <!-- Gyldig fra — egen række -->
-            <div class="md:col-start-1">
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig fra</p>
-              <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_fra)}</p>
-            </div>
-
-            <!-- Gyldig til -->
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Gyldig til</p>
-              <p class="text-sm text-gray-800">{formatDanishDate(row.gyldig_til)}</p>
-            </div>
-
-            <!-- Taxa-ID (kun taxa-kørsel) — ved siden af Gyldig til -->
-            {#if labelIsTaxa(row.befordringstype_tekst) && row.taxa_id}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Taxa-ID</p>
-              <p class="text-sm text-gray-800 break-words">{row.taxa_id}</p>
-            </div>
-            {/if}
-
-            <!-- Skolerejsekort-specifikke felter — ved siden af Gyldig til -->
-            {#if labelIsSkolerejsekort(row.befordringstype_tekst)}
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Transporttid i bus (min.)</p>
-              <p class="text-sm text-gray-800">{row.transporttid_i_bus ?? "—"}</p>
-            </div>
-            <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Antal skift</p>
-              <p class="text-sm text-gray-800">{row.skift_med_bus ?? "—"}</p>
-            </div>
-            {/if}
-
-            <!-- Kommentar — egen linje, fuld bredde -->
-            <div class="md:col-start-1 md:col-span-4">
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
-              <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
-            </div>
-
-            <!-- Rutetype — under kommentar -->
+            <!-- Rutetype — applies to all kørselstyper -->
             <div class="md:col-start-1">
               <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Rutetype</p>
               <p class="text-sm text-gray-800 break-words">{row.rutetype_tekst ?? "—"}</p>
@@ -944,13 +1110,20 @@
           <!-- Handlinger -->
           <div class="flex items-center gap-2 shrink-0">
             {#if row.final}
-              <!-- Locked state: static badge -->
-              <span class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded">
-                <!-- lock-closed icon -->
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <!-- Locked state: redigér + closed lock icon (mirrors unlocked layout) -->
+              {#if !readonly}
+                <button
+                  type="button"
+                  class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  on:click={() => startEdit(row)}
+                >
+                  Redigér
+                </button>
+              {/if}
+              <span title="Låst" class="p-1 text-gray-400 cursor-default">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                Afsluttet
               </span>
             {:else if !readonly}
               <!-- Unlocked state: redigér + lock button -->
@@ -963,7 +1136,7 @@
               </button>
               <button
                 type="button"
-                title="Afslut kørselsrække"
+                title="Lås kørselsrække"
                 class="p-1 text-gray-400 hover:text-gray-600 transition-colors"
                 on:click={() => confirmingFinalizeId = row.koersel_id}
               >
@@ -973,6 +1146,7 @@
                 </svg>
               </button>
             {/if}
+
           </div>
 
         </div>
@@ -988,7 +1162,13 @@
 </div>
 
 
-<svelte:window on:keydown={(e) => { if (e.key === 'Escape' && confirmingFinalizeId !== null) confirmingFinalizeId = null; }} />
+<svelte:window on:keydown={(e) => {
+  if (e.key === 'Escape') {
+    if (confirmingFinalizeId !== null) confirmingFinalizeId = null;
+    if (lockedEditRow !== null) lockedEditRow = null;
+    if (confirmingDeleteKoerselId !== null) confirmingDeleteKoerselId = null;
+  }
+}} />
 
 <!-- Finalize confirmation modal -->
 {#if confirmingFinalizeId !== null}
@@ -1011,18 +1191,18 @@
             </svg>
           </div>
           <div>
-            <h2 class="text-base font-semibold text-gray-900">Afslut kørselsrække</h2>
-            <p class="text-xs text-gray-500 mt-0.5">Denne handling kan ikke fortrydes</p>
+            <h2 class="text-base font-semibold text-gray-900">Lås kørselsrække</h2>
+            <p class="text-xs text-gray-500 mt-0.5">Kan genåbnes ved behov</p>
           </div>
         </div>
       </div>
 
       <div class="px-6 py-5">
         <p class="text-sm text-gray-700">
-          Kørselsrækken vil blive markeret som <strong>afsluttet</strong> og kan herefter ikke længere redigeres via applikationen.
+          Kørselsrækken vil blive markeret som <strong>låst</strong> og kan kun redigeres efter bekræftelse.
         </p>
         <p class="text-sm text-gray-500 mt-2">
-          Er du sikker på, at du vil afslutte denne kørselsrække?
+          Er du sikker på, at du vil låse denne kørselsrække?
         </p>
       </div>
 
@@ -1040,7 +1220,121 @@
           disabled={isFinalizing}
           on:click={doFinalize}
         >
-          {isFinalizing ? 'Afslutter...' : 'Afslut kørselsrække'}
+          {isFinalizing ? 'Låser...' : 'Lås kørselsrække'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+
+<!-- Locked edit confirmation popup -->
+{#if lockedEditRow !== null}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    role="presentation"
+  >
+    <div
+      class="w-[420px] bg-white rounded-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="px-6 py-5 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-gray-900">Rediger låst kørselsrække</h2>
+            <p class="text-xs text-gray-500 mt-0.5">Kræver bekræftelse</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-5">
+        <p class="text-sm text-gray-700">
+          Kørselsrækken er låst. <strong>Husk at sende nyt brev</strong> når du har redigeret i en låst kørselsrække.
+        </p>
+        <p class="text-sm text-gray-500 mt-2">
+          Er du sikker på, at du vil redigere denne kørselsrække?
+        </p>
+      </div>
+
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-white transition-colors"
+          on:click={() => lockedEditRow = null}
+        >
+          Annullér
+        </button>
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded transition-colors"
+          on:click={doLockedEdit}
+        >
+          Redigér
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+
+
+<!-- Delete kørselsrække confirmation modal -->
+{#if confirmingDeleteKoerselId !== null}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    role="presentation"
+  >
+    <div
+      class="w-[420px] bg-white rounded-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="px-6 py-5 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6
+v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900">Slet kørselsrække</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Kørselsrække #{confirmingDeleteKoerselId}</p>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4">
+        <p class="text-sm text-gray-700">
+          Er du sikker på, at du vil slette denne kørselsrække?
+          Den vil blive skjult for brugere, men bevares i databasen.
+        </p>
+        {#if deleteError}
+          <p class="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{deleteError}</p>
+        {/if}
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+          on:click={() => confirmingDeleteKoerselId = null}
+        >
+          Annullér
+        </button>
+        <button
+          type="button"
+          disabled={isDeleting}
+          class="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+          on:click={doDeleteKoerselsraekke}
+        >
+          {isDeleting ? "Sletter…" : "Slet kørselsrække"}
         </button>
       </div>
     </div>
