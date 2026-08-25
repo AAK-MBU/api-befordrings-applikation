@@ -30,8 +30,24 @@ export const statusBadgeClasses: Record<string, string> = {
 
 export function getStatusBadgeClass(status: string | null | undefined) {
   const key = String(status ?? "").toLowerCase();
-
   return statusBadgeClasses[key] ?? statusBadgeClasses.default;
+}
+
+
+const befordringstypeBadgeClasses: Record<string, string> = {
+  "egen befordring":  "bg-violet-100 text-violet-700 border border-violet-200",
+  "rutekørsel":       "bg-amber-100 text-amber-700 border border-amber-200",
+  "skånekørsel":      "bg-amber-100 text-amber-700 border border-amber-200",
+  "solokørsel":       "bg-amber-100 text-amber-700 border border-amber-200",
+  "variabel kørsel":  "bg-amber-100 text-amber-700 border border-amber-200",
+  "skolerejsekort":   "bg-sky-100 text-sky-700 border border-sky-200",
+  "skolebus":         "bg-teal-100 text-teal-700 border border-teal-200",
+  "cykelbus":         "bg-green-100 text-green-700 border border-green-200",
+  "gåbus":            "bg-green-100 text-green-700 border border-green-200",
+};
+
+export function getBefordringstypeBadgeClass(label: string): string {
+  return befordringstypeBadgeClasses[label.toLowerCase()] ?? "bg-gray-100 text-gray-600 border border-gray-200";
 }
 
 
