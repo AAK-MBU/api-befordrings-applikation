@@ -196,6 +196,11 @@ def create_bevilling(
         exclude_none=True means fields with value None are not sent to the
         service. This is useful when optional frontend fields should not
         overwrite or pollute insert data.
+
+        Unlike the OS2Forms flow, this endpoint does NOT need to ensure the
+        Elev exists first: its frontend modal is only reachable from an existing
+        child's case page, so the Elev (and thus the cpr_elev FK) is always
+        present here.
     """
 
     service = BevillingService(db=db)

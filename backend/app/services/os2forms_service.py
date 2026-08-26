@@ -23,6 +23,7 @@ from app.models.adresse import Adresse
 from app.models.lookup import Hjaelpemiddel, Skolematrikel, Ungdomsuddannelse
 from app.schemas.bevilling import BevillingCreateRequest
 from app.services.bevilling_service import BevillingService
+from app.services.citizen_service import CitizenService
 from app.utils import date_utils
 from app.utils import os2forms_mapping
 
@@ -290,6 +291,21 @@ class OS2FormsService:
 
         # Convert OS2Forms field names/values into the internal API schema.
         bevilling_request = self.map_submission_to_bevilling(payload)
+
+        # Ensure an Elev row exists for this CPR before creating the bevilling.
+        #
+        # The child list in the OS2Forms formular comes from the MitID registry,
+        # which is external to this application — so ANY submission (child picked
+        # from the list OR entered manually) may reference a CPR that has no Elev
+        # row here, and the Bevilling.cpr_elev → Elev.cpr foreign key would fail.
+        # create_elev is get-or-create, so it is a no-op when the Elev exists.
+        CitizenService(db=self.db).create_elev(
+            {
+                "cpr": cpr,
+                "adresseringsnavn": os2forms_mapping.get_barn_navn(payload),
+                "adresse_id": bevilling_request.adresse_id,
+            }
+        )
 
         # Reuse BevillingService for the actual creation logic.
         #

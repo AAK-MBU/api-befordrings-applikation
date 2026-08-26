@@ -125,6 +125,16 @@ def get_adresse_for_bevilling(payload: dict) -> str | None:
     return barnets_adresse
 
 
+def get_barn_navn(payload: dict) -> str | None:
+    """Determine the child's name from an OS2Forms payload.
+
+    Prefers the MitID-supplied name, falling back to the manually entered
+    name (used when the child could not be picked from the list).
+    """
+
+    return payload.get("barnets_navn_mitid") or payload.get("barnets_navn_manuelt")
+
+
 def get_hjaelpemiddel_names(payload: dict) -> list[str]:
     """Extract hjaelpemiddel names from the OS2Forms payload.
 
