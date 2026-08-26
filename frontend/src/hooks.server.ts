@@ -8,6 +8,7 @@ import {
   serializeLoginAttemptCleared,
   serializeReturnTo
 } from "$lib/server/auth";
+import { noAccessPage } from "$lib/server/noAccess";
 
 
 /**
@@ -113,6 +114,24 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
 
     return loginRedirect(event.url);
+  }
+
+  // Authenticated, but the IdP assigned no roles for this system. Roles are
+  // granted centrally (Systemregisteret -> IdP claim), so there is nothing to
+  // do in-app: show what to do about it and resolve nothing else.
+  if (probe.user.roles.length === 0) {
+    // Logged, because the guard is now the only place this is visible: a denied
+    // user cannot reach /whoami to see their own claims either.
+    console.warn(`[auth] no roles for ${probe.user.sub} — access denied`);
+
+    // Same reasoning as the anonymous branch: /backend/* is fetch()ed by
+    // already-loaded pages, so answer with a status rather than an HTML page
+    // that would blow up in response.json().
+    if (matchesPath(event.url.pathname, "/backend")) {
+      return new Response(null, { status: 403 });
+    }
+
+    return noAccessPage(probe.user);
   }
 
   event.locals.user = probe.user;
