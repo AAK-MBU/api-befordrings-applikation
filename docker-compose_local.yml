@@ -10,7 +10,14 @@ services:
       OIDC_ISSUER: ${OIDC_ISSUER}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
-      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI}
+      # Where the IdP sends the browser back after login. .env holds the
+      # deployed value; using it here would hand the IdP a redirect_uri on the
+      # real host, so a local login would leave localhost and 404 on the edge
+      # proxy. Point it at the frontend this file publishes on :80 instead —
+      # /callback is the SvelteKit route that finishes the flow.
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI_LOCAL:-http://localhost/callback}
+      # Must be the /tfp/ path form, not ?p=<policy> — see backend/app/core/oidc.py.
+      OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
       OIDC_SCOPES: ${OIDC_SCOPES}
       OIDC_ENVIRONMENT: ${OIDC_ENVIRONMENT}
       SESSION_SECRET: ${SESSION_SECRET}

@@ -80,8 +80,9 @@ app.add_middleware(
 # create_oidc_router already applies the /auth prefix internally, so routes
 # are mounted at /auth/login, /auth/callback and /auth/logout.
 #
-# OIDC_REDIRECT_URI must be set to http://<host>:<port>/auth/callback to
-# match the callback path that this router exposes.
+# OIDC_REDIRECT_URI points at the *frontend's* /callback, not at the
+# /auth/callback below. The frontend owns the return leg so it can restore the
+# page the user originally asked for, then forwards the code here.
 app.include_router(create_oidc_router(oidc_config))
 
 # Register all API v1 routers.
