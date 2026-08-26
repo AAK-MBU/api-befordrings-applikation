@@ -1113,6 +1113,4 @@ PRINT '';
 PRINT 'ROLLBACK is active. Change to COMMIT when the data looks correct.';
 PRINT '';
 
-PRINT 'hello';
-
 ROLLBACK TRANSACTION;
