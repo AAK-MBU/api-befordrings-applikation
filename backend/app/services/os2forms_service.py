@@ -19,9 +19,11 @@ from fastapi import HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.adresse import Adresse
 from app.models.lookup import Hjaelpemiddel, Skolematrikel, Ungdomsuddannelse
 from app.schemas.bevilling import BevillingCreateRequest
 from app.services.bevilling_service import BevillingService
+from app.services.citizen_service import CitizenService
 from app.utils import date_utils
 from app.utils import os2forms_mapping
 
@@ -116,6 +118,29 @@ class OS2FormsService:
                 Ungdomsuddannelse.ungdomsuddannelse_navn == school_name
             )
         ).scalar_one_or_none()
+
+
+    def _resolve_adresse_id(self, payload: dict) -> str | None:
+        """Resolve the bevilling address text to an Adresse.adresse_id.
+
+        OS2Forms provides a free-text address string, but BevillingCreateRequest
+        needs the adresse_id it maps to. Resolve it by exact match against the
+        Adresse register — the same mechanism as GET /adresse/by-tekst. Returns
+        None when no address is present or no exact match is found; in that case
+        create_bevilling raises a clear 422 for the missing address rather than
+        a 500.
+        """
+
+        adresse_tekst = os2forms_mapping.get_adresse_for_bevilling(payload)
+
+        if not adresse_tekst:
+            return None
+
+        return self.db.execute(
+            select(Adresse.adresse_id)
+            .where(Adresse.adresse_tekst == adresse_tekst)
+            .limit(1)
+        ).scalars().first()
 
 
     def _resolve_school(self, payload: dict) -> dict:
@@ -222,7 +247,7 @@ class OS2FormsService:
         school = self._resolve_school(payload)
 
         return BevillingCreateRequest(
-            adresse_for_bevilling=os2forms_mapping.get_adresse_for_bevilling(payload),
+            adresse_id=self._resolve_adresse_id(payload),
             matrikel_id=school["matrikel_id"],
             ungdomsuddannelse_id=school["ungdomsuddannelse_id"],
             ansoegningsdato=date_utils.parse_os2forms_timestamp(payload.get("completed")),
@@ -266,6 +291,21 @@ class OS2FormsService:
 
         # Convert OS2Forms field names/values into the internal API schema.
         bevilling_request = self.map_submission_to_bevilling(payload)
+
+        # Ensure an Elev row exists for this CPR before creating the bevilling.
+        #
+        # The child list in the OS2Forms formular comes from the MitID registry,
+        # which is external to this application — so ANY submission (child picked
+        # from the list OR entered manually) may reference a CPR that has no Elev
+        # row here, and the Bevilling.cpr_elev → Elev.cpr foreign key would fail.
+        # create_elev is get-or-create, so it is a no-op when the Elev exists.
+        CitizenService(db=self.db).create_elev(
+            {
+                "cpr": cpr,
+                "adresseringsnavn": os2forms_mapping.get_barn_navn(payload),
+                "adresse_id": bevilling_request.adresse_id,
+            }
+        )
 
         # Reuse BevillingService for the actual creation logic.
         #
