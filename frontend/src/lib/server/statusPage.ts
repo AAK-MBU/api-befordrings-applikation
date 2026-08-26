@@ -47,6 +47,10 @@ export function statusPage({
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} · Befordringssystemet</title>
+<!-- Suppresses the browser's automatic /favicon.ico request. That request goes
+     through the auth guard like any other, and an anonymous one used to consume
+     the login attempt before the user had made one. -->
+<link rel="icon" href="data:,">
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }

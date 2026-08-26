@@ -44,6 +44,31 @@ function isPublicPath(pathname: string) {
 
 
 /**
+ * Whether this request is a top-level page navigation.
+ *
+ * Only a navigation should start a login. A browser issues plenty of requests
+ * the user never asked for — /favicon.ico on any page, prefetches, in-page
+ * fetch()es — and sending one of those to the IdP accomplishes nothing on its
+ * own. The damage is the login-attempt marker it leaves behind: the user's next
+ * real navigation then looks like a login that came back without a session, and
+ * the guard reports a failure that never happened. The marker is cleared as
+ * that report renders, so the attempt after it succeeds — which makes the whole
+ * thing look intermittent.
+ */
+function isDocumentRequest(request: Request) {
+  const dest = request.headers.get("sec-fetch-dest");
+
+  if (dest) {
+    return dest === "document";
+  }
+
+  // No Sec-Fetch-Dest (older clients, curl): fall back to content negotiation,
+  // erring towards "navigation" so that logging in still works.
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
+
+/**
  * Send the user to the IdP, remembering where they were headed.
  *
  * Built as an explicit Response rather than a thrown redirect() so that the
@@ -115,14 +140,26 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (probe.status === "anonymous") {
     // /backend/* is fetch()ed by already-loaded pages. A 302 to the IdP would
     // resolve to its HTML login page and blow up in response.json(), so answer
-    // with a status the caller can act on.
+    // with a status the caller can act on. Checked by path rather than by
+    // header so it holds for any client, not just browsers.
     if (matchesPath(event.url.pathname, "/backend")) {
+      return new Response(null, { status: 401 });
+    }
+
+    // Anything else that is not a navigation gets the same treatment, and in
+    // particular does not consume the login attempt — see isDocumentRequest.
+    if (!isDocumentRequest(event.request)) {
       return new Response(null, { status: 401 });
     }
 
     // Already been through the IdP and still no session — retrying would just
     // loop, so say what went wrong instead.
     if (event.cookies.get(LOGIN_ATTEMPT_COOKIE)) {
+      console.warn(
+        `[auth] still anonymous at ${event.url.pathname} with the login-attempt ` +
+          "marker set — reporting a failed login round trip"
+      );
+
       return loginLoopDiagnostic();
     }
 
