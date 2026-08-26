@@ -1,6 +1,6 @@
-import { redirect, type Handle } from "@sveltejs/kit";
+import type { Handle } from "@sveltejs/kit";
 
-import { getLoginUrl, probeSession } from "$lib/server/auth";
+import { getLoginUrl, probeSession, serializeReturnTo } from "$lib/server/auth";
 
 
 /**
@@ -33,6 +33,25 @@ function isPublicPath(pathname: string) {
 }
 
 
+/**
+ * Send the user to the IdP, remembering where they were headed.
+ *
+ * Built as an explicit Response rather than a thrown redirect() so that the
+ * Set-Cookie travels with the 302 unambiguously — the destination cookie is
+ * only useful if it survives this exact hop.
+ */
+function loginRedirect(url: URL) {
+  const headers = new Headers({ location: getLoginUrl() });
+
+  headers.append(
+    "set-cookie",
+    serializeReturnTo(`${url.pathname}${url.search}`, url.protocol === "https:")
+  );
+
+  return new Response(null, { status: 302, headers });
+}
+
+
 export const handle: Handle = async ({ event, resolve }) => {
   if (isPublicPath(event.url.pathname)) {
     return resolve(event);
@@ -56,7 +75,7 @@ export const handle: Handle = async ({ event, resolve }) => {
       return new Response(null, { status: 401 });
     }
 
-    redirect(302, getLoginUrl());
+    return loginRedirect(event.url);
   }
 
   event.locals.user = probe.user;
