@@ -204,3 +204,67 @@ export function serializeLoginAttempt(secure: boolean) {
 export function serializeLoginAttemptCleared() {
   return `${LOGIN_ATTEMPT_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
+
+
+export type ForwardedAuth = {
+  response: Response;
+  headers: Headers;
+};
+
+
+/**
+ * Forward a request to one of the backend's /auth/* endpoints.
+ *
+ * The OIDC endpoints are proxied same-origin rather than pointing the browser
+ * straight at the API, because the session cookie the backend sets has to come
+ * back on the app's own origin. Sending the browser to the API host directly
+ * would scope that cookie to the API domain, where the guard's /me probe — which
+ * replays the *app* origin's cookies — would never see it, and every login would
+ * appear to succeed and then leave the user anonymous.
+ *
+ * Returns the raw response alongside a half-built browser-facing header set, so
+ * callers can adjust before finishing with relayAuthResponse.
+ */
+export async function forwardAuthRequest(
+  path: string,
+  search: string,
+  cookie: string | null
+): Promise<ForwardedAuth> {
+  const response = await fetch(`${getApiBaseUrl()}/auth/${path}${search}`, {
+    headers: { cookie: cookie ?? "" },
+    redirect: "manual"
+  });
+
+  const headers = new Headers();
+
+  // getSetCookie(), not get(): the backend may set more than one cookie, and
+  // get() would fold them into a single comma-joined value that no browser
+  // parses back into the original pairs.
+  for (const setCookie of response.headers.getSetCookie()) {
+    headers.append("set-cookie", setCookie);
+  }
+
+  return { response, headers };
+}
+
+
+/**
+ * Finish an auth passthrough.
+ *
+ * On failure the backend explains itself in the body (FastAPI's {"detail":
+ * ...}, e.g. "no pending login state in session"). Dropping it would leave a
+ * blank page as the only symptom, so pass it through.
+ */
+export async function relayAuthResponse({ response, headers }: ForwardedAuth) {
+  if (response.status >= 400) {
+    const contentType = response.headers.get("content-type");
+
+    if (contentType) {
+      headers.set("content-type", contentType);
+    }
+
+    return new Response(await response.text(), { status: response.status, headers });
+  }
+
+  return new Response(null, { status: response.status, headers });
+}

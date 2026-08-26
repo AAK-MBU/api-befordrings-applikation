@@ -13,11 +13,12 @@ import {
 /**
  * Paths that must stay reachable without a session.
  *
- * /callback is the OIDC return leg: it proxies the IdP's authorization code to
- * the backend, which is what *creates* the session. Guarding it would deadlock
- * the flow into a redirect loop.
+ * These are the endpoints that *establish* a session — /api/auth passes login
+ * and logout through to the backend, and /callback is the OIDC return leg
+ * carrying the authorization code. Guarding either would deadlock the flow
+ * into a redirect loop.
  */
-const PUBLIC_PATHS = ["/callback"];
+const PUBLIC_PATHS = ["/callback", "/api/auth"];
 
 
 function matchesPath(pathname: string, candidate: string) {
