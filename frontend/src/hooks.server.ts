@@ -8,6 +8,7 @@ import {
   serializeLoginAttemptCleared,
   serializeReturnTo
 } from "$lib/server/auth";
+import { loggedOutPage } from "$lib/server/loggedOut";
 import { noAccessPage } from "$lib/server/noAccess";
 
 
@@ -84,7 +85,19 @@ function loginLoopDiagnostic() {
 }
 
 
+/** Path B2C returns the browser to once it has ended the session. */
+export const LOGGED_OUT_PATH = "/logged-out";
+
+
 export const handle: Handle = async ({ event, resolve }) => {
+  // Answered before the guard runs, and before resolve(): whoever lands here
+  // has just had their session destroyed, so probing for one would only bounce
+  // them back into the login they just left. Rendered here rather than as a
+  // route so it does not inherit the application shell — see statusPage.ts.
+  if (event.url.pathname === LOGGED_OUT_PATH) {
+    return loggedOutPage();
+  }
+
   if (isPublicPath(event.url.pathname)) {
     return resolve(event);
   }

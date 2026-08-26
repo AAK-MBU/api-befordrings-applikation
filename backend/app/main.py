@@ -83,7 +83,12 @@ app.add_middleware(
 # OIDC_REDIRECT_URI points at the *frontend's* /callback, not at the
 # /auth/callback below. The frontend owns the return leg so it can restore the
 # page the user originally asked for, then forwards the code here.
-app.include_router(create_oidc_router(oidc_config))
+app.include_router(
+    create_oidc_router(
+        oidc_config,
+        post_logout_redirect=settings.oidc_post_logout_redirect,
+    )
+)
 
 # Register all API v1 routers.
 #

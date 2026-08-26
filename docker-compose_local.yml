@@ -19,6 +19,9 @@ services:
       # Must be the /tfp/ path form, not ?p=<policy> — see backend/app/core/oidc.py.
       OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
       OIDC_SCOPES: ${OIDC_SCOPES}
+      # Landing page after logout, served by the frontend on :80. Required —
+      # B2C errors out on a logout request that omits it.
+      OIDC_POST_LOGOUT_REDIRECT: ${OIDC_POST_LOGOUT_REDIRECT_LOCAL:-http://localhost/logged-out}
       OIDC_ENVIRONMENT: ${OIDC_ENVIRONMENT}
       SESSION_SECRET: ${SESSION_SECRET}
       # Point requests at the CA bundle *inside* the container (Linux path),
