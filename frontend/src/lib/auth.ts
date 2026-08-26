@@ -16,4 +16,6 @@ export type CurrentUser = {
   groups: string[];
   organisation: string | null;
   mapped_claims: Record<string, unknown>;
+  /** Full validated ID token payload, for claims not surfaced above. */
+  raw: Record<string, unknown>;
 };

@@ -123,6 +123,10 @@ def me(user: IDTokenClaims = Depends(get_current_user)) -> dict:
         "groups": list(user.groups),
         "organisation": user.organisation,
         "mapped_claims": user.mapped_claims,
+        # The whole validated ID token payload. The curated fields above cover
+        # the common cases; this is what to read when an expected claim is
+        # missing from them because the IdP names it something else.
+        "raw": user.raw,
     }
 
 
