@@ -4,7 +4,7 @@ import { env as publicEnv } from "$env/dynamic/public";
 type FetchFunction = typeof fetch;
 
 
-function getApiBaseUrl() {
+export function getApiBaseUrl() {
   const apiBaseUrl = publicEnv.PUBLIC_API_BASE_URL;
 
   if (!apiBaseUrl) {
