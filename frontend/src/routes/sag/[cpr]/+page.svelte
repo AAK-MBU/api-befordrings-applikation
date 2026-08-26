@@ -147,18 +147,82 @@
     }
   }
 
-  function feedStyle(aktivitet: any): { border: string; icon: string; badgeBg: string; badgeText: string } {
+  function getDisplayLabel(type: string): string {
+    if (type.startsWith("Status sat til ")) return "Status opdateret";
+    const map: Record<string, string> = {
+      "PPR Revurderet":         "PPR vurderet",
+      "BR Revurderet":          "BR vurderet",
+      "PPR revurderet fjernet": "PPR vurderet fjernet",
+      "BR revurderet fjernet":  "BR vurderet fjernet",
+    };
+    return map[type] ?? type;
+  }
+
+  function getCategory(type: string): string {
+    if (type.startsWith("Status sat til ")) return "Status opdateret";
+    return getDisplayLabel(type);
+  }
+
+  function feedStyle(aktivitet: any): { border: string; icon: string; badgeBg: string; badgeText: string; cardBg: string } {
     const type = aktivitet.aktivitetstype ?? "";
     if (type === "PPR Revurderet" || type === "BR Revurderet") {
-      return { border: "border-l-green-500", icon: "check", badgeBg: "bg-green-100", badgeText: "text-green-800" };
+      return { border: "border-l-green-500", icon: "check",    badgeBg: "bg-green-100",  badgeText: "text-green-800",  cardBg: "bg-gray-50" };
+    }
+    if (type === "PPR revurderet fjernet" || type === "BR revurderet fjernet") {
+      return { border: "border-l-gray-300",  icon: "xmark",    badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
     }
     if (type === "Kommentar") {
-      return { border: "border-l-blue-500", icon: "chat", badgeBg: "bg-blue-100", badgeText: "text-blue-800" };
+      return { border: "border-l-blue-500",  icon: "chat",     badgeBg: "bg-blue-500",   badgeText: "text-white",      cardBg: "bg-blue-50" };
     }
     if (type === "Brev oprettet") {
-      return { border: "border-l-purple-500", icon: "gear", badgeBg: "bg-purple-100", badgeText: "text-purple-800" };
+      return { border: "border-l-gray-300",  icon: "envelope", badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
     }
-    return { border: "border-l-gray-300", icon: "gear", badgeBg: "bg-gray-100", badgeText: "text-gray-600" };
+    if (type.startsWith("Status sat til ")) {
+      return { border: "border-l-slate-400", icon: "status",   badgeBg: "bg-slate-100",  badgeText: "text-slate-700",  cardBg: "bg-gray-50" };
+    }
+    return   { border: "border-l-gray-300",  icon: "gear",     badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
+  }
+
+  // Feed filters
+  let filterTypes: string[] = [];
+  let filterFra = "";
+  let filterTil = "";
+  let filterUdfoertAf: string[] = [];
+  let openDropdown: "type" | "sender" | null = null;
+  let sortAsc = false;
+
+  const feedMinDate = new Date(new Date().getFullYear() - 10, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
+  const feedMaxDate = new Date(new Date().getFullYear() + 10, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
+
+  $: uniqueCategories = [...new Set<string>((aktiviteter ?? []).map((a: any) => getCategory(a.aktivitetstype ?? "")))].sort((a: string, b: string) => a.localeCompare(b, "da"));
+  $: uniqueSenders = [...new Set<string>((aktiviteter ?? []).map((a: any) => a.udfoert_af ?? "").filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, "da"));
+  $: feedHasActiveFilters = filterTypes.length > 0 || filterFra !== "" || filterTil !== "" || filterUdfoertAf.length > 0;
+
+  $: filteredAktiviteter = (() => {
+    const list = (aktiviteter ?? []).filter((a: any) => {
+      if (filterTypes.length > 0 && !filterTypes.includes(getCategory(a.aktivitetstype ?? ""))) return false;
+      if (filterFra) {
+        const ts = new Date(a.oprettet_tidspunkt);
+        const fra = new Date(filterFra);
+        if (ts < fra) return false;
+      }
+      if (filterTil) {
+        const ts = new Date(a.oprettet_tidspunkt);
+        const til = new Date(filterTil);
+        til.setHours(23, 59, 59, 999);
+        if (ts > til) return false;
+      }
+      if (filterUdfoertAf.length > 0 && !filterUdfoertAf.includes(a.udfoert_af ?? "")) return false;
+      return true;
+    });
+    return sortAsc ? [...list].reverse() : list;
+  })();
+
+  function clearFeedFilters() {
+    filterTypes = [];
+    filterFra = "";
+    filterTil = "";
+    filterUdfoertAf = [];
   }
 
 
@@ -624,16 +688,19 @@
   }
 </script>
 
-<svelte:window on:keydown={(e) => {
-  if (e.key !== 'Escape') return;
-  if (showCreateBevillingModal) {
-    showCreateBevillingModal = false;
-  }
-  if (showCreateLetterModal) {
-    showCreateLetterModal = false;
-    resetCreateLetterForm();
-  }
-}} />
+<svelte:window
+  on:keydown={(e) => {
+    if (e.key !== 'Escape') return;
+    if (openDropdown) { openDropdown = null; return; }
+    if (showCreateBevillingModal) { showCreateBevillingModal = false; }
+    if (showCreateLetterModal) { showCreateLetterModal = false; resetCreateLetterForm(); }
+  }}
+  on:click={(e) => {
+    if (openDropdown && !(e.target as Element)?.closest?.('.feed-filter-dropdown')) {
+      openDropdown = null;
+    }
+  }}
+/>
 
 <section>
 
@@ -1058,8 +1125,7 @@
       <div class="mt-2">
         <button
           type="button"
-          class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-50"
-          style="background-color: #032A42;"
+          class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-50 bg-blue-500"
           on:click={saveKommentar}
           disabled={savingKommentar || !nyKommentar.trim()}
         >
@@ -1070,53 +1136,197 @@
 
     <!-- Timeline feed -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
-      <div class="flex items-center gap-3 mb-5">
+
+      <!-- Header -->
+      <div class="flex items-center gap-3 mb-4">
         <h2 class="font-semibold text-gray-800">Sagsforløb</h2>
         <span class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-          {aktiviteter?.length ?? 0}
+          {filteredAktiviteter.length}{feedHasActiveFilters && (aktiviteter?.length ?? 0) > 0 ? `/${aktiviteter.length}` : ""}
         </span>
+        <!-- Sort toggle -->
+        <button
+          type="button"
+          class="ml-auto flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+          on:click={() => sortAsc = !sortAsc}
+        >
+          {#if sortAsc}
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0
+l4-4m0 0l4 4m-4-4v12"/></svg>
+            Ældste først
+          {:else}
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4
+v12m0 0l-4-4m4 4l4-4"/></svg>
+            Nyeste først
+          {/if}
+        </button>
       </div>
 
-      {#if !aktiviteter || aktiviteter.length === 0}
-        <p class="text-sm text-gray-400 italic">Ingen aktiviteter registreret endnu.</p>
+      <!-- Filters -->
+      <div class="flex flex-wrap gap-2 mb-3">
+
+        <!-- Aktivitetstype dropdown -->
+        <div class="relative feed-filter-dropdown">
+          <button
+            type="button"
+            class="relative min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 bg-white hover:border-gray-400 text-left"
+            on:click|stopPropagation={() => openDropdown = openDropdown === "type" ? null : "type"}
+          >
+            {filterTypes.length > 0 ? filterTypes.join(", ") : "Alle typer"}
+            <svg class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path
+stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          {#if openDropdown === "type"}
+            <div class="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded shadow-lg min-w-[170px] py-1">
+              {#each uniqueCategories as cat}
+                <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={filterTypes.includes(cat)}
+                    on:change={() => {
+                      filterTypes = filterTypes.includes(cat)
+                        ? filterTypes.filter(t => t !== cat)
+                        : [...filterTypes, cat];
+                    }}
+                    class="rounded border-gray-300 text-blue-500"
+                  />
+                  {cat}
+                </label>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+
+        <!-- Udført af dropdown -->
+        <div class="relative feed-filter-dropdown">
+          <button
+            type="button"
+            class="relative min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 bg-white hover:border-gray-400 text-left"
+            on:click|stopPropagation={() => openDropdown = openDropdown === "sender" ? null : "sender"}
+          >
+            {filterUdfoertAf.length > 0 ? filterUdfoertAf.join(", ") : "Alle afsendere"}
+            <svg class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path
+stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          {#if openDropdown === "sender"}
+            <div class="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded shadow-lg min-w-[170px] py-1">
+              {#each uniqueSenders as sender}
+                <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={filterUdfoertAf.includes(sender)}
+                    on:change={() => {
+                      filterUdfoertAf = filterUdfoertAf.includes(sender)
+                        ? filterUdfoertAf.filter(s => s !== sender)
+                        : [...filterUdfoertAf, sender];
+                    }}
+                    class="rounded border-gray-300 text-blue-500"
+                  />
+                  {sender}
+                </label>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        <!-- Periode -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs text-gray-500">Dato fra</span>
+          <input
+            type="date"
+            bind:value={filterFra}
+            min={feedMinDate}
+            max={feedMaxDate}
+            class="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white"
+          />
+          <span class="text-xs text-gray-500">Til</span>
+          <input
+            type="date"
+            bind:value={filterTil}
+            min={feedMinDate}
+            max={feedMaxDate}
+            class="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white"
+          />
+        </div>
+
+      </div>
+
+      <!-- Active filter bar -->
+      {#if feedHasActiveFilters}
+        <div class="flex items-center justify-between px-3 py-1.5 mb-3 rounded-md bg-sky-50 border border-sky-100 text-xs text-sky-700">
+          <span>Aktive filtre · viser {filteredAktiviteter.length} af {aktiviteter?.length ?? 0}</span>
+          <button type="button" on:click={clearFeedFilters} class="font-medium hover:underline">Ryd filtre</button>
+        </div>
+      {/if}
+
+      {#if filteredAktiviteter.length === 0}
+        <p class="text-sm text-gray-400 italic">
+          {feedHasActiveFilters ? "Ingen aktiviteter matcher de valgte filtre." : "Ingen aktiviteter registreret endnu."}
+        </p>
       {:else}
-        <div class="space-y-2">
-          {#each aktiviteter as aktivitet}
+        <div class="space-y-3">
+          {#each filteredAktiviteter as aktivitet}
             {@const style = feedStyle(aktivitet)}
-            <div class="border-l-4 {style.border} bg-gray-50 rounded-r-lg px-4 py-3">
+            <div class="border-l-4 {style.border} {style.cardBg} border border-gray-100 rounded-r-lg px-4 py-3">
               <div class="flex items-start justify-between gap-2">
+
+                <!-- Left: icon + badge + bevilling pill -->
                 <div class="flex items-center gap-2 flex-wrap">
-                  <!-- Icon -->
                   {#if style.icon === "check"}
                     <svg class="w-3.5 h-3.5 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
+                  {:else if style.icon === "xmark"}
+                    <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   {:else if style.icon === "chat"}
-                    <svg class="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
+                  {:else if style.icon === "envelope"}
+                    <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  {:else if style.icon === "status"}
+                    <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
                   {:else}
-                    <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   {/if}
-                  <!-- Type badge -->
                   <span class="px-2 py-0.5 rounded text-xs font-medium {style.badgeBg} {style.badgeText}">
-                    {aktivitet.aktivitetstype}
+                    {getDisplayLabel(aktivitet.aktivitetstype ?? "")}
                   </span>
-                  <!-- Sender -->
-                  {#if aktivitet.udfoert_af}
-                    <span class="text-xs text-gray-500">· {aktivitet.udfoert_af}</span>
+                  {#if aktivitet.relateret_bevilling_id}
+                    <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">Bevilling #{aktivitet.relateret_bevilling_id}</span>
                   {/if}
                 </div>
-                <!-- Timestamp -->
-                <span class="text-xs text-gray-400 whitespace-nowrap shrink-0">
-                  {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
-                </span>
+
+                <!-- Right: timestamp + sender -->
+                <div class="flex flex-col items-end shrink-0 text-right gap-0.5">
+                  <span class="text-xs text-gray-500 whitespace-nowrap">
+                    {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
+                  </span>
+                  {#if aktivitet.udfoert_af}
+                    {#if aktivitet.udfoert_af === "System"}
+                      <span class="text-xs italic text-gray-500">System</span>
+                    {:else}
+                      <span class="text-xs font-medium text-gray-700">{aktivitet.udfoert_af}</span>
+                    {/if}
+                  {/if}
+                </div>
+
               </div>
               {#if aktivitet.kommentar}
-                <p class="mt-2 text-sm text-gray-800 whitespace-pre-wrap">{aktivitet.kommentar}</p>
+                <p
+                  class="mt-2 text-sm whitespace-pre-wrap"
+                  class:text-blue-900={aktivitet.aktivitetstype === 'Kommentar'}
+                  class:text-gray-800={aktivitet.aktivitetstype !== 'Kommentar'}
+                >{aktivitet.kommentar}</p>
               {/if}
             </div>
           {/each}
