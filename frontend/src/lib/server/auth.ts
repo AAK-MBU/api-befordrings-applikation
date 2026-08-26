@@ -26,6 +26,17 @@ export function getLoginUrl() {
 
 
 /**
+ * Browser-facing URL that ends the session.
+ *
+ * Mirrors getLoginUrl: create_oidc_router() mounts /auth/logout next to
+ * /auth/login, so the same prefix rules apply.
+ */
+export function getLogoutUrl() {
+  return publicEnv.PUBLIC_OIDC_LOGOUT_URL || "/api/auth/logout";
+}
+
+
+/**
  * Ask the backend who the *browser* is, by replaying its cookie against /me.
  *
  * Deliberately does not go through backendApiFetch: that stamps the shared
