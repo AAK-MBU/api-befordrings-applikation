@@ -1,6 +1,13 @@
 import type { Handle } from "@sveltejs/kit";
 
-import { getLoginUrl, probeSession, serializeReturnTo } from "$lib/server/auth";
+import {
+  getLoginUrl,
+  LOGIN_ATTEMPT_COOKIE,
+  probeSession,
+  serializeLoginAttempt,
+  serializeLoginAttemptCleared,
+  serializeReturnTo
+} from "$lib/server/auth";
 
 
 /**
@@ -41,14 +48,37 @@ function isPublicPath(pathname: string) {
  * only useful if it survives this exact hop.
  */
 function loginRedirect(url: URL) {
+  const secure = url.protocol === "https:";
   const headers = new Headers({ location: getLoginUrl() });
 
   headers.append(
     "set-cookie",
-    serializeReturnTo(`${url.pathname}${url.search}`, url.protocol === "https:")
+    serializeReturnTo(`${url.pathname}${url.search}`, secure)
   );
+  headers.append("set-cookie", serializeLoginAttempt(secure));
 
   return new Response(null, { status: 302, headers });
+}
+
+
+/**
+ * Reported when a completed login round trip left the browser still anonymous.
+ *
+ * Almost always the backend's session cookie failing to persist, so name the
+ * thing to go and look at rather than bouncing to the IdP again.
+ */
+function loginLoopDiagnostic() {
+  const headers = new Headers({ "content-type": "text/plain; charset=utf-8" });
+
+  headers.append("set-cookie", serializeLoginAttemptCleared());
+
+  return new Response(
+    "Login gennemført, men der blev ikke oprettet en session.\n\n" +
+      "Session-cookien fra API'et nåede ikke browseren. Tjek at /auth/callback " +
+      "returnerer en Set-Cookie header, og at reverse proxy'en videresender den.\n\n" +
+      "Genindlæs siden for at prøve igen.",
+    { status: 503, headers }
+  );
 }
 
 
@@ -73,6 +103,12 @@ export const handle: Handle = async ({ event, resolve }) => {
     // with a status the caller can act on.
     if (matchesPath(event.url.pathname, "/backend")) {
       return new Response(null, { status: 401 });
+    }
+
+    // Already been through the IdP and still no session — retrying would just
+    // loop, so say what went wrong instead.
+    if (event.cookies.get(LOGIN_ATTEMPT_COOKIE)) {
+      return loginLoopDiagnostic();
     }
 
     return loginRedirect(event.url);

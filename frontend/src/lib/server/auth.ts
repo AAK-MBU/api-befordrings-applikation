@@ -160,3 +160,47 @@ export function safeReturnTo(target: string | undefined): string | null {
 
   return target;
 }
+
+
+/**
+ * Cookie marking that we just sent this browser through the login flow.
+ *
+ * Guards against the classic auth redirect loop: if the backend's session
+ * cookie never sticks — wrong SameSite, a Secure flag on a plain-http
+ * deployment, a proxy dropping Set-Cookie — then /me keeps answering 401, the
+ * guard keeps redirecting, and the browser bounces forever with no clue why.
+ *
+ * Coming back still anonymous within this window means the round trip failed,
+ * so the guard reports that instead of retrying.
+ */
+export const LOGIN_ATTEMPT_COOKIE = "oidc_login_attempt";
+
+// Comfortably longer than a redirect round trip, far shorter than a real login
+// (which ends authenticated anyway, so it never reaches the breaker).
+const LOGIN_ATTEMPT_MAX_AGE_SECONDS = 60;
+
+
+export function serializeLoginAttempt(secure: boolean) {
+  const attributes = [
+    `${LOGIN_ATTEMPT_COOKIE}=1`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${LOGIN_ATTEMPT_MAX_AGE_SECONDS}`
+  ];
+
+  if (secure) {
+    attributes.push("Secure");
+  }
+
+  return attributes.join("; ");
+}
+
+
+/**
+ * Clear the marker so a manual reload retries the login rather than sticking
+ * on the diagnostic.
+ */
+export function serializeLoginAttemptCleared() {
+  return `${LOGIN_ATTEMPT_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}

@@ -50,6 +50,22 @@ export const GET: RequestHandler = async ({ url, request, cookies }) => {
     headers.append("set-cookie", serializeReturnToCleared());
   }
 
+  // On failure the backend explains itself in the body (FastAPI's {"detail":
+  // ...}, e.g. "no pending login state in session"). Dropping it would leave a
+  // blank page as the only symptom, so pass it through.
+  if (response.status >= 400) {
+    const contentType = response.headers.get("content-type");
+
+    if (contentType) {
+      headers.set("content-type", contentType);
+    }
+
+    return new Response(await response.text(), {
+      status: response.status,
+      headers
+    });
+  }
+
   return new Response(null, {
     status: response.status,
     headers
