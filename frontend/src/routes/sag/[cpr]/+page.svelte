@@ -3,6 +3,7 @@
 
   import { backendFetch } from "$lib/client/backendFetch";
 
+  import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import BevillingTable from "$lib/components/BevillingTable.svelte";
   import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
@@ -15,6 +16,10 @@
   import { firstInvalidDate } from "$lib/dates";
 
   export let data;
+
+  // can_edit is resolved by the backend from EDIT_ROLES (see GET /me), so the
+  // UI cannot drift from what require_edit actually enforces.
+  $: canEdit = data.user?.can_edit ?? false;
 
 
   // -----------------------------
@@ -704,6 +709,8 @@
 
 <section>
 
+  <ReadOnlyNotice />
+
   <!-- Protection warning -->
   {#if stamdata?.navne_adresse_beskyttelse}
     <div class="mb-4 rounded-lg border-l-4 border-red-500 bg-red-50 p-4 text-red-900">
@@ -925,8 +932,9 @@
       <div class="flex gap-2">
       <button
         type="button"
-        class="px-4 py-2 text-sm font-medium text-white rounded transition-colors"
+        class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         style="background-color: #032A42;"
+        disabled={!canEdit}
         on:click={() => { createBevillingMode = 'kopi'; showCreateBevillingModal = true; }}
       >
         + Ny bevilling fra kopi
@@ -934,8 +942,9 @@
 
       <button
         type="button"
-        class="px-4 py-2 text-sm font-medium text-white rounded transition-colors"
+        class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         style="background-color: #032A42;"
+        disabled={!canEdit}
         on:click={() => { createBevillingMode = 'tom'; showCreateBevillingModal = true; }}
       >
         + Ny bevilling fra tom
@@ -943,7 +952,8 @@
 
       <button
         type="button"
-        class="px-4 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
+        class="px-4 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        disabled={!canEdit}
         on:click={() => showCreateLetterModal = true}
       >
         + Opret brev

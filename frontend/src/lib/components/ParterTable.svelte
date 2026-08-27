@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from "$app/stores";
   import { invalidateAll } from "$app/navigation";
   import { backendFetch } from "$lib/client/backendFetch";
   import { formatCpr } from "$lib/tableColumnConfig";
@@ -162,6 +163,10 @@
   }
 
 
+  // From $page rather than a prop — see ReadOnlyNotice for why not a store.
+  $: canEdit = $page.data.user?.can_edit ?? false;
+
+
   async function save() {
     if (saving) return;
     saving = true;
@@ -314,8 +319,8 @@
             <td class="px-3 py-2">{p.relation ?? "—"}</td>
             <td class="px-3 py-2">{p.telefonnummer ?? "—"}</td>
             <td class="px-3 py-2 text-right whitespace-nowrap">
-              <button type="button" disabled={editingId !== null} class="px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed" on:click={() => startEdit(p)}>Redigér</button>
-              <button type="button" disabled={editingId !== null} class="ml-1 px-3 py-1 text-xs font-medium text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed" on:click={() => (confirmingDeleteId = p.part_id)}>Slet</button>
+              <button type="button" disabled={editingId !== null || !canEdit} class="px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed" on:click={() => startEdit(p)}>Redigér</button>
+              <button type="button" disabled={editingId !== null || !canEdit} class="ml-1 px-3 py-1 text-xs font-medium text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed" on:click={() => (confirmingDeleteId = p.part_id)}>Slet</button>
             </td>
           {/if}
         </tr>
@@ -334,7 +339,7 @@
   <div class="mt-3">
     <button
       type="button"
-      disabled={editingId !== null}
+      disabled={editingId !== null || !canEdit}
       class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       style="background-color: #032A42;"
       on:click={startAdd}

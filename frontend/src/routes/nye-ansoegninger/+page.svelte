@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
+  import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import { backendFetch } from "$lib/client/backendFetch";
   import { formatDanishDate, getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
@@ -221,6 +222,9 @@
       <p class="text-sm text-gray-500 mt-0.5">Ansøgninger der afventer behandling</p>
     </div>
   </div>
+
+
+  <ReadOnlyNotice />
 
 
   {#if assignError}

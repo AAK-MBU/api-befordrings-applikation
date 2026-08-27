@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
   import KoerselsraekkeTable from "$lib/components/KoerselsraekkeTable.svelte";
   import AddresseSearch from "$lib/components/AddresseSearch.svelte";
@@ -79,6 +80,10 @@
   let editingBevillingId: number | null = null;
   let editableBevilling: any = {};
   let editError: string | null = null;
+
+  // From $page rather than a prop: this component is nested and a module-level
+  // store would be shared across concurrent SSR requests. See ReadOnlyNotice.
+  $: canEdit = $page.data.user?.can_edit ?? false;
 
   let selectedHjaelpemiddelIds: number[] = [];
   let hjaelpemiddelSelectValue = "";
@@ -506,7 +511,8 @@
                 <button
                   type="button"
                   title="Slet bevilling"
-                  class="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                  disabled={!canEdit}
+                  class="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   on:click={() => { confirmingDeleteBevillingId = bevilling.bevilling_id; deleteError = null; }}
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -518,7 +524,8 @@
             {:else}
               <button
                 type="button"
-                class="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                disabled={!canEdit}
+                class="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 on:click={() => startEdit(bevilling)}
               >
                 Redigér

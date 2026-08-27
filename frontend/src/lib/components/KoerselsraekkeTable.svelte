@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from "$app/stores";
   import { formatDanishDate } from "$lib/tableColumnConfig";
   import { backendFetch } from "$lib/client/backendFetch";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
@@ -222,6 +223,10 @@
   let confirmingDeleteKoerselId: number | null = null;
   let isDeleting = false;
   let deleteError: string | null = null;
+
+  // From $page rather than a prop: this component is nested two levels deep and
+  // a module-level store would be shared across concurrent SSR requests.
+  $: canEdit = $page.data.user?.can_edit ?? false;
 
   async function doDeleteKoerselsraekke() {
     if (isDeleting || confirmingDeleteKoerselId === null || !onDeleteKoerselsraekke) return;
@@ -724,7 +729,8 @@
     <div class="pt-1 mb-2">
       <button
         type="button"
-        class="text-sm font-medium text-sky-700 hover:underline"
+        disabled={!canEdit}
+        class="text-sm font-medium text-sky-700 hover:underline disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed"
         on:click={startCreate}
       >
         + Ny kørselsrække
@@ -769,7 +775,8 @@
             <button
               type="button"
               title="Slet kørselsrække"
-              class="p-1 text-gray-400 hover:text-red-600 transition-colors"
+              disabled={!canEdit}
+              class="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               on:click={() => { confirmingDeleteKoerselId = row.koersel_id; deleteError = null; }}
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1123,7 +1130,8 @@
               {#if !readonly}
                 <button
                   type="button"
-                  class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  disabled={!canEdit}
+                  class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   on:click={() => startEdit(row)}
                 >
                   Redigér
@@ -1138,7 +1146,8 @@
               <!-- Unlocked state: redigér + lock button -->
               <button
                 type="button"
-                class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                disabled={!canEdit}
+                class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 on:click={() => startEdit(row)}
               >
                 Redigér
