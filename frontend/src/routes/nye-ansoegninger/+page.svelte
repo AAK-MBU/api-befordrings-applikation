@@ -9,6 +9,12 @@
   $: ansoegninger = data.ansoegninger ?? [];
   $: sagsbehandlere = data.sagsbehandlere ?? [];
   $: pprSagsbehandlere = data.pprSagsbehandlere ?? [];
+  // Layout data flows into page data, so the signed-in user is available here.
+  // can_edit is resolved by the backend from EDIT_ROLES — see GET /me.
+  $: canEdit = data.user?.can_edit ?? false;
+
+  let assignError: string | null = null;
+
   $: overOneWeek = ansoegninger.filter(a => (daysSince(a.ansoegningsdato) ?? 0) >= 7).length;
   $: overTwoWeeks = ansoegninger.filter(a => (daysSince(a.ansoegningsdato) ?? 0) >= 10).length;
 
@@ -20,6 +26,16 @@
     const field = target.dataset.field;
     const value = target.value === "" ? null : Number(target.value);
 
+    // A <select> shows the new option the moment it is picked, before anything
+    // has been saved. If the write is refused the displayed value is a lie, so
+    // put it back — otherwise the page claims an assignment that does not exist
+    // until the next reload silently undoes it.
+    const revert = () => {
+      target.value = target.dataset.current ?? "";
+    };
+
+    assignError = null;
+
     const res = await backendFetch(`/bevilling/${bevillingId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -27,7 +43,24 @@
     });
 
     if (!res.ok) {
-      console.error(`Failed to update bevilling ${bevillingId}:`, res.status, await res.text());
+      revert();
+
+      let message = "Tildelingen kunne ikke gemmes";
+
+      try {
+        const body = await res.json();
+        const detail = body?.detail?.message ?? body?.detail;
+
+        if (typeof detail === "string") {
+          message = detail;
+        }
+      } catch {
+        // Keep the fallback; a non-JSON body has nothing better to offer.
+      }
+
+      assignError = message;
+      console.error(`Failed to update bevilling ${bevillingId}:`, res.status, message);
+
       return;
     }
 
@@ -72,10 +105,17 @@
     const opts = options
       .map(o => `<option value="${o.id}" ${currentId === o.id ? "selected" : ""}>${o.label}</option>`)
       .join("");
+
+    // data-current lets a refused change be put back where it was.
+    // The disabled attribute is a courtesy, not a control: require_edit on the
+    // backend is what actually refuses the write.
     return `<select
       data-bevilling-id="${bevillingId}"
       data-field="${field}"
-      class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:border-blue-400 focus:outline-none"
+      data-current="${currentId ?? ""}"
+      ${canEdit ? "" : "disabled"}
+      ${canEdit ? "" : 'title="Du har ikke rettigheder til at ændre tildeling"'}
+      class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:border-blue-400 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
     >
       <option value="">${placeholder}</option>
       ${opts}
@@ -181,6 +221,20 @@
       <p class="text-sm text-gray-500 mt-0.5">Ansøgninger der afventer behandling</p>
     </div>
   </div>
+
+
+  {#if assignError}
+    <div class="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+      <p class="text-sm text-red-700 flex-1">{assignError}</p>
+      <button
+        type="button"
+        class="text-sm font-medium text-red-700 hover:underline shrink-0"
+        on:click={() => (assignError = null)}
+      >
+        Luk
+      </button>
+    </div>
+  {/if}
 
 
   <!-- Summary card -->
