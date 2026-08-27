@@ -92,14 +92,23 @@
   let deleteError: string | null = null;
 
   async function doDeleteBevilling() {
-    if (confirmingDeleteBevillingId === null || !onDeleteBevilling) return;
+    if (isDeleting || confirmingDeleteBevillingId === null || !onDeleteBevilling) return;
     isDeleting = true;
     deleteError = null;
-    const id = confirmingDeleteBevillingId;
-    confirmingDeleteBevillingId = null;
-    const error = await onDeleteBevilling(id);
-    if (error) deleteError = error;
+
+    const error = await onDeleteBevilling(confirmingDeleteBevillingId);
+
     isDeleting = false;
+
+    // deleteError is rendered inside this dialog, so the dialog has to outlive
+    // the failure. Closing it first — as this did — discarded the reason and
+    // made a refused delete look exactly like a successful one.
+    if (error) {
+      deleteError = error;
+      return;
+    }
+
+    confirmingDeleteBevillingId = null;
   }
 
 

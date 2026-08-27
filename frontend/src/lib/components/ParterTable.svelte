@@ -141,6 +141,27 @@
     return digits === "" ? null : digits;
   };
 
+  /**
+   * The server's reason for refusing, or `fallback` when it gave none usable.
+   *
+   * Worth surfacing rather than reporting a generic failure: an authorisation
+   * refusal explains that rights are granted centrally, which the user can act
+   * on, whereas "Kunne ikke gemme part" tells them nothing. FastAPI puts the
+   * text in `detail`, but validation errors make that an array — anything that
+   * is not a string falls back rather than rendering as "[object Object]".
+   */
+  async function refusalReason(res: Response, fallback: string): Promise<string> {
+    try {
+      const body = await res.json();
+      const detail = body?.detail?.message ?? body?.detail;
+
+      return typeof detail === "string" ? detail : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+
   async function save() {
     if (saving) return;
     saving = true;
@@ -168,7 +189,7 @@
             });
 
       if (!res.ok) {
-        alert("Kunne ikke gemme part");
+        alert(await refusalReason(res, "Kunne ikke gemme part"));
         return;
       }
 
@@ -188,7 +209,7 @@
       const res = await backendFetch(`/part/${confirmingDeleteId}`, { method: "DELETE" });
 
       if (!res.ok) {
-        alert("Kunne ikke slette part");
+        alert(await refusalReason(res, "Kunne ikke slette part"));
         return;
       }
 

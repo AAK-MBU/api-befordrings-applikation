@@ -224,14 +224,23 @@
   let deleteError: string | null = null;
 
   async function doDeleteKoerselsraekke() {
-    if (confirmingDeleteKoerselId === null || !onDeleteKoerselsraekke) return;
+    if (isDeleting || confirmingDeleteKoerselId === null || !onDeleteKoerselsraekke) return;
     isDeleting = true;
     deleteError = null;
-    const id = confirmingDeleteKoerselId;
-    confirmingDeleteKoerselId = null;
-    const error = await onDeleteKoerselsraekke(id);
-    if (error) deleteError = error;
+
+    const error = await onDeleteKoerselsraekke(confirmingDeleteKoerselId);
+
     isDeleting = false;
+
+    // deleteError is rendered inside this dialog, so the dialog has to outlive
+    // the failure. Closing it first — as this did — discarded the reason and
+    // made a refused delete look exactly like a successful one.
+    if (error) {
+      deleteError = error;
+      return;
+    }
+
+    confirmingDeleteKoerselId = null;
   }
 
   function doLockedEdit() {
