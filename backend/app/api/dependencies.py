@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from oidc_auth.integrations import get_current_user
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import api_key_header, get_valid_api_key_hashes, hash_api_key
 
@@ -123,3 +124,56 @@ def user_can_delete(principal: Annotated[object, Depends(require_auth)]) -> bool
 
 
 CanDelete = Annotated[bool, Depends(user_can_delete)]
+
+
+def edit_role_names() -> frozenset[str]:
+    """Role claim values permitted to write, lowercased for comparison.
+
+    Claim values arrive from the IdP in whatever case Systemregisteret assigned,
+    so both sides of the comparison are normalised.
+    """
+    return frozenset(
+        role.strip().lower()
+        for role in settings.edit_roles.split(",")
+        if role.strip()
+    )
+
+
+def require_edit(principal: Annotated[object, Depends(require_auth)]) -> object:
+    """Authorise a write. Reads are open to every role, writes are not.
+
+    Automated callers pass through untouched. An RPA bot authenticates with an
+    API key and holds no roles at all, so applying the role check to it would
+    lock out the OS2Forms conversion flow and /citizen/create_elev. require_auth
+    has already validated that key; a caller holding it is trusted here.
+
+    For a browser session the check is real, and it only works because
+    /backend/* forwards the user's session cookie *instead of* the shared API
+    key — otherwise require_auth would resolve every browser write as an API-key
+    caller and this dependency would silently permit everything.
+
+    Roles are assigned centrally in the IdP, so the 403 says so rather than
+    implying there is something to change in this application.
+    """
+    if isinstance(principal, dict):
+        return principal
+
+    roles = {str(role).lower() for role in (getattr(principal, "roles", None) or ())}
+
+    if not roles & edit_role_names():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Din bruger har ikke rettigheder til at ændre data. "
+                "Rettigheder tildeles centralt via Systemregisteret."
+            ),
+        )
+
+    return principal
+
+
+# Applied per endpoint via the route decorator's `dependencies=` argument, so
+# that endpoint signatures stay unchanged:
+#
+#     @router.put("/{id}", dependencies=[RequireEdit])
+RequireEdit = Depends(require_edit)

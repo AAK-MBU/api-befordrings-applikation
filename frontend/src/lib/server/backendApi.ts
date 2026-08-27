@@ -35,6 +35,29 @@ function normalizePath(path: string) {
 }
 
 
+/**
+ * Call the backend *as the signed-in user* rather than as this application.
+ *
+ * The shared API key is deliberately absent. require_auth on the backend checks
+ * that key first and returns without ever looking at the user, so sending both
+ * would resolve every browser request as an anonymous automated caller: role
+ * checks would silently pass, and audit attribution would record "System"
+ * instead of the person who made the change.
+ *
+ * The caller's Cookie header has to be forwarded in `options` for this to
+ * authenticate — that cookie is the session. Only safe for requests that
+ * originate from a browser with a session; server-initiated calls with no user
+ * behind them still belong on backendApiFetch.
+ */
+export function backendUserFetch(
+  fetchFn: FetchFunction,
+  path: string,
+  options: RequestInit = {}
+) {
+  return fetchFn(`${getApiBaseUrl()}${normalizePath(path)}`, options);
+}
+
+
 export function backendApiFetch(
   fetchFn: FetchFunction,
   path: string,

@@ -55,6 +55,12 @@ class Settings:
     oidc_post_logout_redirect: str | None = (
         os.getenv("OIDC_POST_LOGOUT_REDIRECT") or None
     )
+    # Comma-separated IdP role claim values that may write. Configurable
+    # because the values are provisioned in Systemregisteret, so they can be
+    # renamed there without a code change. Roles that are not listed can read.
+    # `or`, not a getenv default: an env var set to "" would otherwise leave
+    # the set empty and lock every user out of writing.
+    edit_roles: str = os.getenv("EDIT_ROLES") or "admin,user-edit"
 
     # Secret used to sign the Starlette session cookie.
     session_secret: str = os.getenv("SESSION_SECRET", "dev-only-change-in-prod")

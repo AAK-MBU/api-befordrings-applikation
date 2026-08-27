@@ -19,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from oidc_auth import IDTokenClaims
 from oidc_auth.integrations import create_oidc_router, get_current_user
 
+from app.api.dependencies import edit_role_names
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.oidc import oidc_config
@@ -128,6 +129,13 @@ def me(user: IDTokenClaims = Depends(get_current_user)) -> dict:
         "groups": list(user.groups),
         "organisation": user.organisation,
         "mapped_claims": user.mapped_claims,
+        # Resolved here so the UI does not have to re-implement the rule and
+        # drift from it: EDIT_ROLES is configurable, and this is the same
+        # comparison require_edit performs when a write actually arrives.
+        # Purely for presentation — hiding a control is not enforcement.
+        "can_edit": bool(
+            {str(role).lower() for role in user.roles} & edit_role_names()
+        ),
         # The whole validated ID token payload. The curated fields above cover
         # the common cases; this is what to read when an expected claim is
         # missing from them because the IdP names it something else.
