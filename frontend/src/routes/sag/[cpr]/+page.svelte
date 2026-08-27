@@ -6,7 +6,6 @@
   import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import BevillingTable from "$lib/components/BevillingTable.svelte";
-  import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
   import ParterTable from "$lib/components/ParterTable.svelte";
   import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
   import {
@@ -958,8 +957,6 @@
       >
         + Opret brev
       </button>
-
-      <UpdateTemplateButton class="px-4 py-2 text-sm" />
       </div>
     </div>
 

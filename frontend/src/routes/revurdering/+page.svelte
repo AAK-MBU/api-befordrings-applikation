@@ -3,7 +3,6 @@
     import { backendFetch } from "$lib/client/backendFetch";
     import { formatDanishDate, getStatusBadgeClass, formatCpr, getBefordringstypeBadgeClass } from "$lib/tableColumnConfig";
     import BevillingTable from "$lib/components/BevillingTable.svelte";
-    import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
     import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
@@ -678,8 +677,6 @@
     </div>
 
     <div class="flex items-center gap-4 flex-wrap">
-
-      <UpdateTemplateButton class="px-3 py-1.5 text-xs" />
 
       {#if uniqueSkoler.length > 0}
         <select class="min-w-[180px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedSkole}>
