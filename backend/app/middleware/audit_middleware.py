@@ -1,0 +1,293 @@
+"""Middleware that audit-logs API calls into PortalAuditLog."""
+
+import json
+import time
+import traceback
+
+from fastapi import Request
+from starlette.concurrency import run_in_threadpool
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+from app.core.database import SessionLocal
+from app.schemas.audit import AuditLogCreate
+from app.services.audit_log_service import create_audit_log
+
+
+# Routes with no audit value.
+#
+# /me is here because it is not occasional: the SvelteKit guard probes it on
+# every page load *and* on every /backend/* call it proxies, so logging it
+# would roughly double the table with rows that record nothing a user did.
+_SKIPPED_PATHS = frozenset(
+    {
+        "/",
+        "/health",
+        "/me",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    }
+)
+
+
+# Query parameters whose values must never reach the table.
+#
+# /auth/callback carries the OIDC authorization code and state; short-lived,
+# but they are credentials, and an audit table is exactly the sort of
+# long-lived, widely-readable place they should not accumulate in.
+_REDACTED_PARAMS = frozenset({"code", "state", "id_token", "access_token", "token"})
+
+_REDACTED_VALUE = "[redacted]"
+
+
+class AuditLogMiddleware(BaseHTTPMiddleware):
+    """Writes one PortalAuditLog row per business-relevant request.
+
+    The row holds the caller's identity, method and path, query parameters,
+    status code, duration, client IP, user agent and — on failure — an error
+    message read out of the response body. Logging happens in a session opened
+    for the purpose, and a failure to log never affects the response.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        """Run the request onwards and audit-log the outcome.
+
+        The caller's identity is taken from `request.state.api_key_name` when
+        the request authenticated with an API key, otherwise from the OIDC
+        session's email or sub claim; an unauthenticated request is logged with
+        None. A response with status 400 or above has its body read so the
+        error message can be stored — where the body is a stream it is read in
+        full and the response rebuilt, so the caller still receives it. An
+        exception from a route handler is logged as 500 and re-raised.
+
+        Args:
+            request: The incoming request.
+            call_next: The next link in the middleware chain.
+
+        Returns:
+            The response from the next link — for error responses with a
+            streamed body, a new Response carrying the same content, status
+            code and headers.
+        """
+        if request.url.path in _SKIPPED_PATHS:
+            return await call_next(request)
+
+        start_time = time.perf_counter()
+
+        # Identity comes from the OIDC session claims, populated by
+        # SessionMiddleware, which sits outside this middleware. The email
+        # claim is preferred — readable, and stable enough to trace — with the
+        # IdP's opaque subject as the fallback.
+        session = request.scope.get("session") or {}
+        claims = session.get("oidc_claims") or {}
+        user_ident = claims.get("email") or claims.get("sub")
+
+        query_params = self._redacted_query_params(request)
+        ip_address = self._get_client_ip(request)
+        user_agent = request.headers.get("user-agent")
+
+        response = None
+        status_code = None
+        error_message = None
+
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+
+            if status_code >= 400:
+                response, error_message = await self._read_error(response)
+
+        except Exception as exc:
+            status_code = 500
+            error_message = f"{type(exc).__name__}: {exc}"
+
+            print(f"[AuditMiddleware] Exception: {error_message}")
+            traceback.print_exc()
+
+            raise
+
+        finally:
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            # Machine callers (RPA, OS2Forms) hold no OIDC session; require_auth
+            # puts the matched key's name on request.state so those calls are
+            # attributed rather than logged as anonymous.
+            api_key_name = getattr(request.state, "api_key_name", None)
+
+            # The route is matched by the router, which sits inside this
+            # middleware, so scope["route"] is only populated by now. A request
+            # that matched nothing (404) simply has no action.
+            route = request.scope.get("route")
+
+            audit_data = AuditLogCreate(
+                bruger_ident=api_key_name or user_ident,
+                api_key_name=api_key_name,
+                action=getattr(route, "name", None),
+                method=request.method,
+                path=request.url.path,
+                query_params=query_params,
+                status_code=status_code,
+                duration_ms=duration_ms,
+                error_message=error_message,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+
+            # Off the event loop: the driver is synchronous, and blocking here
+            # would stall every other in-flight request for the length of the
+            # insert.
+            await run_in_threadpool(self._write, audit_data)
+
+        return response
+
+    # -------------------------
+    # Helpers
+    # -------------------------
+
+    @staticmethod
+    def _write(audit_data: AuditLogCreate) -> None:
+        """Commit one audit row in its own session.
+
+        Always attempts to log, but a failed write must not poison the
+        response, so everything is caught and reported to the application log
+        instead.
+        """
+        db = None
+
+        try:
+            db = SessionLocal()
+            create_audit_log(db, audit_data)
+            db.commit()
+
+        except Exception as log_error:
+            print(f"[AuditMiddleware] Failed to log: {log_error}")
+            traceback.print_exc()
+
+            if db is not None:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+        finally:
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+    def _redacted_query_params(self, request: Request) -> str | None:
+        """The request's query parameters as JSON, credentials removed.
+
+        Returns:
+            A JSON object of the parameters, with the values of
+            credential-bearing keys replaced. None when the call had none, so
+            the column holds NULL rather than "{}".
+        """
+        if not request.query_params:
+            return None
+
+        params = {
+            key: (_REDACTED_VALUE if key.lower() in _REDACTED_PARAMS else value)
+            for key, value in request.query_params.items()
+        }
+
+        return json.dumps(params, ensure_ascii=False)
+
+    def _get_client_ip(self, request: Request) -> str | None:
+        """The client's IP from x-forwarded-for, x-real-ip, or the connection.
+
+        Every browser call arrives via the SvelteKit proxy, so the connection's
+        host is that container rather than the user; the forwarded headers are
+        what carry the real address. They are also caller-supplied, and the API
+        is reachable directly on the internal network, so treat the value as
+        an indication rather than proof.
+
+        Returns:
+            The first address in x-forwarded-for, else x-real-ip, else the host
+            of the connection the request arrived on, or None.
+        """
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip
+
+        if request.client:
+            return request.client.host
+
+        return None
+
+    async def _read_error(self, response: Response) -> tuple[Response, str | None]:
+        """Read an error response's body so its message can be logged.
+
+        Returns:
+            The response to hand back — rebuilt from the collected bytes when
+            the body was a stream, since reading it leaves it empty — and the
+            extracted error message.
+        """
+        if hasattr(response, "body_iterator"):
+            body = b""
+
+            async for chunk in response.body_iterator:
+                body += chunk
+
+            rebuilt = Response(
+                content=body,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
+
+            return rebuilt, self._extract_error(body, response.status_code)
+
+        if hasattr(response, "body"):
+            return response, self._extract_error(response.body, response.status_code)
+
+        return response, f"HTTP {response.status_code} error"
+
+    def _extract_error(self, body: bytes, status_code: int) -> str:
+        """Pull a readable error message out of an error response's body.
+
+        The body is expected to be FastAPI's JSON with a `detail` key. Where
+        `detail` is a string it is used as-is; where it is a list of validation
+        errors, the first error's `msg` is used together with its `loc` path.
+
+        Returns:
+            The error message, or "HTTP <code> error" when the body is empty,
+            is not JSON, or carries no usable `detail`.
+        """
+        if not body:
+            return f"HTTP {status_code} error"
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+
+            if isinstance(payload, dict) and "detail" in payload:
+                detail = payload["detail"]
+
+                if isinstance(detail, str):
+                    return detail
+
+                if isinstance(detail, list) and detail:
+                    item = detail[0]
+
+                    if isinstance(item, dict):
+                        message = item.get("msg")
+                        location = item.get("loc", [])
+
+                        if location:
+                            path = " -> ".join(map(str, location))
+                            return f"{message} (field: {path})"
+
+                        return message
+
+                return str(detail)
+
+        except Exception:
+            pass
+
+        return f"HTTP {status_code} error"

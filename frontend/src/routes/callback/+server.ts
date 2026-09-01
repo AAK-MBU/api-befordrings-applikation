@@ -20,11 +20,17 @@ import type { RequestHandler } from "./$types";
  * hooks.server.ts leaves this path unguarded — it is what *creates* the
  * session.
  */
-export const GET: RequestHandler = async ({ url, request, cookies }) => {
+export const GET: RequestHandler = async ({
+  url,
+  request,
+  cookies,
+  getClientAddress
+}) => {
   const forwarded = await forwardAuthRequest(
     "callback",
     url.search,
-    request.headers.get("cookie")
+    request.headers.get("cookie"),
+    { ip: getClientAddress(), userAgent: request.headers.get("user-agent") }
   );
 
   const location = forwarded.response.headers.get("location");

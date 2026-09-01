@@ -23,6 +23,7 @@ from app.api.dependencies import edit_role_names
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.oidc import oidc_config
+from app.middleware.audit_middleware import AuditLogMiddleware
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -49,7 +50,14 @@ app = FastAPI(
 )
 
 
-# Session middleware must be added before CORS so that it ends up as the inner
+# Order matters, and it reads backwards: Starlette wraps the *last* middleware
+# added as the outermost layer.  So the audit middleware is added first to end
+# up innermost, with SessionMiddleware around it — that way request.session is
+# already populated when the audit middleware reads the caller's claims, and
+# scope["route"] is set by the router just inside it.
+app.add_middleware(AuditLogMiddleware)
+
+# Session middleware must be added before CORS so that it ends up as an inner
 # layer of the middleware stack.  The session cookie carries OIDC state between
 # the /auth/login redirect and the /auth/callback return.
 # same_site="lax" is required for the IdP redirect to send the cookie back.

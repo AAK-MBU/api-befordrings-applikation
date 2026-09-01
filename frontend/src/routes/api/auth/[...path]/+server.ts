@@ -23,11 +23,17 @@ import type { RequestHandler } from "./$types";
  *
  * Only GET is proxied — create_oidc_router() defines no other methods.
  */
-export const GET: RequestHandler = async ({ params, url, request }) => {
+export const GET: RequestHandler = async ({
+  params,
+  url,
+  request,
+  getClientAddress
+}) => {
   const forwarded = await forwardAuthRequest(
     params.path,
     url.search,
-    request.headers.get("cookie")
+    request.headers.get("cookie"),
+    { ip: getClientAddress(), userAgent: request.headers.get("user-agent") }
   );
 
   const location = forwarded.response.headers.get("location");

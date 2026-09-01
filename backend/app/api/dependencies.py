@@ -16,7 +16,6 @@ we can write:
 This keeps endpoint signatures cleaner and makes the code easier to update.
 """
 
-import hmac
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, Security, status
@@ -26,7 +25,7 @@ from oidc_auth.integrations import get_current_user
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import api_key_header, get_valid_api_key_hashes, hash_api_key
+from app.core.security import api_key_header, match_api_key
 
 
 # Reusable database session dependency.
@@ -65,16 +64,24 @@ def require_auth(
          An invalid key raises 403 rather than falling through to OIDC.
       2. If no API key header is present, delegate to get_current_user which
          reads the OIDC session cookie and raises 401 if there is no session.
+
+    On an API-key match the key's name is stamped onto request.state, which is
+    where the audit middleware reads it from — it runs outside the dependency
+    system and has no other way to tell one automated caller from another.
     """
     if api_key is not None:
-        incoming_hash = hash_api_key(api_key)
-        for valid in get_valid_api_key_hashes():
-            if hmac.compare_digest(incoming_hash, valid):
-                return {"auth_type": "api_key"}
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid API key",
-        )
+        key_name = match_api_key(api_key)
+
+        if key_name is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid API key",
+            )
+
+        request.state.api_key_name = key_name
+
+        return {"auth_type": "api_key", "api_key_name": key_name}
+
     return get_current_user(request)
 
 

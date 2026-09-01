@@ -213,6 +213,43 @@ export type ForwardedAuth = {
 
 
 /**
+ * Who is on the other end of a proxied request.
+ *
+ * Without this the backend only ever sees the frontend container, so every
+ * audit row for a login would record this service's address rather than the
+ * person's.
+ */
+export type CallerDetails = {
+  ip: string;
+  userAgent: string | null;
+};
+
+
+/**
+ * Headers for a proxied auth call, identifying the browser behind it.
+ *
+ * x-forwarded-for is *set*, not appended. Anything already in the incoming
+ * header is client-supplied and therefore worthless as evidence, and the
+ * backend reads the first entry — so appending would leave a spoofed value
+ * winning. SvelteKit's getClientAddress() is the most trustworthy address
+ * available here.
+ */
+function callerHeaders(cookie: string | null, caller?: CallerDetails) {
+  const headers = new Headers({ cookie: cookie ?? "" });
+
+  if (caller) {
+    headers.set("x-forwarded-for", caller.ip);
+
+    if (caller.userAgent) {
+      headers.set("user-agent", caller.userAgent);
+    }
+  }
+
+  return headers;
+}
+
+
+/**
  * Forward a request to one of the backend's /auth/* endpoints.
  *
  * The OIDC endpoints are proxied same-origin rather than pointing the browser
@@ -228,10 +265,11 @@ export type ForwardedAuth = {
 export async function forwardAuthRequest(
   path: string,
   search: string,
-  cookie: string | null
+  cookie: string | null,
+  caller?: CallerDetails
 ): Promise<ForwardedAuth> {
   const response = await fetch(`${getApiBaseUrl()}/auth/${path}${search}`, {
-    headers: { cookie: cookie ?? "" },
+    headers: callerHeaders(cookie, caller),
     redirect: "manual"
   });
 
