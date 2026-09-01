@@ -1,4 +1,4 @@
-import { backendApiFetch } from "$lib/server/backendApi";
+import { backendUserFetcher } from "$lib/server/backendApi";
 
 import type { PageServerLoad } from "./$types";
 
@@ -23,8 +23,9 @@ async function assertResponseOk(response: Response, errorMessage: string) {
 }
 
 
-export const load: PageServerLoad = async ({ params, fetch }) => {
-  const { cpr } = params;
+export const load: PageServerLoad = async (event) => {
+  const { cpr } = event.params;
+  const api = backendUserFetcher(event);
 
   const [
     stamdataRes,
@@ -46,25 +47,25 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     ungdomsuddannelserRes,
     rutetyperRes
   ] = await Promise.all([
-    backendApiFetch(fetch, `/citizen/stamdata/${cpr}`),
-    backendApiFetch(fetch, `/citizen/stamdata/${cpr}/parents`),
-    backendApiFetch(fetch, `/part/${cpr}`),
-    backendApiFetch(fetch, `/bevilling/get_student_bevillinger/${cpr}`),
-    backendApiFetch(fetch, `/aktivitet/${cpr}`),
+    api(`/citizen/stamdata/${cpr}`),
+    api(`/citizen/stamdata/${cpr}/parents`),
+    api(`/part/${cpr}`),
+    api(`/bevilling/get_student_bevillinger/${cpr}`),
+    api(`/aktivitet/${cpr}`),
 
-    backendApiFetch(fetch, "/lookup/status"),
-    backendApiFetch(fetch, "/lookup/skolematrikel"),
-    backendApiFetch(fetch, "/lookup/hjemler"),
-    backendApiFetch(fetch, "/lookup/afgoerelsesbreve"),
-    backendApiFetch(fetch, "/lookup/sagsbehandlere"),
-    backendApiFetch(fetch, "/lookup/ppr_sagsbehandlere"),
-    backendApiFetch(fetch, "/lookup/hjaelpemidler"),
-    backendApiFetch(fetch, "/lookup/tidspunkter"),
-    backendApiFetch(fetch, "/lookup/koerselstyper"),
-    backendApiFetch(fetch, "/lookup/koerselstype_tillaeg"),
-    backendApiFetch(fetch, "/lookup/dage"),
-    backendApiFetch(fetch, "/lookup/ungdomsuddannelser"),
-    backendApiFetch(fetch, "/lookup/rutetyper")
+    api("/lookup/status"),
+    api("/lookup/skolematrikel"),
+    api("/lookup/hjemler"),
+    api("/lookup/afgoerelsesbreve"),
+    api("/lookup/sagsbehandlere"),
+    api("/lookup/ppr_sagsbehandlere"),
+    api("/lookup/hjaelpemidler"),
+    api("/lookup/tidspunkter"),
+    api("/lookup/koerselstyper"),
+    api("/lookup/koerselstype_tillaeg"),
+    api("/lookup/dage"),
+    api("/lookup/ungdomsuddannelser"),
+    api("/lookup/rutetyper")
   ]);
 
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
@@ -107,8 +108,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 
   const bevillingerWithKoerselsraekker = await Promise.all(
     bevillinger.map(async (bevilling) => {
-      const koerselsraekkerRes = await backendApiFetch(
-        fetch,
+      const koerselsraekkerRes = await api(
         `/bevilling/get_bevilling_koerselsraekker/${bevilling.bevilling_id}`
       );
 

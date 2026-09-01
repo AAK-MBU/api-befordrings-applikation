@@ -108,42 +108,68 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             raise
 
         finally:
-            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            # Everything here is inside a try: assembling the row must not be
+            # able to break the response either. _write guards the database
+            # call, but building AuditLogCreate can raise on its own — a
+            # validation error, an unexpected None — and this block runs while
+            # an exception from the handler may already be propagating.
+            try:
+                duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
-            # Machine callers (RPA, OS2Forms) hold no OIDC session; require_auth
-            # puts the matched key's name on request.state so those calls are
-            # attributed rather than logged as anonymous.
-            api_key_name = getattr(request.state, "api_key_name", None)
+                # Machine callers (RPA, OS2Forms) hold no OIDC session;
+                # require_auth puts the matched key's name on request.state so
+                # those calls are attributed rather than logged as anonymous.
+                api_key_name = getattr(request.state, "api_key_name", None)
 
-            # The route is matched by the router, which sits inside this
-            # middleware, so scope["route"] is only populated by now. A request
-            # that matched nothing (404) simply has no action.
-            route = request.scope.get("route")
+                audit_data = AuditLogCreate(
+                    bruger_ident=api_key_name or user_ident,
+                    api_key_name=api_key_name,
+                    action=self._get_action(request),
+                    method=request.method,
+                    path=request.url.path,
+                    query_params=query_params,
+                    status_code=status_code,
+                    duration_ms=duration_ms,
+                    error_message=error_message,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                )
 
-            audit_data = AuditLogCreate(
-                bruger_ident=api_key_name or user_ident,
-                api_key_name=api_key_name,
-                action=getattr(route, "name", None),
-                method=request.method,
-                path=request.url.path,
-                query_params=query_params,
-                status_code=status_code,
-                duration_ms=duration_ms,
-                error_message=error_message,
-                ip_address=ip_address,
-                user_agent=user_agent,
-            )
+                # Off the event loop: the driver is synchronous, and blocking
+                # here would stall every other in-flight request for the length
+                # of the insert.
+                await run_in_threadpool(self._write, audit_data)
 
-            # Off the event loop: the driver is synchronous, and blocking here
-            # would stall every other in-flight request for the length of the
-            # insert.
-            await run_in_threadpool(self._write, audit_data)
+            except Exception as audit_error:
+                print(f"[AuditMiddleware] Failed to build audit row: {audit_error}")
+                traceback.print_exc()
 
         return response
 
     # -------------------------
     # Helpers
     # -------------------------
+
+    @staticmethod
+    def _get_action(request: Request) -> str | None:
+        """The matched route's name, for the Action column.
+
+        The router sits inside this middleware, so the match is only on the
+        scope by the time this runs. Starlette puts the route itself on
+        scope["route"]; scope["endpoint"] is read as a fallback because that
+        key has been the stable one across versions. A request that matched
+        nothing — a 404 — has neither, and gets no action.
+        """
+        route = request.scope.get("route")
+        name = getattr(route, "name", None)
+
+        if name:
+            return name
+
+        endpoint = request.scope.get("endpoint")
+
+        return getattr(endpoint, "__name__", None)
+
 
     @staticmethod
     def _write(audit_data: AuditLogCreate) -> None:

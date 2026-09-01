@@ -1,4 +1,4 @@
-import { backendApiFetch } from "$lib/server/backendApi";
+import { backendUserFetcher } from "$lib/server/backendApi";
 
 
 async function assertResponseOk(response, errorMessage) {
@@ -16,11 +16,10 @@ async function assertResponseOk(response, errorMessage) {
 }
 
 
-export async function load({ fetch }) {
-  const bevillingerRes = await backendApiFetch(
-    fetch,
-    "/overview/alle_bevillinger"
-  );
+export async function load(event) {
+  const api = backendUserFetcher(event);
+
+  const bevillingerRes = await api("/overview/alle_bevillinger");
 
   await assertResponseOk(
     bevillingerRes,

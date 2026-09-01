@@ -1,3 +1,5 @@
+import type { RequestEvent } from "@sveltejs/kit";
+
 import { env as privateEnv } from "$env/dynamic/private";
 import { env as publicEnv } from "$env/dynamic/public";
 
@@ -74,4 +76,47 @@ export function backendApiFetch(
     ...options,
     headers
   });
+}
+
+/**
+ * Bind a server load's event to a fetch that calls the backend as its user.
+ *
+ * A `+page.server.ts` load runs on the server but *on behalf of* a browser, so
+ * it has a session cookie available and should use it. Reaching for
+ * backendApiFetch there instead is what made every server-rendered call appear
+ * in the audit trail as the shared API key rather than the caseworker — and
+ * /citizen/stamdata/{cpr} is precisely the call the trail exists to attribute.
+ *
+ * Usage:
+ *
+ *     export const load: PageServerLoad = async (event) => {
+ *       const api = backendUserFetcher(event);
+ *       const res = await api("/lookup/status");
+ *     };
+ *
+ * hooks.server.ts has already rejected anonymous callers, so a load that runs
+ * always has a session behind it.
+ */
+export function backendUserFetcher(event: RequestEvent) {
+  const cookie = event.request.headers.get("cookie");
+  const userAgent = event.request.headers.get("user-agent");
+  const clientIp = event.getClientAddress();
+
+  return (path: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers);
+
+    if (cookie) {
+      headers.set("cookie", cookie);
+    }
+
+    // Carry the browser's own identity through, so the audit row records the
+    // person's browser and address rather than this container calling out.
+    if (userAgent) {
+      headers.set("user-agent", userAgent);
+    }
+
+    headers.set("x-forwarded-for", clientIp);
+
+    return backendUserFetch(event.fetch, path, { ...options, headers });
+  };
 }
