@@ -490,11 +490,16 @@ def create_letter(
             The database session injected by FastAPI.
 
     Returns:
-        A small status response containing the queue status and item reference.
+        A small status response containing the queue status, the item
+        reference, and how many kørselsrækker the call locked.
 
     Notes:
         The generated reference is based on CPR and timestamp. This makes it
         easier to identify the work item later in logs, ATS, and debugging.
+
+        Creating a letter has two side effects on the bevilling beyond queueing
+        the work item: sagsbehandlingsdato is stamped, and the bevilling's open
+        kørselsrækker are locked.
 
         letter_data.model_extra is used because LetterCreateRequest likely
         allows dynamic fields. This requires the Pydantic model to allow extra
@@ -552,9 +557,20 @@ def create_letter(
         reference=reference,
     )
 
+    # Lock the bevilling's kørselsrækker now that the letter exists: the letter
+    # states what was granted, so those rows are settled.
+    #
+    # Deliberately after the enqueue rather than beside set_sagsbehandlingsdato
+    # above. That one has to run first because the letter payload carries the
+    # date; locking has no such requirement, and ATS being unreachable is the
+    # likeliest failure here — locking first would leave the rows marked
+    # settled for a letter that was never queued.
+    locked_count = bevilling_service.lock_koerselsraekker(bevilling_id=bevilling_id)
+
     return {
         "status": "queued",
         "reference": reference,
+        "locked_koerselsraekker": locked_count,
     }
 
 
