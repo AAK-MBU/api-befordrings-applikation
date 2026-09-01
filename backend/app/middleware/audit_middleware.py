@@ -31,6 +31,24 @@ _SKIPPED_PATHS = frozenset(
 )
 
 
+# Paths serving reference data only — the dropdown contents behind the UI.
+#
+# Opening one case page fetches thirteen of these, and the revurdering page
+# thirteen of its fourteen calls, so they made up the bulk of the table while
+# answering neither question it exists for: none of them takes a CPR or returns
+# citizen data, so they cannot show who accessed whose record.
+#
+# Only their *successful* calls are dropped. A 401 or 403 here is an
+# access-control event and matters regardless of how dull the data is — these
+# are the endpoints reachable without knowing a CPR, so they are where a stale
+# or stolen key would show up first. A 500 explains a page that renders empty.
+#
+# WARNING: this is keyed on the path prefix, so an endpoint added under /lookup
+# that returns personal data would silently stop being audited. There is a
+# matching warning on the router in api/v1/endpoints/lookup.py.
+_REFERENCE_PATH_PREFIXES = ("/lookup/",)
+
+
 # Query parameters whose values must never reach the table.
 #
 # /auth/callback carries the OIDC authorization code and state; short-lived,
@@ -48,6 +66,9 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     status code, duration, client IP, user agent and — on failure — an error
     message read out of the response body. Logging happens in a session opened
     for the purpose, and a failure to log never affects the response.
+
+    Two kinds of request are left out: the noise endpoints in _SKIPPED_PATHS,
+    and reference-data reads that succeeded. See _should_log.
     """
 
     async def dispatch(self, request: Request, call_next):
@@ -60,6 +81,10 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         error message can be stored — where the body is a stream it is read in
         full and the response rebuilt, so the caller still receives it. An
         exception from a route handler is logged as 500 and re-raised.
+
+        Whether the finished request earns a row is decided by _should_log,
+        which is why that check happens after the handler rather than before:
+        for reference data the outcome is what decides.
 
         Args:
             request: The incoming request.
@@ -114,31 +139,19 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             # validation error, an unexpected None — and this block runs while
             # an exception from the handler may already be propagating.
             try:
-                duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-
-                # Machine callers (RPA, OS2Forms) hold no OIDC session;
-                # require_auth puts the matched key's name on request.state so
-                # those calls are attributed rather than logged as anonymous.
-                api_key_name = getattr(request.state, "api_key_name", None)
-
-                audit_data = AuditLogCreate(
-                    bruger_ident=api_key_name or user_ident,
-                    api_key_name=api_key_name,
-                    action=self._get_action(request),
-                    method=request.method,
-                    path=request.url.path,
-                    query_params=query_params,
-                    status_code=status_code,
-                    duration_ms=duration_ms,
-                    error_message=error_message,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                )
-
-                # Off the event loop: the driver is synchronous, and blocking
-                # here would stall every other in-flight request for the length
-                # of the insert.
-                await run_in_threadpool(self._write, audit_data)
+                if self._should_log(request.url.path, status_code):
+                    await self._log(
+                        request,
+                        status_code=status_code,
+                        error_message=error_message,
+                        duration_ms=round(
+                            (time.perf_counter() - start_time) * 1000, 2
+                        ),
+                        user_ident=user_ident,
+                        query_params=query_params,
+                        ip_address=ip_address,
+                        user_agent=user_agent,
+                    )
 
             except Exception as audit_error:
                 print(f"[AuditMiddleware] Failed to build audit row: {audit_error}")
@@ -149,6 +162,58 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     # -------------------------
     # Helpers
     # -------------------------
+
+    @staticmethod
+    def _should_log(path: str, status_code: int | None) -> bool:
+        """Decide whether a finished request is worth a row.
+
+        Everything is logged except reference-data reads that succeeded — see
+        _REFERENCE_PATH_PREFIXES for why those are the one exception, and why
+        only the successful ones. An unknown outcome is kept: not knowing how a
+        call ended is itself worth recording.
+        """
+        if not path.startswith(_REFERENCE_PATH_PREFIXES):
+            return True
+
+        return status_code is None or status_code >= 400
+
+    async def _log(
+        self,
+        request: Request,
+        *,
+        status_code: int | None,
+        error_message: str | None,
+        duration_ms: float,
+        user_ident: str | None,
+        query_params: str | None,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> None:
+        """Assemble the row and write it."""
+        # Machine callers (RPA, OS2Forms) hold no OIDC session; require_auth
+        # puts the matched key's name on request.state so those calls are
+        # attributed rather than logged as anonymous.
+        api_key_name = getattr(request.state, "api_key_name", None)
+
+        audit_data = AuditLogCreate(
+            bruger_ident=api_key_name or user_ident,
+            api_key_name=api_key_name,
+            action=self._get_action(request),
+            method=request.method,
+            path=request.url.path,
+            query_params=query_params,
+            status_code=status_code,
+            duration_ms=duration_ms,
+            error_message=error_message,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        # Off the event loop: the driver is synchronous, and blocking here
+        # would stall every other in-flight request for the length of the
+        # insert.
+        await run_in_threadpool(self._write, audit_data)
+
 
     @staticmethod
     def _get_action(request: Request) -> str | None:

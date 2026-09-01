@@ -26,6 +26,15 @@ from app.services.lookup_service import LookupService
 
 # All routes in this file are grouped under /lookup.
 # The tag is used by Swagger/OpenAPI to group these endpoints visually.
+# WARNING: successful calls to routes on this router are NOT audit-logged.
+# They are dropped as noise because everything here is reference data — the
+# contents of dropdowns — and a single case page fetches thirteen of them.
+# Only their failures reach PortalAuditLog.
+#
+# So do not add an endpoint here that takes a CPR or returns citizen data: it
+# would silently fall outside the audit trail. Such endpoints belong on the
+# citizen, bevilling, part or aktivitet routers. See _REFERENCE_PATH_PREFIXES
+# in app/middleware/audit_middleware.py.
 router = APIRouter(prefix="/lookup", tags=["Lookup"])
 
 

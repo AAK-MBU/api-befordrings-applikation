@@ -29,6 +29,12 @@ class PortalAuditLog(Base):
     Every column except AuditLogId is nullable: a call can be cut short before
     its fields are known.
 
+    Not every request reaches this table. Noise endpoints (/health, /me, the
+    API docs) are never recorded, and reference-data reads under /lookup are
+    recorded only when they fail — see _REFERENCE_PATH_PREFIXES in the
+    middleware. So the absence of a row is not by itself evidence that a call
+    did not happen.
+
     Attributes:
         BrugerIdent: Who made the call — the name of the API key it
             authenticated with, else the OIDC session's email claim, else the
