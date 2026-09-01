@@ -126,6 +126,55 @@ class LookupService:
         return [dict(row) for row in rows]
 
 
+    def get_all(self):
+        """Get every parameterless reference-data list in one call.
+
+        Returns:
+            A dictionary keyed by lookup name, where each value is exactly what
+            the corresponding single-lookup method returns:
+
+                {
+                    "status": [{"id": 1, "label": "Aktiv"}, ...],
+                    "skolematrikel": [...],
+                    ...
+                }
+
+        Notes:
+            The keys match the single-lookup route paths (/lookup/status ->
+            "status") so the two stay visibly in step. Adding a key is
+            backwards compatible for callers; renaming one is not.
+
+            Only the lookups that take no arguments are included. The
+            coordinate reads need an id and get_adresser needs a search string,
+            so they stay on their own routes.
+
+            This composes the individual methods rather than issuing one
+            combined statement. They share this service's session, so what was
+            thirteen HTTP requests holding thirteen pooled connections becomes
+            thirteen small indexed reads on one connection. Folding them into a
+            single UNION ALL would save round trips to the database, but it
+            would couple every lookup into one statement and one column layout
+            — a poor trade, since the round trips were never the expensive
+            part.
+        """
+
+        return {
+            "status": self.get_status(),
+            "skolematrikel": self.get_skolematrikel(),
+            "hjemler": self.get_hjemler(),
+            "afgoerelsesbreve": self.get_afgoerelsesbreve(),
+            "sagsbehandlere": self.get_sagsbehandlere(),
+            "ppr_sagsbehandlere": self.get_ppr_sagsbehandlere(),
+            "hjaelpemidler": self.get_hjaelpemidler(),
+            "tidspunkter": self.get_tidspunkter(),
+            "koerselstyper": self.get_koerselstyper(),
+            "koerselstype_tillaeg": self.get_koerselstype_tillaeg(),
+            "dage": self.get_dage(),
+            "ungdomsuddannelser": self.get_ungdomsuddannelser(),
+            "rutetyper": self.get_rutetyper(),
+        }
+
+
     def get_hjemler(self):
         """Get available hjemler.
 

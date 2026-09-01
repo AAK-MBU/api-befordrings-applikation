@@ -6,10 +6,10 @@ import type { RequestHandler } from "./$types";
 /**
  * Pass a browser request through to the backend under the user's own identity.
  *
- * Deliberately *not* backendApiFetch: stamping the shared API key would make
- * the backend resolve the caller as an automated one, which defeats every
- * per-user rule behind it (require_edit) and attributes writes to "System".
- * request.headers carries the session cookie, which is what authenticates here.
+ * Deliberately sends no X-API-Key: a shared key would make the backend resolve
+ * the caller as an automated one, which defeats every per-user rule behind it
+ * (require_edit) and attributes writes to "System". request.headers carries the
+ * session cookie, which is what authenticates here.
  *
  * hooks.server.ts has already rejected anonymous callers on this path with a
  * 401, so a request reaching this handler has a session.

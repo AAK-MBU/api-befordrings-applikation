@@ -39,9 +39,9 @@ export function getLogoutUrl() {
 /**
  * Ask the backend who the *browser* is, by replaying its cookie against /me.
  *
- * Deliberately does not go through backendApiFetch: that stamps the shared
- * X-API-Key, and the question here is specifically whether this browser holds
- * an OIDC session of its own.
+ * Deliberately sends no X-API-Key: a shared key resolves on the backend as an
+ * automated caller, and the question here is specifically whether this browser
+ * holds an OIDC session of its own.
  *
  * Uses the global fetch rather than event.fetch on purpose — the backend is a
  * different origin, and SvelteKit's fetch applies its own credential rules to

@@ -1,6 +1,5 @@
 import type { RequestEvent } from "@sveltejs/kit";
 
-import { env as privateEnv } from "$env/dynamic/private";
 import { env as publicEnv } from "$env/dynamic/public";
 
 type FetchFunction = typeof fetch;
@@ -14,17 +13,6 @@ export function getApiBaseUrl() {
   }
 
   return apiBaseUrl;
-}
-
-
-function getApiKey() {
-  const apiKey = privateEnv.BEFORDRING_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Missing BEFORDRING_API_KEY");
-  }
-
-  return apiKey;
 }
 
 
@@ -48,8 +36,9 @@ function normalizePath(path: string) {
  *
  * The caller's Cookie header has to be forwarded in `options` for this to
  * authenticate — that cookie is the session. Only safe for requests that
- * originate from a browser with a session; server-initiated calls with no user
- * behind them still belong on backendApiFetch.
+ * originate from a browser with a session. There is no fallback for a call with
+ * no user behind it: the frontend holds no API key of its own, deliberately, so
+ * anything the backend needs to do unattended belongs on the backend.
  */
 export function backendUserFetch(
   fetchFn: FetchFunction,
@@ -60,32 +49,15 @@ export function backendUserFetch(
 }
 
 
-export function backendApiFetch(
-  fetchFn: FetchFunction,
-  path: string,
-  options: RequestInit = {}
-) {
-  const apiBaseUrl = getApiBaseUrl();
-  const apiKey = getApiKey();
-
-  const headers = new Headers(options.headers);
-
-  headers.set("X-API-Key", apiKey);
-
-  return fetchFn(`${apiBaseUrl}${normalizePath(path)}`, {
-    ...options,
-    headers
-  });
-}
-
 /**
  * Bind a server load's event to a fetch that calls the backend as its user.
  *
  * A `+page.server.ts` load runs on the server but *on behalf of* a browser, so
- * it has a session cookie available and should use it. Reaching for
- * backendApiFetch there instead is what made every server-rendered call appear
- * in the audit trail as the shared API key rather than the caseworker — and
- * /citizen/stamdata/{cpr} is precisely the call the trail exists to attribute.
+ * it has a session cookie available and should use it. These loads once called
+ * the backend with a shared API key instead, which made every server-rendered
+ * call appear in the audit trail as an automated caller rather than the
+ * caseworker — and /citizen/stamdata/{cpr} is precisely the call the trail
+ * exists to attribute.
  *
  * Usage:
  *
