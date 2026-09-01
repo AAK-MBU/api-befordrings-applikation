@@ -19,9 +19,11 @@ from starlette.middleware.sessions import SessionMiddleware
 from oidc_auth import IDTokenClaims
 from oidc_auth.integrations import create_oidc_router, get_current_user
 
+from app.api.dependencies import edit_role_names
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.oidc import oidc_config
+from app.middleware.audit_middleware import AuditLogMiddleware
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -48,7 +50,14 @@ app = FastAPI(
 )
 
 
-# Session middleware must be added before CORS so that it ends up as the inner
+# Order matters, and it reads backwards: Starlette wraps the *last* middleware
+# added as the outermost layer.  So the audit middleware is added first to end
+# up innermost, with SessionMiddleware around it — that way request.session is
+# already populated when the audit middleware reads the caller's claims, and
+# scope["route"] is set by the router just inside it.
+app.add_middleware(AuditLogMiddleware)
+
+# Session middleware must be added before CORS so that it ends up as an inner
 # layer of the middleware stack.  The session cookie carries OIDC state between
 # the /auth/login redirect and the /auth/callback return.
 # same_site="lax" is required for the IdP redirect to send the cookie back.
@@ -80,9 +89,15 @@ app.add_middleware(
 # create_oidc_router already applies the /auth prefix internally, so routes
 # are mounted at /auth/login, /auth/callback and /auth/logout.
 #
-# OIDC_REDIRECT_URI must be set to http://<host>:<port>/auth/callback to
-# match the callback path that this router exposes.
-app.include_router(create_oidc_router(oidc_config))
+# OIDC_REDIRECT_URI points at the *frontend's* /callback, not at the
+# /auth/callback below. The frontend owns the return leg so it can restore the
+# page the user originally asked for, then forwards the code here.
+app.include_router(
+    create_oidc_router(
+        oidc_config,
+        post_logout_redirect=settings.oidc_post_logout_redirect,
+    )
+)
 
 # Register all API v1 routers.
 #
@@ -122,6 +137,17 @@ def me(user: IDTokenClaims = Depends(get_current_user)) -> dict:
         "groups": list(user.groups),
         "organisation": user.organisation,
         "mapped_claims": user.mapped_claims,
+        # Resolved here so the UI does not have to re-implement the rule and
+        # drift from it: EDIT_ROLES is configurable, and this is the same
+        # comparison require_edit performs when a write actually arrives.
+        # Purely for presentation — hiding a control is not enforcement.
+        "can_edit": bool(
+            {str(role).lower() for role in user.roles} & edit_role_names()
+        ),
+        # The whole validated ID token payload. The curated fields above cover
+        # the common cases; this is what to read when an expected claim is
+        # missing from them because the IdP names it something else.
+        "raw": user.raw,
     }
 
 

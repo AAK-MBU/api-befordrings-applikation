@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from "$app/stores";
   import { formatDanishDate } from "$lib/tableColumnConfig";
   import { backendFetch } from "$lib/client/backendFetch";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
@@ -223,15 +224,28 @@
   let isDeleting = false;
   let deleteError: string | null = null;
 
+  // From $page rather than a prop: this component is nested two levels deep and
+  // a module-level store would be shared across concurrent SSR requests.
+  $: canEdit = $page.data.user?.can_edit ?? false;
+
   async function doDeleteKoerselsraekke() {
-    if (confirmingDeleteKoerselId === null || !onDeleteKoerselsraekke) return;
+    if (isDeleting || confirmingDeleteKoerselId === null || !onDeleteKoerselsraekke) return;
     isDeleting = true;
     deleteError = null;
-    const id = confirmingDeleteKoerselId;
-    confirmingDeleteKoerselId = null;
-    const error = await onDeleteKoerselsraekke(id);
-    if (error) deleteError = error;
+
+    const error = await onDeleteKoerselsraekke(confirmingDeleteKoerselId);
+
     isDeleting = false;
+
+    // deleteError is rendered inside this dialog, so the dialog has to outlive
+    // the failure. Closing it first — as this did — discarded the reason and
+    // made a refused delete look exactly like a successful one.
+    if (error) {
+      deleteError = error;
+      return;
+    }
+
+    confirmingDeleteKoerselId = null;
   }
 
   function doLockedEdit() {
@@ -715,7 +729,8 @@
     <div class="pt-1 mb-2">
       <button
         type="button"
-        class="text-sm font-medium text-sky-700 hover:underline"
+        disabled={!canEdit}
+        class="text-sm font-medium text-sky-700 hover:underline disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed"
         on:click={startCreate}
       >
         + Ny kørselsrække
@@ -760,7 +775,8 @@
             <button
               type="button"
               title="Slet kørselsrække"
-              class="p-1 text-gray-400 hover:text-red-600 transition-colors"
+              disabled={!canEdit}
+              class="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               on:click={() => { confirmingDeleteKoerselId = row.koersel_id; deleteError = null; }}
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1114,7 +1130,8 @@
               {#if !readonly}
                 <button
                   type="button"
-                  class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  disabled={!canEdit}
+                  class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   on:click={() => startEdit(row)}
                 >
                   Redigér
@@ -1129,7 +1146,8 @@
               <!-- Unlocked state: redigér + lock button -->
               <button
                 type="button"
-                class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                disabled={!canEdit}
+                class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 on:click={() => startEdit(row)}
               >
                 Redigér

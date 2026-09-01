@@ -11,6 +11,15 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI}
+      # Must be Azure B2C's /tfp/ path form, not ?p=<policy> — see
+      # backend/app/core/oidc.py for why the query form breaks login.
+      OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
+      # Where the IdP returns the browser after logout. Required — B2C rejects a
+      # logout request that omits it (AADB2C90036), so an unset value turns every
+      # logout into an error page. Point it at this deployment's /logged-out.
+      OIDC_POST_LOGOUT_REDIRECT: ${OIDC_POST_LOGOUT_REDIRECT}
+      # IdP role claim values allowed to write; everyone else is read-only.
+      EDIT_ROLES: ${EDIT_ROLES:-admin,user-edit}
       OIDC_SCOPES: ${OIDC_SCOPES}
       OIDC_ENVIRONMENT: ${OIDC_ENVIRONMENT}
       SESSION_SECRET: ${SESSION_SECRET}
@@ -42,6 +51,10 @@ services:
     environment:
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
       BEFORDRING_API_KEY: ${BEFORDRING_API_KEY}
+      # Browser-facing URL that starts the OIDC login flow. Defaults to the
+      # same-origin /api/auth/login, which assumes the edge proxy forwards /api
+      # to the backend. Set an absolute URL where it does not.
+      PUBLIC_OIDC_LOGIN_URL: ${PUBLIC_OIDC_LOGIN_URL:-}
     depends_on:
       api:
         condition: service_healthy

@@ -1,8 +1,10 @@
-import { backendApiFetch } from "$lib/server/backendApi";
+import { backendUserFetcher } from "$lib/server/backendApi";
 import type { PageServerLoad } from "./$types";
 
 
-export const load: PageServerLoad = async ({ fetch }) => {
+export const load: PageServerLoad = async (event) => {
+  const api = backendUserFetcher(event);
+
   const [
     revurderingerRes,
     koerselstyperRes,
@@ -19,20 +21,20 @@ export const load: PageServerLoad = async ({ fetch }) => {
     ungdomsuddannelserRes,
     rutetyperRes,
   ] = await Promise.all([
-    backendApiFetch(fetch, "/overview/revurderinger"),
-    backendApiFetch(fetch, "/lookup/koerselstyper"),
-    backendApiFetch(fetch, "/lookup/tidspunkter"),
-    backendApiFetch(fetch, "/lookup/hjemler"),
-    backendApiFetch(fetch, "/lookup/afgoerelsesbreve"),
-    backendApiFetch(fetch, "/lookup/koerselstype_tillaeg"),
-    backendApiFetch(fetch, "/lookup/dage"),
-    backendApiFetch(fetch, "/lookup/status"),
-    backendApiFetch(fetch, "/lookup/skolematrikel"),
-    backendApiFetch(fetch, "/lookup/sagsbehandlere"),
-    backendApiFetch(fetch, "/lookup/ppr_sagsbehandlere"),
-    backendApiFetch(fetch, "/lookup/hjaelpemidler"),
-    backendApiFetch(fetch, "/lookup/ungdomsuddannelser"),
-    backendApiFetch(fetch, "/lookup/rutetyper"),
+    api("/overview/revurderinger"),
+    api("/lookup/koerselstyper"),
+    api("/lookup/tidspunkter"),
+    api("/lookup/hjemler"),
+    api("/lookup/afgoerelsesbreve"),
+    api("/lookup/koerselstype_tillaeg"),
+    api("/lookup/dage"),
+    api("/lookup/status"),
+    api("/lookup/skolematrikel"),
+    api("/lookup/sagsbehandlere"),
+    api("/lookup/ppr_sagsbehandlere"),
+    api("/lookup/hjaelpemidler"),
+    api("/lookup/ungdomsuddannelser"),
+    api("/lookup/rutetyper"),
   ]);
 
   if (!revurderingerRes.ok) {

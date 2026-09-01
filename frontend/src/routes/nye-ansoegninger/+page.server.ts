@@ -1,12 +1,14 @@
-import { backendApiFetch } from "$lib/server/backendApi";
+import { backendUserFetcher } from "$lib/server/backendApi";
 import type { PageServerLoad } from "./$types";
 
 
-export const load: PageServerLoad = async ({ fetch }) => {
+export const load: PageServerLoad = async (event) => {
+  const api = backendUserFetcher(event);
+
   const [ansoegningerRes, sagsbehandlereRes, pprRes] = await Promise.all([
-    backendApiFetch(fetch, "/overview/new_applications"),
-    backendApiFetch(fetch, "/lookup/sagsbehandlere"),
-    backendApiFetch(fetch, "/lookup/ppr_sagsbehandlere"),
+    api("/overview/new_applications"),
+    api("/lookup/sagsbehandlere"),
+    api("/lookup/ppr_sagsbehandlere"),
   ]);
 
   if (!ansoegningerRes.ok) {

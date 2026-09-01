@@ -1,5 +1,8 @@
 
 <script lang="ts">
+  import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
+  import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
+
   const reports = [
     { label: "Elevbefordring (oversigt) Standardrapport", href: "https://lismbu.adm.aarhuskommune.dk/SASStoredProcess/do?_program=/Aarhus/MBU/LIS/System/LIS&lisaction=rapframe&indk=001993470574233&org=819718&pertype=REGNSKABSAAR&periode=2026&min_id=866388" },
     { label: "Elevbefordring (taxa og minibus) Standardrapport", href: "https://lismbu.adm.aarhuskommune.dk/SASStoredProcess/do?_program=/Aarhus/MBU/LIS/System/LIS&lisaction=rapframe&indk=001894629216178&org=819718&pertype=REGNSKABSAAR&periode=2026&min_id=866388" },
@@ -9,6 +12,8 @@
 
 <div class="p-8 max-w-2xl">
   <h1 class="text-2xl font-semibold text-gray-800 mb-6">Rapporter</h1>
+
+  <ReadOnlyNotice />
   <ul class="space-y-3">
     {#each reports as report}
       <li>
@@ -26,4 +31,14 @@
       </li>
     {/each}
   </ul>
+
+  <section class="mt-10 border-t border-gray-200 pt-6">
+    <h2 class="text-base font-semibold text-gray-800">Skabelondata</h2>
+    <p class="text-sm text-gray-500 mt-1 mb-4">
+      Henter de nyeste skabeloner for afgørelsesbreve fra SharePoint ind i
+      systemet. Kør den, når skabelonerne er blevet rettet.
+    </p>
+
+    <UpdateTemplateButton class="px-4 py-2 text-sm" />
+  </section>
 </div>

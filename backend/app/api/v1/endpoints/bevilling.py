@@ -21,7 +21,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.dependencies import CanDelete, CurrentUser, DbSession
+from app.api.dependencies import CanDelete, CurrentUser, DbSession, RequireEdit
 from app.schemas.bevilling import (
     BevillingCreateRequest,
     BevillingUpdateRequest,
@@ -165,7 +165,7 @@ def get_bevilling_koerselsraekker(bevilling_id: int, db: DbSession):
     )
 
 
-@router.post("/create_bevilling/{cpr}")
+@router.post("/create_bevilling/{cpr}", dependencies=[RequireEdit])
 def create_bevilling(
     cpr: str,
     request: BevillingCreateRequest,
@@ -213,7 +213,7 @@ def create_bevilling(
     )
 
 
-@router.put("/{bevilling_id}")
+@router.put("/{bevilling_id}", dependencies=[RequireEdit])
 def update_bevilling(
     bevilling_id: int,
     request: BevillingUpdateRequest,
@@ -250,7 +250,7 @@ def update_bevilling(
     )
 
 
-@router.delete("/{bevilling_id}")
+@router.delete("/{bevilling_id}", dependencies=[RequireEdit])
 def delete_bevilling(bevilling_id: int, db: DbSession, udfoert_af: CurrentUser, can_delete: CanDelete):
     """Soft-delete a bevilling and all its kørselsrækker.
 
@@ -267,7 +267,7 @@ def delete_bevilling(bevilling_id: int, db: DbSession, udfoert_af: CurrentUser, 
     return service.delete_bevilling(bevilling_id=bevilling_id, udfoert_af=udfoert_af)
 
 
-@router.delete("/koerselsraekke/{koersel_id}")
+@router.delete("/koerselsraekke/{koersel_id}", dependencies=[RequireEdit])
 def delete_koerselsraekke(koersel_id: int, db: DbSession, udfoert_af: CurrentUser, can_delete: CanDelete):
     """Soft-delete a kørselsrække.
 
@@ -284,7 +284,7 @@ def delete_koerselsraekke(koersel_id: int, db: DbSession, udfoert_af: CurrentUse
     return service.delete_koerselsraekke(koersel_id=koersel_id, udfoert_af=udfoert_af)
 
 
-@router.put("/{bevilling_id}/hjaelpemidler")
+@router.put("/{bevilling_id}/hjaelpemidler", dependencies=[RequireEdit])
 def update_bevilling_hjaelpemidler(
     bevilling_id: int,
     request: HjaelpemidlerUpdateRequest,
@@ -317,7 +317,7 @@ def update_bevilling_hjaelpemidler(
     )
 
 
-@router.post("/create_koerselsraekke/{bevilling_id}")
+@router.post("/create_koerselsraekke/{bevilling_id}", dependencies=[RequireEdit])
 def create_koerselsraekke(
     bevilling_id: int,
     request: KoerselsraekkeCreateRequest,
@@ -364,7 +364,7 @@ def create_koerselsraekke(
         ) from error
 
 
-@router.put("/koerselsraekke/{koersel_id}")
+@router.put("/koerselsraekke/{koersel_id}", dependencies=[RequireEdit])
 def update_koerselsraekke(
     koersel_id: int,
     request: KoerselsraekkeUpdateRequest,
@@ -396,7 +396,7 @@ def update_koerselsraekke(
     )
 
 
-@router.put("/koerselsraekke/{koersel_id}/tillaeg")
+@router.put("/koerselsraekke/{koersel_id}/tillaeg", dependencies=[RequireEdit])
 def update_koerselsraekke_tillaeg(
     koersel_id: int,
     request: KoerselTillaegUpdateRequest,
@@ -429,7 +429,7 @@ def update_koerselsraekke_tillaeg(
     )
 
 
-@router.put("/koerselsraekke/{koersel_id}/dage")
+@router.put("/koerselsraekke/{koersel_id}/dage", dependencies=[RequireEdit])
 def update_koerselsraekke_dage(
     koersel_id: int,
     request: KoerselDageUpdateRequest,
@@ -461,7 +461,7 @@ def update_koerselsraekke_dage(
     )
 
 
-@router.post("/create_letter/{cpr}/{bevilling_id}")
+@router.post("/create_letter/{cpr}/{bevilling_id}", dependencies=[RequireEdit])
 def create_letter(
     cpr: str,
     bevilling_id: int,

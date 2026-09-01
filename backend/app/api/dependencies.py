@@ -16,7 +16,6 @@ we can write:
 This keeps endpoint signatures cleaner and makes the code easier to update.
 """
 
-import hmac
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, Security, status
@@ -24,8 +23,9 @@ from sqlalchemy.orm import Session
 
 from oidc_auth.integrations import get_current_user
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import api_key_header, get_valid_api_key_hashes, hash_api_key
+from app.core.security import api_key_header, match_api_key
 
 
 # Reusable database session dependency.
@@ -64,16 +64,24 @@ def require_auth(
          An invalid key raises 403 rather than falling through to OIDC.
       2. If no API key header is present, delegate to get_current_user which
          reads the OIDC session cookie and raises 401 if there is no session.
+
+    On an API-key match the key's name is stamped onto request.state, which is
+    where the audit middleware reads it from — it runs outside the dependency
+    system and has no other way to tell one automated caller from another.
     """
     if api_key is not None:
-        incoming_hash = hash_api_key(api_key)
-        for valid in get_valid_api_key_hashes():
-            if hmac.compare_digest(incoming_hash, valid):
-                return {"auth_type": "api_key"}
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid API key",
-        )
+        key_name = match_api_key(api_key)
+
+        if key_name is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid API key",
+            )
+
+        request.state.api_key_name = key_name
+
+        return {"auth_type": "api_key", "api_key_name": key_name}
+
     return get_current_user(request)
 
 
@@ -123,3 +131,56 @@ def user_can_delete(principal: Annotated[object, Depends(require_auth)]) -> bool
 
 
 CanDelete = Annotated[bool, Depends(user_can_delete)]
+
+
+def edit_role_names() -> frozenset[str]:
+    """Role claim values permitted to write, lowercased for comparison.
+
+    Claim values arrive from the IdP in whatever case Systemregisteret assigned,
+    so both sides of the comparison are normalised.
+    """
+    return frozenset(
+        role.strip().lower()
+        for role in settings.edit_roles.split(",")
+        if role.strip()
+    )
+
+
+def require_edit(principal: Annotated[object, Depends(require_auth)]) -> object:
+    """Authorise a write. Reads are open to every role, writes are not.
+
+    Automated callers pass through untouched. An RPA bot authenticates with an
+    API key and holds no roles at all, so applying the role check to it would
+    lock out the OS2Forms conversion flow and /citizen/create_elev. require_auth
+    has already validated that key; a caller holding it is trusted here.
+
+    For a browser session the check is real, and it only works because
+    /backend/* forwards the user's session cookie *instead of* the shared API
+    key — otherwise require_auth would resolve every browser write as an API-key
+    caller and this dependency would silently permit everything.
+
+    Roles are assigned centrally in the IdP, so the 403 says so rather than
+    implying there is something to change in this application.
+    """
+    if isinstance(principal, dict):
+        return principal
+
+    roles = {str(role).lower() for role in (getattr(principal, "roles", None) or ())}
+
+    if not roles & edit_role_names():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Din bruger har ikke rettigheder til at ændre data. "
+                "Rettigheder tildeles centralt via Systemregisteret."
+            ),
+        )
+
+    return principal
+
+
+# Applied per endpoint via the route decorator's `dependencies=` argument, so
+# that endpoint signatures stay unchanged:
+#
+#     @router.put("/{id}", dependencies=[RequireEdit])
+RequireEdit = Depends(require_edit)

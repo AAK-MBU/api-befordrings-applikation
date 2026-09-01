@@ -3,11 +3,15 @@
     import { backendFetch } from "$lib/client/backendFetch";
     import { formatDanishDate, getStatusBadgeClass, formatCpr, getBefordringstypeBadgeClass } from "$lib/tableColumnConfig";
     import BevillingTable from "$lib/components/BevillingTable.svelte";
-    import UpdateTemplateButton from "$lib/components/UpdateTemplateButton.svelte";
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
+    import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
     import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
     export let data;
+
+    // can_edit is resolved by the backend from EDIT_ROLES (see GET /me), so
+    // the UI cannot drift from what require_edit actually enforces.
+    $: canEdit = data.user?.can_edit ?? false;
 
     $: revurderinger        = data.revurderinger        ?? [];
     $: koerselstyper        = data.koerselstyper        ?? [];
@@ -664,6 +668,8 @@
 
 <section>
 
+  <ReadOnlyNotice />
+
   <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Revurdering</h1>
@@ -671,8 +677,6 @@
     </div>
 
     <div class="flex items-center gap-4 flex-wrap">
-
-      <UpdateTemplateButton class="px-3 py-1.5 text-xs" />
 
       {#if uniqueSkoler.length > 0}
         <select class="min-w-[180px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedSkole}>
@@ -1138,20 +1142,22 @@
                   <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Bevillinger</p>
                   <div class="flex items-center gap-2">
                     <button type="button"
-                      disabled={!(bevillingerByCpr[bev.cpr_elev]?.length > 0)}
+                      disabled={!canEdit || !(bevillingerByCpr[bev.cpr_elev]?.length > 0)}
                       class="px-3 py-1.5 text-xs font-medium text-white rounded transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       style="background-color: #032A42;"
                       on:click={() => openCreateBevillingModal(bev.cpr_elev, 'kopi')}>
                       + Ny bevilling fra kopi
                     </button>
                     <button type="button"
-                      class="px-3 py-1.5 text-xs font-medium text-white rounded transition-colors whitespace-nowrap"
+                      disabled={!canEdit}
+                      class="px-3 py-1.5 text-xs font-medium text-white rounded transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       style="background-color: #032A42;"
                       on:click={() => openCreateBevillingModal(bev.cpr_elev, 'tom')}>
                       + Ny bevilling fra tom
                     </button>
                     <button type="button"
-                      class="px-3 py-1.5 text-xs font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors flex items-center gap-1 whitespace-nowrap"
+                      disabled={!canEdit}
+                      class="px-3 py-1.5 text-xs font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors flex items-center gap-1 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       on:click={() => openCreateLetterModal(bev.cpr_elev)}>
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />

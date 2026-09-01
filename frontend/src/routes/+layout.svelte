@@ -54,6 +54,20 @@
     localStorage.setItem('darkMode', String(isDark));
   }
 
+  // --- Signed-in user ---
+  let userMenuOpen = $state(false);
+
+  const user = $derived(data.user);
+  const displayName = $derived(user?.name || user?.email || user?.sub || 'Ukendt bruger');
+  const initials = $derived(
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part: string) => part[0]?.toUpperCase() ?? '')
+      .join('')
+  );
+
   // --- Global search ---
   let searchQuery = $state('');
   let searchResults = $state<any[]>([]);
@@ -235,6 +249,69 @@
               </span>
             </div>
           {/each}
+        </div>
+      {/if}
+    </div>
+
+    <!-- Signed-in user -->
+    <div class="pl-2 relative">
+      <button
+        type="button"
+        title="Vis loginoplysninger"
+        onclick={() => (userMenuOpen = !userMenuOpen)}
+        class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full transition-colors hover:bg-white/10"
+      >
+        <span
+          class="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold"
+          style="background-color: #2ab4a0; color: #ffffff;"
+        >
+          {initials || '?'}
+        </span>
+        <span class="hidden md:inline text-xs font-medium max-w-32 truncate" style="color: rgba(255,255,255,0.85);">
+          {displayName}
+        </span>
+      </button>
+
+      {#if userMenuOpen}
+        <!-- Click-away backdrop -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="fixed inset-0 z-40" onclick={() => (userMenuOpen = false)}></div>
+
+        <div
+          class="absolute right-0 top-full mt-1.5 w-80 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-50"
+        >
+          <div class="px-4 py-3 border-b border-gray-100">
+            <p class="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+            <p class="text-xs text-gray-500 truncate">{user?.email ?? 'Ingen e-mail i token'}</p>
+          </div>
+
+          <dl class="px-4 py-3 space-y-2 text-xs">
+            <div>
+              <dt class="text-gray-400">Bruger-id (sub)</dt>
+              <dd class="text-gray-800 font-mono break-all">{user?.sub ?? '—'}</dd>
+            </div>
+            <div>
+              <dt class="text-gray-400">Organisation</dt>
+              <dd class="text-gray-800">{user?.organisation ?? '—'}</dd>
+            </div>
+            <div>
+              <dt class="text-gray-400">Roller</dt>
+              <dd class="text-gray-800">{user?.roles?.length ? user.roles.join(', ') : 'Ingen'}</dd>
+            </div>
+            <div>
+              <dt class="text-gray-400">Grupper</dt>
+              <dd class="text-gray-800">{user?.groups?.length ? user.groups.join(', ') : 'Ingen'}</dd>
+            </div>
+          </dl>
+
+          <a
+            href={data.logoutUrl}
+            data-sveltekit-reload
+            class="block px-4 py-3 text-sm font-medium text-red-600 border-t border-gray-100 hover:bg-gray-50"
+          >
+            Log ud
+          </a>
         </div>
       {/if}
     </div>
