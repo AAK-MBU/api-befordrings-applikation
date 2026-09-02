@@ -445,6 +445,12 @@
       sagsbehandler_id: editableBevilling.sagsbehandler_id,
       ppr_sagsbehandler_id: editableBevilling.ppr_sagsbehandler_id,
 
+      // Saving an edit clears the lock, exactly as saveEdit does in
+      // KoerselsraekkeTable. Confirming the locked-edit warning only *starts*
+      // the edit; the unlock is not written until Gem, so Annullér leaves the
+      // bevilling locked. Harmless on a bevilling that was not locked.
+      final: false,
+
       hjaelpemiddel_ids: selectedHjaelpemiddelIds
     };
 
