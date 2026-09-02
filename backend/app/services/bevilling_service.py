@@ -860,6 +860,90 @@ class BevillingService:
         return stamped
 
 
+    def lock_koerselsraekker(self, bevilling_id: int) -> int:
+        """Lock every open kørselsrække on a bevilling.
+
+        Called when a caseworker creates a decision letter: the letter states
+        the kørsler that were granted, so those rows should no longer be edited
+        casually afterwards. Locking is the same `final` flag the lock button on
+        each row sets, applied to the whole bevilling at once.
+
+        Already-locked rows are left alone — the WHERE clause skips them, so a
+        second letter on the same bevilling is a no-op rather than a pointless
+        rewrite. Soft-deleted rows are skipped too: they are invisible
+        everywhere else, so locking them would mean nothing.
+
+        Note that `final` does not make a row read-only. The UI still allows
+        editing a locked row behind a confirmation, and update_koerselsraekke
+        deliberately has no `final` guard. The flag marks a row as settled, it
+        does not freeze it.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling whose kørselsrækker should be locked.
+
+        Returns:
+            The number of rows that were newly locked. Zero is a normal
+            outcome: the bevilling may have no kørselsrækker, or they may all
+            be locked already.
+        """
+
+        # NB: use `== True` / `== False` (not `.is_(...)`) — on SQL Server
+        # `.is_(True)` renders as `aktiv IS 1`, which is invalid T-SQL (IS only
+        # allows NULL). Same reason as in part_service.get_parts.
+        statement = (
+            sa_update(Koersel)
+            .where(
+                Koersel.bevilling_id == bevilling_id,
+                Koersel.aktiv == True,  # noqa: E712
+                Koersel.final == False,  # noqa: E712
+            )
+            .values(final=True)
+        )
+
+        result = self.db.execute(statement)
+
+        self.db.commit()
+
+        return result.rowcount
+
+
+    def lock_bevilling(self, bevilling_id: int) -> bool:
+        """Lock a bevilling, mirroring lock_koerselsraekker one level up.
+
+        Called when a decision letter is created: the letter states what was
+        granted, so the bevilling is settled alongside its kørselsrækker.
+
+        Sets the flag directly rather than going through update_bevilling,
+        which would also run usp_recalculate_bevilling_status. Creating a
+        letter is not a reason to recalculate a status, and the paired
+        lock_koerselsraekker does not either. The *manual* lock and unlock do go
+        through update_bevilling, exactly as the manual kørselsrække lock goes
+        through update_koerselsraekke.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling to lock.
+
+        Returns:
+            True if this call locked it, False if it was already locked. A
+            missing bevilling also returns False rather than raising — the
+            caller in create_letter has already 404'd on it via
+            set_sagsbehandlingsdato.
+        """
+
+        bevilling = self.db.get(Bevilling, bevilling_id)
+
+        if bevilling is None or bevilling.final:
+            return False
+
+        bevilling.final = True
+
+        self.db.commit()
+
+        return True
+
+
     def update_koerselsraekke(
         self,
         koersel_id: int,

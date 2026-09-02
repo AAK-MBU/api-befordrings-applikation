@@ -106,6 +106,21 @@ function applyRule(
   return options.filter((option) => !excluded.has(normalize(option.label)));
 }
 
+/**
+ * True when a bevilling is of type "Midlertidig kørsel".
+ *
+ * Midlertidig kørsel is a short-term grant made on a different basis, so the
+ * afstandskriterie fields, befordringsudvalg and PPR ansvarlig do not apply to
+ * it and are hidden. Compared through the same normalize() as the lookup
+ * filtering, so trivial spacing differences do not break the match.
+ */
+export function isMidlertidigKoersel(
+  ansoegningstype: string | null | undefined
+): boolean {
+  return normalize(String(ansoegningstype ?? "")) === normalize(MIDLERTIDIG);
+}
+
+
 export function filterHjemler(
   all: LookupOption[] | undefined,
   ansoegningstype: string | null | undefined,

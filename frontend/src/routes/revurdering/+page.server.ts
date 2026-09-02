@@ -2,75 +2,54 @@ import { backendUserFetcher } from "$lib/server/backendApi";
 import type { PageServerLoad } from "./$types";
 
 
+/**
+ * The dropdown lists this page hands to its components.
+ *
+ * Missing lookup data degrades to empty dropdowns rather than an error page:
+ * the revurderinger list is the point of the page, and it is still readable
+ * without them.
+ */
+function toLookupOptions(lookup: Record<string, any>) {
+  return {
+    koerselstyper: lookup.koerselstyper ?? [],
+    tidspunkter: lookup.tidspunkter ?? [],
+    hjemler: lookup.hjemler ?? [],
+    afgoerelsesbreve: lookup.afgoerelsesbreve ?? [],
+    koerselstypeTillaeg: lookup.koerselstype_tillaeg ?? [],
+    dage: lookup.dage ?? [],
+    statuser: lookup.status ?? [],
+    skolematrikler: lookup.skolematrikel ?? [],
+    sagsbehandlere: lookup.sagsbehandlere ?? [],
+    pprSagsbehandlere: lookup.ppr_sagsbehandlere ?? [],
+    hjaelpemidler: lookup.hjaelpemidler ?? [],
+    ungdomsuddannelser: lookup.ungdomsuddannelser ?? [],
+    rutetyper: lookup.rutetyper ?? [],
+  };
+}
+
+
 export const load: PageServerLoad = async (event) => {
   const api = backendUserFetcher(event);
 
-  const [
-    revurderingerRes,
-    koerselstyperRes,
-    tidspunkterRes,
-    hjemlerRes,
-    afgoerelsesbreveRes,
-    koerselstypeTillaegRes,
-    dageRes,
-    statusRes,
-    skolematriklerRes,
-    sagsbehandlereRes,
-    pprSagsbehandlereRes,
-    hjaelpemidlerRes,
-    ungdomsuddannelserRes,
-    rutetyperRes,
-  ] = await Promise.all([
+  // One request for all thirteen dropdown lists. Fetching them individually
+  // made this page's load fourteen requests, thirteen of them reference data.
+  const [revurderingerRes, lookupRes] = await Promise.all([
     api("/overview/revurderinger"),
-    api("/lookup/koerselstyper"),
-    api("/lookup/tidspunkter"),
-    api("/lookup/hjemler"),
-    api("/lookup/afgoerelsesbreve"),
-    api("/lookup/koerselstype_tillaeg"),
-    api("/lookup/dage"),
-    api("/lookup/status"),
-    api("/lookup/skolematrikel"),
-    api("/lookup/sagsbehandlere"),
-    api("/lookup/ppr_sagsbehandlere"),
-    api("/lookup/hjaelpemidler"),
-    api("/lookup/ungdomsuddannelser"),
-    api("/lookup/rutetyper"),
+    api("/lookup/all"),
   ]);
+
+  if (!lookupRes.ok) {
+    console.error("Failed to fetch lookup data:", lookupRes.status);
+  }
+
+  const lookupOptions = toLookupOptions(lookupRes.ok ? await lookupRes.json() : {});
 
   if (!revurderingerRes.ok) {
     console.error("Failed to fetch revurderinger:", revurderingerRes.status);
-    return {
-      revurderinger: [],
-      koerselstyper: [], tidspunkter: [], hjemler: [], afgoerelsesbreve: [],
-      koerselstypeTillaeg: [], dage: [], statuser: [], skolematrikler: [],
-      sagsbehandlere: [], pprSagsbehandlere: [], hjaelpemidler: [], ungdomsuddannelser: [], rutetyper: [],
-    };
+    return { revurderinger: [], ...lookupOptions };
   }
 
-  const [
-    revurderinger, koerselstyper, tidspunkter, hjemler, afgoerelsesbreve,
-    koerselstypeTillaeg, dage, statuser, skolematrikler,
-    sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser, rutetyper,
-  ] = await Promise.all([
-    revurderingerRes.json(),
-    koerselstyperRes.ok ? koerselstyperRes.json() : [],
-    tidspunkterRes.ok ? tidspunkterRes.json() : [],
-    hjemlerRes.ok ? hjemlerRes.json() : [],
-    afgoerelsesbreveRes.ok ? afgoerelsesbreveRes.json() : [],
-    koerselstypeTillaegRes.ok ? koerselstypeTillaegRes.json() : [],
-    dageRes.ok ? dageRes.json() : [],
-    statusRes.ok ? statusRes.json() : [],
-    skolematriklerRes.ok ? skolematriklerRes.json() : [],
-    sagsbehandlereRes.ok ? sagsbehandlereRes.json() : [],
-    pprSagsbehandlereRes.ok ? pprSagsbehandlereRes.json() : [],
-    hjaelpemidlerRes.ok ? hjaelpemidlerRes.json() : [],
-    ungdomsuddannelserRes.ok ? ungdomsuddannelserRes.json() : [],
-    rutetyperRes.ok ? rutetyperRes.json() : [],
-  ]);
+  const revurderinger = await revurderingerRes.json();
 
-  return {
-    revurderinger, koerselstyper, tidspunkter, hjemler, afgoerelsesbreve,
-    koerselstypeTillaeg, dage, statuser, skolematrikler,
-    sagsbehandlere, pprSagsbehandlere, hjaelpemidler, ungdomsuddannelser, rutetyper,
-  };
+  return { revurderinger, ...lookupOptions };
 };

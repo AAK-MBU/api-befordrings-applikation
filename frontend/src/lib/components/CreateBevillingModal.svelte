@@ -1,13 +1,24 @@
   <script lang="ts">
     import { onMount, createEventDispatcher } from "svelte";
     import { backendFetch } from "$lib/client/backendFetch";
-    import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
+    import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+    import {
+      AFSTANDSKRITERIE_KLASSETRIN,
+      beregnAfstandskriterieDato,
+      beregnAfstandskriterieKlassetrin
+    } from "$lib/afstandskriterie";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
 
+  import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
     export let cpr: string;
     export let mode: 'kopi' | 'tom';
     export let existingBevillinger: any[] = [];
     export let lookupOptions: any = {};
+
+    // The student's current klassetrin (Elev.elevklassetrin), used to derive the
+    // afstandskriterie fields. Optional: without it the two fields simply stay
+    // manual, which is what an ungdomsuddannelse student needs anyway.
+    export let elevklassetrin: string | number | null = null;
 
     const dispatch = createEventDispatcher<{ created: void; cancel: void }>();
 
@@ -67,6 +78,10 @@
 
     $: modalBefordringstypeLabel = (koerselstyper.find((t: any) => Number(t.id) === Number(modalKoersel.befordringstype_id))?.label ?? '').toLowerCase().trim();
 
+    // Midlertidig kørsel is granted on a different basis, so the afstandskriterie
+    // fields, befordringsudvalg and PPR ansvarlig do not apply and are hidden.
+    $: isMidlertidig = isMidlertidigKoersel(newBevilling.ansoegningstype);
+
     $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
     $: selectedHjemmelLabel = visibleHjemler.find((h: any) => String(h.id) === String(newBevilling.hjemmel_id))?.label ?? null;
     $: visibleAfgoerelsesbreve = filterAfgoerelsesbreve(lookupOptions?.afgoerelsesbreve, newBevilling.ansoegningstype, skoleType, selectedHjemmelLabel);
@@ -75,8 +90,60 @@
   // Functions
   // ---------------------------------------------------------------------------
 
+    // A bevilling being copied can hold a klassetrin outside the standard list,
+    // and a <select> whose value matches no option silently blanks itself —
+    // which looks exactly like the copy having dropped the field. Append the
+    // stored value instead.
+    function klassetrinOptions(current: string | number | null | undefined): string[] {
+      const value = String(current ?? "").trim();
+      const known = AFSTANDSKRITERIE_KLASSETRIN.map(String);
+
+      if (!value || known.includes(value)) {
+        return known;
+      }
+
+      return [...known, value];
+    }
+
+    // Derived from the student's klassetrin rather than typed in. Recomputed
+    // whenever the klassetrin changes, but not written straight into
+    // newBevilling: applyBeregnetAfstandskriterie() does that, so a caseworker
+    // who overrides either field keeps their value.
+    $: beregnetKlassetrin = beregnAfstandskriterieKlassetrin(elevklassetrin);
+    $: beregnetDato = beregnAfstandskriterieDato(elevklassetrin);
+
+    function applyBeregnetAfstandskriterie() {
+      if (beregnetKlassetrin === null || beregnetDato === null) {
+        return;
+      }
+
+      newBevilling = {
+        ...newBevilling,
+        afstandskriterie_klassetrin: String(beregnetKlassetrin),
+        afstandskriterie_dato: beregnetDato
+      };
+    }
+
     function resetLookupSelections() {
       newBevilling = { ...newBevilling, hjemmel_id: "", afgoerelsesbrev_id: "" };
+    }
+
+    function onAnsoegningstypeChange() {
+      resetLookupSelections();
+
+      // Drop anything already typed into the fields that are about to be
+      // hidden, so a value entered under another ansøgningstype cannot be
+      // submitted invisibly. Only on the way *into* Midlertidig — switching
+      // between two other types must not discard the user's input.
+      if (isMidlertidigKoersel(newBevilling.ansoegningstype)) {
+        newBevilling = {
+          ...newBevilling,
+          afstandskriterie_dato: "",
+          afstandskriterie_klassetrin: "",
+          befordringsudvalg: "",
+          ppr_sagsbehandler_id: ""
+        };
+      }
     }
 
     function getEmptyBevilling() {
@@ -241,7 +308,10 @@
         revurderingsdato:            source.revurderingsdato ? String(source.revurderingsdato).slice(0, 10) : "",
         befordringsudvalg:           source.befordringsudvalg ? String(source.befordringsudvalg).slice(0, 10) : "",
         begrundelse_fra_formular:    rawBegrundelse,
-        esdh_noegle:                 "",
+        // A revurdering continues the same ESDH case, so the key carries over.
+        // The other fields below stay blank on purpose: they belong to the new
+        // bevilling, not the one being copied.
+        esdh_noegle:                 source.esdh_noegle ?? "",
         ansoegningsdato:             "",
         sagsbehandlingsdato:         "",
         foerste_koersel_dato:        "",
@@ -277,7 +347,6 @@
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
       if (!validateBevillingDates()) return;
-      const isMidlertidig = newBevilling.ansoegningstype === "Midlertidig kørsel";
       const payload = {
         adresse_id:                  newBevilling.adresse_id,
         matrikel_id:                 (isMidlertidig && skoleType === 'ungdomsuddannelse') ? null : numberOrNull(newBevilling.matrikel_id),
@@ -285,17 +354,17 @@
         hjemmel_id:                  numberOrNull(newBevilling.hjemmel_id),
         afgoerelsesbrev_id:          numberOrNull(newBevilling.afgoerelsesbrev_id),
         revurderingsdato:            emptyToNull(newBevilling.revurderingsdato),
-        befordringsudvalg:           emptyToNull(newBevilling.befordringsudvalg),
+        befordringsudvalg:           isMidlertidig ? null : emptyToNull(newBevilling.befordringsudvalg),
         esdh_noegle:                 emptyToNull(newBevilling.esdh_noegle),
         sagsbehandler_id:            numberOrNull(newBevilling.sagsbehandler_id),
-        ppr_sagsbehandler_id:        numberOrNull(newBevilling.ppr_sagsbehandler_id),
+        ppr_sagsbehandler_id:        isMidlertidig ? null : numberOrNull(newBevilling.ppr_sagsbehandler_id),
         ansoegningsdato:             emptyToNull(newBevilling.ansoegningsdato),
         sagsbehandlingsdato:         emptyToNull(newBevilling.sagsbehandlingsdato),
         relation_til_barnet:         emptyToNull(newBevilling.relation_til_barnet),
         foerste_koersel_dato:        emptyToNull(newBevilling.foerste_koersel_dato),
         ansoegningstype:             emptyToNull(newBevilling.ansoegningstype),
-        afstandskriterie_dato:       emptyToNull(newBevilling.afstandskriterie_dato),
-        afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
+        afstandskriterie_dato:       isMidlertidig ? null : emptyToNull(newBevilling.afstandskriterie_dato),
+        afstandskriterie_klassetrin: isMidlertidig ? null : numberOrNull(newBevilling.afstandskriterie_klassetrin),
         begrundelse_fra_formular:    emptyToNull(newBevilling.begrundelse_fra_formular),
         hjaelpemiddel_ids:           newBevilling.hjaelpemiddel_ids ?? [],
       };
@@ -339,7 +408,6 @@
         if (modalKoersel.skift_med_bus === "" || modalKoersel.skift_med_bus == null)           { modalError = "Antal skift skal udfyldes"; return; }
       }
       isCreatingKoerselInModal = true;
-      const isMidlertidig = newBevilling.ansoegningstype === "Midlertidig kørsel";
       const payload = {
         adresse_id:                  newBevilling.adresse_id,
         matrikel_id:                 (isMidlertidig && skoleType === 'ungdomsuddannelse') ? null : numberOrNull(newBevilling.matrikel_id),
@@ -347,17 +415,17 @@
         hjemmel_id:                  numberOrNull(newBevilling.hjemmel_id),
         afgoerelsesbrev_id:          numberOrNull(newBevilling.afgoerelsesbrev_id),
         revurderingsdato:            emptyToNull(newBevilling.revurderingsdato),
-        befordringsudvalg:           emptyToNull(newBevilling.befordringsudvalg),
+        befordringsudvalg:           isMidlertidig ? null : emptyToNull(newBevilling.befordringsudvalg),
         esdh_noegle:                 emptyToNull(newBevilling.esdh_noegle),
         sagsbehandler_id:            numberOrNull(newBevilling.sagsbehandler_id),
-        ppr_sagsbehandler_id:        numberOrNull(newBevilling.ppr_sagsbehandler_id),
+        ppr_sagsbehandler_id:        isMidlertidig ? null : numberOrNull(newBevilling.ppr_sagsbehandler_id),
         ansoegningsdato:             emptyToNull(newBevilling.ansoegningsdato),
         sagsbehandlingsdato:         emptyToNull(newBevilling.sagsbehandlingsdato),
         relation_til_barnet:         emptyToNull(newBevilling.relation_til_barnet),
         foerste_koersel_dato:        emptyToNull(newBevilling.foerste_koersel_dato),
         ansoegningstype:             emptyToNull(newBevilling.ansoegningstype),
-        afstandskriterie_dato:       emptyToNull(newBevilling.afstandskriterie_dato),
-        afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
+        afstandskriterie_dato:       isMidlertidig ? null : emptyToNull(newBevilling.afstandskriterie_dato),
+        afstandskriterie_klassetrin: isMidlertidig ? null : numberOrNull(newBevilling.afstandskriterie_klassetrin),
         begrundelse_fra_formular:    emptyToNull(newBevilling.begrundelse_fra_formular),
         hjaelpemiddel_ids:           newBevilling.hjaelpemiddel_ids ?? [],
       };
@@ -414,6 +482,11 @@
       } else {
         resetModalKoersel('tom');
       }
+
+      // Last, so it also wins over a copied bevilling's values: those were
+      // right for the klassetrin the student was in then, and a revurdering is
+      // precisely when that has moved on.
+      applyBeregnetAfstandskriterie();
     });
   </script>
 
@@ -440,7 +513,7 @@
               bind:value={selectedSourceBevillingId}
               on:change={() => {
                 const bev = existingBevillinger.find((b: any) => b.bevilling_id === selectedSourceBevillingId) ?? null;
-                if (bev) { prefillFromBevilling(bev); resetModalKoersel('kopi', bev); }
+                if (bev) { prefillFromBevilling(bev); resetModalKoersel('kopi', bev); applyBeregnetAfstandskriterie(); }
               }}
             >
               {#each existingBevillinger as bev}
@@ -452,7 +525,7 @@
 
           <label class="text-sm font-medium text-gray-700 col-span-2">
             Ansøgningstype <span class="text-red-500">*</span>
-            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={resetLookupSelections}>
+            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={onAnsoegningstypeChange}>
               <option value="">Vælg ansøgningstype</option>
               <option value="Kørsel">Kørsel</option>
               <option value="Midlertidig kørsel">Midlertidig kørsel</option>
@@ -547,10 +620,12 @@
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
             </label>
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Befordringsudvalg
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
             </label>
+            {/if}
 
             <label class="text-sm font-medium text-gray-700">
               ESDH-nøgle
@@ -567,6 +642,7 @@
               </select>
             </label>
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               PPR ansvarlig
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ppr_sagsbehandler_id}>
@@ -576,6 +652,7 @@
                 {/each}
               </select>
             </label>
+            {/if}
 
             <label class="text-sm font-medium text-gray-700">
               Sagsbehandlingsdato
@@ -586,12 +663,9 @@
               Ansøger relation
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.relation_til_barnet}>
                 <option value="">Vælg</option>
-                <option value="Forældremyndig">Forældremyndig</option>
-                <option value="Værge">Værge</option>
-                <option value="Plejeforælder">Plejeforælder</option>
-                <option value="Uddannelsesinstitution">Uddannelsesinstitution</option>
-                <option value="Sagsbehandler">Sagsbehandler</option>
-                <option value="Bosted">Bosted</option>
+                {#each ansoegerRelationOptions(newBevilling.relation_til_barnet) as relation}
+                  <option value={relation}>{relation}</option>
+                {/each}
               </select>
             </label>
 
@@ -600,20 +674,34 @@
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
             </label>
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie dato
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
+              {#if beregnetDato}
+                <span class="mt-1 block text-[11px] font-normal text-gray-500">
+                  Beregnet ud fra elevens klassetrin — kan rettes
+                </span>
+              {/if}
             </label>
+            {/if}
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie klassetrin
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_klassetrin}>
                 <option value="">Vælg</option>
-                {#each [3, 6, 7, 9, 10] as trin}
-                  <option value={String(trin)}>{trin}</option>
+                {#each klassetrinOptions(newBevilling.afstandskriterie_klassetrin) as trin}
+                  <option value={trin}>{trin}</option>
                 {/each}
               </select>
+              {#if beregnetKlassetrin !== null}
+                <span class="mt-1 block text-[11px] font-normal text-gray-500">
+                  Beregnet ud fra elevens klassetrin — kan rettes
+                </span>
+              {/if}
             </label>
+            {/if}
 
             <div class="col-span-2">
               <p class="text-sm font-medium text-gray-700 mb-1.5">Begrundelse</p>

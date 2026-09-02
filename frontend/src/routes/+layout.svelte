@@ -148,7 +148,26 @@
 
     <div class="flex items-center gap-3 mr-6 md:mr-10 shrink-0 py-3">
       <div class="w-8 h-8 rounded flex items-center justify-center overflow-hidden" style="background-color: #2ab4a0;">
-        <img src={favicon} alt="" class="w-5 h-5" style="filter: brightness(0) invert(1);" />
+        <svg
+          class="w-5 h-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#ffffff"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <!-- body -->
+          <path d="M5 17V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v11" />
+          <!-- window band + centre divider -->
+          <path d="M5 11h14" />
+          <path d="M12 4v7" />
+          <!-- chassis + wheels -->
+          <path d="M4 17h16" />
+          <circle cx="8.5" cy="19" r="1.5" />
+          <circle cx="15.5" cy="19" r="1.5" />
+        </svg>
       </div>
       <div class="leading-none">
         <p class="font-bold text-sm tracking-widest" style="color: #ffffff;">BEFORDRING</p>

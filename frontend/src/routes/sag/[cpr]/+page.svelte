@@ -2,6 +2,7 @@
   import { invalidateAll } from "$app/navigation";
 
   import { backendFetch } from "$lib/client/backendFetch";
+  import { afstandsMargin, formatAfstandsMargin } from "$lib/afstandskriterie";
 
   import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
@@ -19,6 +20,10 @@
   // can_edit is resolved by the backend from EDIT_ROLES (see GET /me), so the
   // UI cannot drift from what require_edit actually enforces.
   $: canEdit = data.user?.can_edit ?? false;
+
+  // Non-null when the student's measured distance sits within 500 m of the
+  // afstandskriterie for their klassetrin — see $lib/afstandskriterie.
+  $: skoleafstandMargin = afstandsMargin(stamdata?.elevklassetrin, stamdata?.skoleafstand);
 
 
   // -----------------------------
@@ -148,6 +153,54 @@
       await invalidateAll();
     } finally {
       savingKommentar = false;
+    }
+  }
+
+  // Comment deletion is permanent — Sagsaktivitet has no aktiv flag, so there
+  // is no soft-delete to fall back on and no undo. Hence the two-step confirm
+  // rather than a single click, matching how kørselsrækker are deleted.
+  let confirmingDeleteAktivitetId: number | null = null;
+  let deletingAktivitet = false;
+  let deleteAktivitetError: string | null = null;
+
+  async function doDeleteKommentar() {
+    if (deletingAktivitet || confirmingDeleteAktivitetId === null) {
+      return;
+    }
+
+    const aktivitetId = confirmingDeleteAktivitetId;
+
+    deletingAktivitet = true;
+    deleteAktivitetError = null;
+
+    try {
+      const response = await backendFetch(`/aktivitet/kommentar/${aktivitetId}`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        // The backend distinguishes "you may not write" (403 from RequireEdit)
+        // from "this row is not a comment" (403 from the service), and says so
+        // in Danish either way — so show its message rather than a generic one.
+        let message = "Kunne ikke slette kommentaren";
+
+        try {
+          const errorData = await response.json();
+          message = errorData?.detail?.message ?? errorData?.detail ?? message;
+        } catch {
+          // Keep the fallback message.
+        }
+
+        // Keep the dialog open so the reason is read where it was triggered.
+        deleteAktivitetError = message;
+        return;
+      }
+
+      confirmingDeleteAktivitetId = null;
+
+      await invalidateAll();
+    } finally {
+      deletingAktivitet = false;
     }
   }
 
@@ -576,6 +629,34 @@
   }
 
 
+  async function handleSetBevillingLock(
+    bevillingId: number,
+    final: boolean
+  ): Promise<string | null> {
+    // Same route the kørselsrække lock uses one level down: the plain update
+    // endpoint with only the flag in the body.
+    const response = await backendFetch(`/bevilling/${bevillingId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ final })
+    });
+
+    if (!response.ok) {
+      let message = final
+        ? "Kunne ikke låse bevillingen"
+        : "Kunne ikke låse bevillingen op";
+      try {
+        const err = await response.json();
+        message = err?.detail ?? message;
+      } catch { /* keep fallback */ }
+      return message;
+    }
+
+    await invalidateAll();
+    return null;
+  }
+
+
   async function handleSaveKoerselsraekke(koerselId: number, updates: any): Promise<string | null> {
     const {
       tillaeg_ids,
@@ -846,6 +927,20 @@
         <div>
           <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skoleafstand (km)</p>
           <p class="text-sm text-gray-800">{stamdata?.skoleafstand ?? "—"}</p>
+          <!-- Flagged when the distance sits within 500 m of the afstandskriterie
+               for the student's klassetrin, either side: a recalculation could
+               move them across it. -->
+          {#if skoleafstandMargin}
+            <p
+              class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
+              title="Afstanden ligger tæt på afstandskriteriet for elevens klassetrin"
+            >
+              <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              Tæt på grænsen — {formatAfstandsMargin(skoleafstandMargin)}
+            </p>
+          {/if}
         </div>
 
         <!-- KLASSEART -->
@@ -967,6 +1062,7 @@
         cpr={stamdata.cpr}
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
+        elevklassetrin={stamdata?.elevklassetrin ?? null}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}
         on:cancel={() => { showCreateBevillingModal = false; }}
@@ -1080,6 +1176,7 @@
       onSaveKoerselsraekke={handleSaveKoerselsraekke}
       onCreateKoerselsraekke={handleCreateKoerselsraekke}
       onFinalizeKoerselsraekke={handleFinalizeKoerselsraekke}
+      onSetBevillingLock={handleSetBevillingLock}
       onDeleteBevilling={handleDeleteBevilling}
       onDeleteKoerselsraekke={handleDeleteKoerselsraekke}
     />
@@ -1313,7 +1410,7 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                   {/if}
                 </div>
 
-                <!-- Right: timestamp + sender -->
+                <!-- Right: timestamp + sender + delete -->
                 <div class="flex flex-col items-end shrink-0 text-right gap-0.5">
                   <span class="text-xs text-gray-500 whitespace-nowrap">
                     {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
@@ -1324,6 +1421,22 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                     {:else}
                       <span class="text-xs font-medium text-gray-700">{aktivitet.udfoert_af}</span>
                     {/if}
+                  {/if}
+
+                  <!-- Only comments can be deleted. System-written entries are
+                       the case history, and the backend refuses them too. -->
+                  {#if aktivitet.aktivitetstype === "Kommentar"}
+                    <button
+                      type="button"
+                      title="Slet kommentar"
+                      disabled={!canEdit}
+                      class="mt-1 p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      on:click={() => { confirmingDeleteAktivitetId = aktivitet.aktivitet_id; deleteAktivitetError = null; }}
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   {/if}
                 </div>
 
@@ -1344,3 +1457,62 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
   {/if}
 
 </section>
+
+
+<!-- Delete kommentar confirmation modal -->
+{#if confirmingDeleteAktivitetId !== null}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    role="presentation"
+  >
+    <div
+      class="w-[420px] bg-white rounded-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="px-6 py-5 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900">Slet kommentar</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Kommentar #{confirmingDeleteAktivitetId}</p>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4">
+        <!-- Unlike bevilling og kørselsrække, this is a real delete: the row is
+             removed from the database and cannot be restored. Say so plainly —
+             the other dialogs promise the opposite. -->
+        <p class="text-sm text-gray-700">
+          Er du sikker på, at du vil slette denne kommentar?
+          Den slettes permanent fra databasen og kan ikke gendannes.
+        </p>
+        {#if deleteAktivitetError}
+          <p class="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{deleteAktivitetError}</p>
+        {/if}
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+          on:click={() => confirmingDeleteAktivitetId = null}
+        >
+          Annullér
+        </button>
+        <button
+          type="button"
+          disabled={deletingAktivitet}
+          class="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+          on:click={doDeleteKommentar}
+        >
+          {deletingAktivitet ? "Sletter…" : "Slet kommentar"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

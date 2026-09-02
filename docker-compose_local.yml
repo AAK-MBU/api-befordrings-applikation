@@ -57,7 +57,6 @@ services:
     container_name: befordringssystemet-frontend
     environment:
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
-      BEFORDRING_API_KEY: ${BEFORDRING_API_KEY}
       # Browser-facing URL that starts the OIDC login flow. Defaults to the
       # same-origin /api/auth/login, which assumes the edge proxy forwards /api
       # to the backend. Set an absolute URL where it does not.
