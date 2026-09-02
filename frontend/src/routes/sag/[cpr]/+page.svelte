@@ -2,6 +2,7 @@
   import { invalidateAll } from "$app/navigation";
 
   import { backendFetch } from "$lib/client/backendFetch";
+  import { afstandsMargin, formatAfstandsMargin } from "$lib/afstandskriterie";
 
   import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
@@ -19,6 +20,10 @@
   // can_edit is resolved by the backend from EDIT_ROLES (see GET /me), so the
   // UI cannot drift from what require_edit actually enforces.
   $: canEdit = data.user?.can_edit ?? false;
+
+  // Non-null when the student's measured distance sits within 500 m of the
+  // afstandskriterie for their klassetrin — see $lib/afstandskriterie.
+  $: skoleafstandMargin = afstandsMargin(stamdata?.elevklassetrin, stamdata?.skoleafstand);
 
 
   // -----------------------------
@@ -922,6 +927,20 @@
         <div>
           <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skoleafstand (km)</p>
           <p class="text-sm text-gray-800">{stamdata?.skoleafstand ?? "—"}</p>
+          <!-- Flagged when the distance sits within 500 m of the afstandskriterie
+               for the student's klassetrin, either side: a recalculation could
+               move them across it. -->
+          {#if skoleafstandMargin}
+            <p
+              class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
+              title="Afstanden ligger tæt på afstandskriteriet for elevens klassetrin"
+            >
+              <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              Tæt på grænsen — {formatAfstandsMargin(skoleafstandMargin)}
+            </p>
+          {/if}
         </div>
 
         <!-- KLASSEART -->
@@ -1043,6 +1062,7 @@
         cpr={stamdata.cpr}
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
+        elevklassetrin={stamdata?.elevklassetrin ?? null}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}
         on:cancel={() => { showCreateBevillingModal = false; }}

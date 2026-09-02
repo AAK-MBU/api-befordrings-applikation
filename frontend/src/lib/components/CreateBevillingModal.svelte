@@ -2,6 +2,11 @@
     import { onMount, createEventDispatcher } from "svelte";
     import { backendFetch } from "$lib/client/backendFetch";
     import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+    import {
+      AFSTANDSKRITERIE_KLASSETRIN,
+      beregnAfstandskriterieDato,
+      beregnAfstandskriterieKlassetrin
+    } from "$lib/afstandskriterie";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
@@ -9,6 +14,11 @@
     export let mode: 'kopi' | 'tom';
     export let existingBevillinger: any[] = [];
     export let lookupOptions: any = {};
+
+    // The student's current klassetrin (Elev.elevklassetrin), used to derive the
+    // afstandskriterie fields. Optional: without it the two fields simply stay
+    // manual, which is what an ungdomsuddannelse student needs anyway.
+    export let elevklassetrin: string | number | null = null;
 
     const dispatch = createEventDispatcher<{ created: void; cancel: void }>();
 
@@ -80,21 +90,38 @@
   // Functions
   // ---------------------------------------------------------------------------
 
-    // The klassetrin the afstandskriterie is graded by. A bevilling being copied
-    // can hold a value outside this list, and a <select> whose value matches no
-    // option silently blanks itself — which looks exactly like the copy having
-    // dropped the field. Append the stored value instead.
-    const KLASSETRIN = [3, 6, 7, 9, 10];
-
+    // A bevilling being copied can hold a klassetrin outside the standard list,
+    // and a <select> whose value matches no option silently blanks itself —
+    // which looks exactly like the copy having dropped the field. Append the
+    // stored value instead.
     function klassetrinOptions(current: string | number | null | undefined): string[] {
       const value = String(current ?? "").trim();
-      const known = KLASSETRIN.map(String);
+      const known = AFSTANDSKRITERIE_KLASSETRIN.map(String);
 
       if (!value || known.includes(value)) {
         return known;
       }
 
       return [...known, value];
+    }
+
+    // Derived from the student's klassetrin rather than typed in. Recomputed
+    // whenever the klassetrin changes, but not written straight into
+    // newBevilling: applyBeregnetAfstandskriterie() does that, so a caseworker
+    // who overrides either field keeps their value.
+    $: beregnetKlassetrin = beregnAfstandskriterieKlassetrin(elevklassetrin);
+    $: beregnetDato = beregnAfstandskriterieDato(elevklassetrin);
+
+    function applyBeregnetAfstandskriterie() {
+      if (beregnetKlassetrin === null || beregnetDato === null) {
+        return;
+      }
+
+      newBevilling = {
+        ...newBevilling,
+        afstandskriterie_klassetrin: String(beregnetKlassetrin),
+        afstandskriterie_dato: beregnetDato
+      };
     }
 
     function resetLookupSelections() {
@@ -455,6 +482,11 @@
       } else {
         resetModalKoersel('tom');
       }
+
+      // Last, so it also wins over a copied bevilling's values: those were
+      // right for the klassetrin the student was in then, and a revurdering is
+      // precisely when that has moved on.
+      applyBeregnetAfstandskriterie();
     });
   </script>
 
@@ -481,7 +513,7 @@
               bind:value={selectedSourceBevillingId}
               on:change={() => {
                 const bev = existingBevillinger.find((b: any) => b.bevilling_id === selectedSourceBevillingId) ?? null;
-                if (bev) { prefillFromBevilling(bev); resetModalKoersel('kopi', bev); }
+                if (bev) { prefillFromBevilling(bev); resetModalKoersel('kopi', bev); applyBeregnetAfstandskriterie(); }
               }}
             >
               {#each existingBevillinger as bev}
@@ -646,6 +678,11 @@
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie dato
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
+              {#if beregnetDato}
+                <span class="mt-1 block text-[11px] font-normal text-gray-500">
+                  Beregnet ud fra elevens klassetrin — kan rettes
+                </span>
+              {/if}
             </label>
             {/if}
 
@@ -658,6 +695,11 @@
                   <option value={trin}>{trin}</option>
                 {/each}
               </select>
+              {#if beregnetKlassetrin !== null}
+                <span class="mt-1 block text-[11px] font-normal text-gray-500">
+                  Beregnet ud fra elevens klassetrin — kan rettes
+                </span>
+              {/if}
             </label>
             {/if}
 

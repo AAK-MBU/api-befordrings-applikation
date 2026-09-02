@@ -10,6 +10,11 @@
   } from "$lib/tableColumnConfig";
   import { backendFetch } from "$lib/client/backendFetch";
   import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+  import {
+    AFSTANDSKRITERIE_KLASSETRIN,
+    beregnAfstandskriterieDato,
+    beregnAfstandskriterieKlassetrin
+  } from "$lib/afstandskriterie";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
@@ -384,11 +389,36 @@
       adresse_lon:  bevilling.adresse_longitude ?? null,
     };
 
+    // Derive the afstandskriterie fields where there is nothing to overwrite.
+    // A stored value is left alone — it may have been set deliberately — but
+    // the computed one is offered next to the field, see brugBeregnet().
+    const beregnetKlassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin);
+    const beregnetDato = beregnAfstandskriterieDato(bevilling.elevklassetrin);
+
+    if (beregnetKlassetrin !== null && editableBevilling.afstandskriterie_klassetrin == null) {
+      editableBevilling.afstandskriterie_klassetrin = beregnetKlassetrin;
+    }
+
+    if (beregnetDato !== null && !editableBevilling.afstandskriterie_dato) {
+      editableBevilling.afstandskriterie_dato = beregnetDato;
+    }
+
     selectedHjaelpemiddelIds = parseHjaelpemiddelIds(
       bevilling.hjaelpemiddel_ids
     );
 
     hjaelpemiddelSelectValue = "";
+  }
+
+  /** Overwrite both afstandskriterie fields with the derived values. */
+  function brugBeregnet(bevilling: any) {
+    const klassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin);
+    const dato = beregnAfstandskriterieDato(bevilling.elevklassetrin);
+
+    if (klassetrin === null || dato === null) return;
+
+    updateField("afstandskriterie_klassetrin", klassetrin);
+    updateField("afstandskriterie_dato", dato);
   }
 
 
@@ -776,10 +806,26 @@
                 on:change={(e) => updateField("afstandskriterie_klassetrin", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each [3, 6, 7, 9, 10] as trin}
+                {#each AFSTANDSKRITERIE_KLASSETRIN as trin}
                   <option value={trin}>{trin}</option>
                 {/each}
-              </select>  
+              </select>
+              <!-- Only when the derived values differ from what is entered:
+                   nothing to offer when they already agree. -->
+              {@const beregnetKlassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin)}
+              {@const beregnetDato = beregnAfstandskriterieDato(bevilling.elevklassetrin)}
+              {#if beregnetKlassetrin !== null && beregnetDato !== null
+                && (Number(editableBevilling.afstandskriterie_klassetrin) !== beregnetKlassetrin
+                  || String(editableBevilling.afstandskriterie_dato ?? "").slice(0, 10) !== beregnetDato)}
+                <button
+                  type="button"
+                  class="mt-1 text-[11px] text-sky-700 hover:text-sky-900 underline decoration-dotted"
+                  title="Sætter både klassetrin og dato ud fra elevens klassetrin"
+                  on:click={() => brugBeregnet(bevilling)}
+                >
+                  Brug beregnet: {beregnetKlassetrin} · {formatDanishDate(beregnetDato)}
+                </button>
+              {/if}
             {:else}
               <p class="text-sm text-gray-800">{bevilling.afstandskriterie_klassetrin ?? "—"}</p>
             {/if}
