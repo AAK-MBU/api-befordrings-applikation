@@ -9,7 +9,7 @@
     formatDanishDate,
   } from "$lib/tableColumnConfig";
   import { backendFetch } from "$lib/client/backendFetch";
-  import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
+  import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
@@ -747,7 +747,8 @@
             {/if}
           </div>
 
-          <!-- AFSTANDSKRITERIE DATO -->
+          <!-- AFSTANDSKRITERIE DATO — not applicable to Midlertidig kørsel -->
+          {#if !isMidlertidigKoersel(bevilling.ansoegningstype)}
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Afstandskriterie dato</p>
             {#if isEditing}
@@ -762,8 +763,10 @@
               <p class="text-sm text-gray-800">{formatDanishDate(bevilling.afstandskriterie_dato)}</p>
             {/if}
           </div>
+          {/if}
 
-          <!-- AFSTANDSKRITERIE KLASSETRIN -->
+          <!-- AFSTANDSKRITERIE KLASSETRIN — not applicable to Midlertidig kørsel -->
+          {#if !isMidlertidigKoersel(bevilling.ansoegningstype)}
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Afstandskriterie klassetrin</p>
             {#if isEditing}
@@ -781,6 +784,7 @@
               <p class="text-sm text-gray-800">{bevilling.afstandskriterie_klassetrin ?? "—"}</p>
             {/if}
           </div>
+          {/if}
 
           <!-- ANSØGER RELATION -->
           <div>
@@ -817,7 +821,8 @@
             {/if}
           </div>
 
-          <!-- BEFORDRINGSUDVALG -->
+          <!-- BEFORDRINGSUDVALG — not applicable to Midlertidig kørsel -->
+          {#if !isMidlertidigKoersel(bevilling.ansoegningstype)}
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Befordringsudvalg</p>
             {#if isEditing}
@@ -832,6 +837,7 @@
               <p class="text-sm text-gray-800">{formatDanishDate(bevilling.befordringsudvalg)}</p>
             {/if}
           </div>
+          {/if}
 
           <!-- HJEMMEL -->
           <div>
@@ -892,7 +898,8 @@
             {/if}
           </div>
 
-          <!-- PPR ANSVARLIG -->
+          <!-- PPR ANSVARLIG — not applicable to Midlertidig kørsel -->
+          {#if !isMidlertidigKoersel(bevilling.ansoegningstype)}
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">PPR ansvarlig</p>
             {#if isEditing}
@@ -910,6 +917,7 @@
               <p class="text-sm text-gray-800">{bevilling.ppr_sagsbehandler_tekst ?? "—"}</p>
             {/if}
           </div>
+          {/if}
 
         </div>
 

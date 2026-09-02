@@ -1,7 +1,7 @@
   <script lang="ts">
     import { onMount, createEventDispatcher } from "svelte";
     import { backendFetch } from "$lib/client/backendFetch";
-    import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
+    import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
@@ -68,6 +68,10 @@
 
     $: modalBefordringstypeLabel = (koerselstyper.find((t: any) => Number(t.id) === Number(modalKoersel.befordringstype_id))?.label ?? '').toLowerCase().trim();
 
+    // Midlertidig kørsel is granted on a different basis, so the afstandskriterie
+    // fields, befordringsudvalg and PPR ansvarlig do not apply and are hidden.
+    $: isMidlertidig = isMidlertidigKoersel(newBevilling.ansoegningstype);
+
     $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
     $: selectedHjemmelLabel = visibleHjemler.find((h: any) => String(h.id) === String(newBevilling.hjemmel_id))?.label ?? null;
     $: visibleAfgoerelsesbreve = filterAfgoerelsesbreve(lookupOptions?.afgoerelsesbreve, newBevilling.ansoegningstype, skoleType, selectedHjemmelLabel);
@@ -78,6 +82,24 @@
 
     function resetLookupSelections() {
       newBevilling = { ...newBevilling, hjemmel_id: "", afgoerelsesbrev_id: "" };
+    }
+
+    function onAnsoegningstypeChange() {
+      resetLookupSelections();
+
+      // Drop anything already typed into the fields that are about to be
+      // hidden, so a value entered under another ansøgningstype cannot be
+      // submitted invisibly. Only on the way *into* Midlertidig — switching
+      // between two other types must not discard the user's input.
+      if (isMidlertidigKoersel(newBevilling.ansoegningstype)) {
+        newBevilling = {
+          ...newBevilling,
+          afstandskriterie_dato: "",
+          afstandskriterie_klassetrin: "",
+          befordringsudvalg: "",
+          ppr_sagsbehandler_id: ""
+        };
+      }
     }
 
     function getEmptyBevilling() {
@@ -278,7 +300,6 @@
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
       if (!validateBevillingDates()) return;
-      const isMidlertidig = newBevilling.ansoegningstype === "Midlertidig kørsel";
       const payload = {
         adresse_id:                  newBevilling.adresse_id,
         matrikel_id:                 (isMidlertidig && skoleType === 'ungdomsuddannelse') ? null : numberOrNull(newBevilling.matrikel_id),
@@ -286,17 +307,17 @@
         hjemmel_id:                  numberOrNull(newBevilling.hjemmel_id),
         afgoerelsesbrev_id:          numberOrNull(newBevilling.afgoerelsesbrev_id),
         revurderingsdato:            emptyToNull(newBevilling.revurderingsdato),
-        befordringsudvalg:           emptyToNull(newBevilling.befordringsudvalg),
+        befordringsudvalg:           isMidlertidig ? null : emptyToNull(newBevilling.befordringsudvalg),
         esdh_noegle:                 emptyToNull(newBevilling.esdh_noegle),
         sagsbehandler_id:            numberOrNull(newBevilling.sagsbehandler_id),
-        ppr_sagsbehandler_id:        numberOrNull(newBevilling.ppr_sagsbehandler_id),
+        ppr_sagsbehandler_id:        isMidlertidig ? null : numberOrNull(newBevilling.ppr_sagsbehandler_id),
         ansoegningsdato:             emptyToNull(newBevilling.ansoegningsdato),
         sagsbehandlingsdato:         emptyToNull(newBevilling.sagsbehandlingsdato),
         relation_til_barnet:         emptyToNull(newBevilling.relation_til_barnet),
         foerste_koersel_dato:        emptyToNull(newBevilling.foerste_koersel_dato),
         ansoegningstype:             emptyToNull(newBevilling.ansoegningstype),
-        afstandskriterie_dato:       emptyToNull(newBevilling.afstandskriterie_dato),
-        afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
+        afstandskriterie_dato:       isMidlertidig ? null : emptyToNull(newBevilling.afstandskriterie_dato),
+        afstandskriterie_klassetrin: isMidlertidig ? null : numberOrNull(newBevilling.afstandskriterie_klassetrin),
         begrundelse_fra_formular:    emptyToNull(newBevilling.begrundelse_fra_formular),
         hjaelpemiddel_ids:           newBevilling.hjaelpemiddel_ids ?? [],
       };
@@ -340,7 +361,6 @@
         if (modalKoersel.skift_med_bus === "" || modalKoersel.skift_med_bus == null)           { modalError = "Antal skift skal udfyldes"; return; }
       }
       isCreatingKoerselInModal = true;
-      const isMidlertidig = newBevilling.ansoegningstype === "Midlertidig kørsel";
       const payload = {
         adresse_id:                  newBevilling.adresse_id,
         matrikel_id:                 (isMidlertidig && skoleType === 'ungdomsuddannelse') ? null : numberOrNull(newBevilling.matrikel_id),
@@ -348,17 +368,17 @@
         hjemmel_id:                  numberOrNull(newBevilling.hjemmel_id),
         afgoerelsesbrev_id:          numberOrNull(newBevilling.afgoerelsesbrev_id),
         revurderingsdato:            emptyToNull(newBevilling.revurderingsdato),
-        befordringsudvalg:           emptyToNull(newBevilling.befordringsudvalg),
+        befordringsudvalg:           isMidlertidig ? null : emptyToNull(newBevilling.befordringsudvalg),
         esdh_noegle:                 emptyToNull(newBevilling.esdh_noegle),
         sagsbehandler_id:            numberOrNull(newBevilling.sagsbehandler_id),
-        ppr_sagsbehandler_id:        numberOrNull(newBevilling.ppr_sagsbehandler_id),
+        ppr_sagsbehandler_id:        isMidlertidig ? null : numberOrNull(newBevilling.ppr_sagsbehandler_id),
         ansoegningsdato:             emptyToNull(newBevilling.ansoegningsdato),
         sagsbehandlingsdato:         emptyToNull(newBevilling.sagsbehandlingsdato),
         relation_til_barnet:         emptyToNull(newBevilling.relation_til_barnet),
         foerste_koersel_dato:        emptyToNull(newBevilling.foerste_koersel_dato),
         ansoegningstype:             emptyToNull(newBevilling.ansoegningstype),
-        afstandskriterie_dato:       emptyToNull(newBevilling.afstandskriterie_dato),
-        afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
+        afstandskriterie_dato:       isMidlertidig ? null : emptyToNull(newBevilling.afstandskriterie_dato),
+        afstandskriterie_klassetrin: isMidlertidig ? null : numberOrNull(newBevilling.afstandskriterie_klassetrin),
         begrundelse_fra_formular:    emptyToNull(newBevilling.begrundelse_fra_formular),
         hjaelpemiddel_ids:           newBevilling.hjaelpemiddel_ids ?? [],
       };
@@ -453,7 +473,7 @@
 
           <label class="text-sm font-medium text-gray-700 col-span-2">
             Ansøgningstype <span class="text-red-500">*</span>
-            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={resetLookupSelections}>
+            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={onAnsoegningstypeChange}>
               <option value="">Vælg ansøgningstype</option>
               <option value="Kørsel">Kørsel</option>
               <option value="Midlertidig kørsel">Midlertidig kørsel</option>
@@ -548,10 +568,12 @@
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
             </label>
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Befordringsudvalg
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
             </label>
+            {/if}
 
             <label class="text-sm font-medium text-gray-700">
               ESDH-nøgle
@@ -568,6 +590,7 @@
               </select>
             </label>
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               PPR ansvarlig
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ppr_sagsbehandler_id}>
@@ -577,6 +600,7 @@
                 {/each}
               </select>
             </label>
+            {/if}
 
             <label class="text-sm font-medium text-gray-700">
               Sagsbehandlingsdato
@@ -598,11 +622,14 @@
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
             </label>
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie dato
               <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
             </label>
+            {/if}
 
+            {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie klassetrin
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_klassetrin}>
@@ -612,6 +639,7 @@
                 {/each}
               </select>
             </label>
+            {/if}
 
             <div class="col-span-2">
               <p class="text-sm font-medium text-gray-700 mb-1.5">Begrundelse</p>
