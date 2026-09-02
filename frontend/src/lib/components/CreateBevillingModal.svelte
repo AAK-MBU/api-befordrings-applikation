@@ -4,6 +4,7 @@
     import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
 
+  import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
     export let cpr: string;
     export let mode: 'kopi' | 'tom';
     export let existingBevillinger: any[] = [];
@@ -586,12 +587,9 @@
               Ansøger relation
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.relation_til_barnet}>
                 <option value="">Vælg</option>
-                <option value="Forældremyndig">Forældremyndig</option>
-                <option value="Værge">Værge</option>
-                <option value="Plejeforælder">Plejeforælder</option>
-                <option value="Uddannelsesinstitution">Uddannelsesinstitution</option>
-                <option value="Sagsbehandler">Sagsbehandler</option>
-                <option value="Bosted">Bosted</option>
+                {#each ansoegerRelationOptions(newBevilling.relation_til_barnet) as relation}
+                  <option value={relation}>{relation}</option>
+                {/each}
               </select>
             </label>
 

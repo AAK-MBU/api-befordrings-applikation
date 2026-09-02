@@ -11,6 +11,7 @@
   import { backendFetch } from "$lib/client/backendFetch";
   import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
+  import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
   const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
 
@@ -791,12 +792,9 @@
                 on:change={(e) => updateField("relation_til_barnet", emptyToNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                <option value="Forældremyndig">Forældremyndig</option>
-                <option value="Værge">Værge</option>
-                <option value="Plejeforælder">Plejeforælder</option>
-                <option value="Uddannelsesinstitution">Uddannelsesinstitution</option>
-                <option value="Sagsbehandler">Sagsbehandler</option>
-                <option value="Bosted">Bosted</option>
+                {#each ansoegerRelationOptions(editableBevilling.relation_til_barnet) as relation}
+                  <option value={relation}>{relation}</option>
+                {/each}
               </select>
             {:else}
               <p class="text-sm text-gray-800">{bevilling.relation_til_barnet ?? "—"}</p>
