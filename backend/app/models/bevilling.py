@@ -123,6 +123,18 @@ class Bevilling(Base):
 
     updated_by: Mapped[str] = mapped_column(String, nullable=False)
 
+    # Lock flag, mirroring Koersel.final. Set when a decision letter is created
+    # and togglable by hand afterwards. Like the kørselsrække flag it marks the
+    # bevilling as settled rather than making it read-only — see
+    # BevillingService.lock_bevilling. Requires the DB column:
+    #   ALTER TABLE [befordring].[Bevilling] ADD final BIT NOT NULL DEFAULT 0
+    # (see backend/db/migrations/005_add_bevilling_final.sql).
+    final: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("0"),
+    )
+
     aktiv: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     koerselsraekker = relationship(

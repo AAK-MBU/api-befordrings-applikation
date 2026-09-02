@@ -497,9 +497,10 @@ def create_letter(
         The generated reference is based on CPR and timestamp. This makes it
         easier to identify the work item later in logs, ATS, and debugging.
 
-        Creating a letter has two side effects on the bevilling beyond queueing
-        the work item: sagsbehandlingsdato is stamped, and the bevilling's open
-        kørselsrækker are locked.
+        Creating a letter has three side effects beyond queueing the work item:
+        sagsbehandlingsdato is stamped, the bevilling's open kørselsrækker are
+        locked, and the bevilling itself is locked. A caseworker can unlock the
+        bevilling again afterwards.
 
         letter_data.model_extra is used because LetterCreateRequest likely
         allows dynamic fields. This requires the Pydantic model to allow extra
@@ -566,11 +567,13 @@ def create_letter(
     # likeliest failure here — locking first would leave the rows marked
     # settled for a letter that was never queued.
     locked_count = bevilling_service.lock_koerselsraekker(bevilling_id=bevilling_id)
+    locked_bevilling = bevilling_service.lock_bevilling(bevilling_id=bevilling_id)
 
     return {
         "status": "queued",
         "reference": reference,
         "locked_koerselsraekker": locked_count,
+        "locked_bevilling": locked_bevilling,
     }
 
 

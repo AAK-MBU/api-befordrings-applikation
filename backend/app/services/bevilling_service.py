@@ -908,6 +908,42 @@ class BevillingService:
         return result.rowcount
 
 
+    def lock_bevilling(self, bevilling_id: int) -> bool:
+        """Lock a bevilling, mirroring lock_koerselsraekker one level up.
+
+        Called when a decision letter is created: the letter states what was
+        granted, so the bevilling is settled alongside its kørselsrækker.
+
+        Sets the flag directly rather than going through update_bevilling,
+        which would also run usp_recalculate_bevilling_status. Creating a
+        letter is not a reason to recalculate a status, and the paired
+        lock_koerselsraekker does not either. The *manual* lock and unlock do go
+        through update_bevilling, exactly as the manual kørselsrække lock goes
+        through update_koerselsraekke.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling to lock.
+
+        Returns:
+            True if this call locked it, False if it was already locked. A
+            missing bevilling also returns False rather than raising — the
+            caller in create_letter has already 404'd on it via
+            set_sagsbehandlingsdato.
+        """
+
+        bevilling = self.db.get(Bevilling, bevilling_id)
+
+        if bevilling is None or bevilling.final:
+            return False
+
+        bevilling.final = True
+
+        self.db.commit()
+
+        return True
+
+
     def update_koerselsraekke(
         self,
         koersel_id: int,

@@ -60,6 +60,13 @@
   export let onDeleteBevilling: ((bevillingId: number) => Promise<string | null>) | undefined = undefined;
   export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
 
+  // Optional lock handler — if not provided, the lock control is hidden, the
+  // same way the delete buttons are. Takes the *target* state so one handler
+  // covers both locking and unlocking.
+  export let onSetBevillingLock:
+    | ((bevillingId: number, final: boolean) => Promise<string | null>)
+    | undefined = undefined;
+
   
   // -----------------------------
   // Table state
@@ -114,6 +121,36 @@
     }
 
     confirmingDeleteBevillingId = null;
+  }
+
+
+  // -----------------------------
+  // Lock / unlock state
+  // -----------------------------
+
+  // Holds the bevilling being confirmed *and* the state it is moving to, so one
+  // dialog serves both directions.
+  let confirmingLock: { bevillingId: number; final: boolean } | null = null;
+  let isSettingLock = false;
+  let lockError: string | null = null;
+
+  async function doSetBevillingLock() {
+    if (isSettingLock || confirmingLock === null || !onSetBevillingLock) return;
+    isSettingLock = true;
+    lockError = null;
+
+    const error = await onSetBevillingLock(confirmingLock.bevillingId, confirmingLock.final);
+
+    isSettingLock = false;
+
+    // Same reasoning as doDeleteBevilling: the error renders inside the dialog,
+    // so the dialog has to outlive the failure.
+    if (error) {
+      lockError = error;
+      return;
+    }
+
+    confirmingLock = null;
   }
 
 
@@ -506,6 +543,20 @@
                   <span class="text-xs opacity-60">{isExpanded ? "▲" : "▼"}</span>
                 </button>
               {/if}
+              {#if onSetBevillingLock}
+                <span class="w-px h-5 bg-gray-200 mx-1"></span>
+                <button
+                  type="button"
+                  title={bevilling.final ? "Lås bevilling op" : "Lås bevilling"}
+                  disabled={!canEdit}
+                  class="p-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed {bevilling.final ? 'text-amber-600 hover:text-amber-700' : 'text-gray-400 hover:text-gray-600'}"
+                  on:click={() => { confirmingLock = { bevillingId: bevilling.bevilling_id, final: !bevilling.final }; lockError = null; }}
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d={bevilling.final ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"} />
+                  </svg>
+                </button>
+              {/if}
               {#if onDeleteBevilling}
                 <span class="w-px h-5 bg-gray-200 mx-1"></span>
                 <button
@@ -881,6 +932,7 @@
 
 <svelte:window on:keydown={(e) => {
   if (e.key === 'Escape' && confirmingDeleteBevillingId !== null) confirmingDeleteBevillingId = null;
+  if (e.key === 'Escape' && confirmingLock !== null) confirmingLock = null;
 }} />
 
 <!-- Delete bevilling confirmation modal -->
@@ -939,3 +991,78 @@
   </div>
 {/if}
 
+
+<!-- Lock / unlock bevilling confirmation modal -->
+{#if confirmingLock !== null}
+  <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    role="presentation"
+  >
+    <div
+      class="w-[440px] bg-white rounded-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="px-6 py-5 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d={confirmingLock.final ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"} />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-gray-900">
+              {confirmingLock.final ? "Lås bevilling" : "Lås bevilling op"}
+            </h2>
+            <p class="text-xs text-gray-500 mt-0.5">Bevilling #{confirmingLock.bevillingId}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-5">
+        {#if confirmingLock.final}
+          <p class="text-sm text-gray-700">
+            Bevillingen vil blive markeret som <strong>låst</strong>.
+          </p>
+          <p class="text-sm text-gray-500 mt-2">
+            Er du sikker på, at du vil låse denne bevilling? Den kan låses op igen.
+          </p>
+        {:else}
+          <p class="text-sm text-gray-700">
+            Bevillingen vil ikke længere være markeret som <strong>låst</strong>.
+          </p>
+          <p class="text-sm text-gray-500 mt-2">
+            Er du sikker på, at du vil låse denne bevilling op?
+          </p>
+        {/if}
+        {#if lockError}
+          <p class="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{lockError}</p>
+        {/if}
+      </div>
+
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-white transition-colors"
+          on:click={() => confirmingLock = null}
+        >
+          Annullér
+        </button>
+        <button
+          type="button"
+          disabled={isSettingLock}
+          class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded transition-colors disabled:opacity-50"
+          on:click={doSetBevillingLock}
+        >
+          {#if isSettingLock}
+            Gemmer…
+          {:else}
+            {confirmingLock.final ? "Lås bevilling" : "Lås op"}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

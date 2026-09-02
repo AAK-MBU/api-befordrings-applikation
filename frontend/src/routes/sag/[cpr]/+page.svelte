@@ -624,6 +624,34 @@
   }
 
 
+  async function handleSetBevillingLock(
+    bevillingId: number,
+    final: boolean
+  ): Promise<string | null> {
+    // Same route the kørselsrække lock uses one level down: the plain update
+    // endpoint with only the flag in the body.
+    const response = await backendFetch(`/bevilling/${bevillingId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ final })
+    });
+
+    if (!response.ok) {
+      let message = final
+        ? "Kunne ikke låse bevillingen"
+        : "Kunne ikke låse bevillingen op";
+      try {
+        const err = await response.json();
+        message = err?.detail ?? message;
+      } catch { /* keep fallback */ }
+      return message;
+    }
+
+    await invalidateAll();
+    return null;
+  }
+
+
   async function handleSaveKoerselsraekke(koerselId: number, updates: any): Promise<string | null> {
     const {
       tillaeg_ids,
@@ -1128,6 +1156,7 @@
       onSaveKoerselsraekke={handleSaveKoerselsraekke}
       onCreateKoerselsraekke={handleCreateKoerselsraekke}
       onFinalizeKoerselsraekke={handleFinalizeKoerselsraekke}
+      onSetBevillingLock={handleSetBevillingLock}
       onDeleteBevilling={handleDeleteBevilling}
       onDeleteKoerselsraekke={handleDeleteKoerselsraekke}
     />
