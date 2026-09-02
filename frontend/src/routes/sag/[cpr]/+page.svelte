@@ -158,14 +158,15 @@
   let deletingAktivitet = false;
   let deleteAktivitetError: string | null = null;
 
-  async function deleteKommentar(aktivitetId: number) {
-    if (deletingAktivitet) {
+  async function doDeleteKommentar() {
+    if (deletingAktivitet || confirmingDeleteAktivitetId === null) {
       return;
     }
 
+    const aktivitetId = confirmingDeleteAktivitetId;
+
     deletingAktivitet = true;
     deleteAktivitetError = null;
-    confirmingDeleteAktivitetId = null;
 
     try {
       const response = await backendFetch(`/aktivitet/kommentar/${aktivitetId}`, {
@@ -185,9 +186,12 @@
           // Keep the fallback message.
         }
 
+        // Keep the dialog open so the reason is read where it was triggered.
         deleteAktivitetError = message;
         return;
       }
+
+      confirmingDeleteAktivitetId = null;
 
       await invalidateAll();
     } finally {
@@ -1315,12 +1319,6 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
           {feedHasActiveFilters ? "Ingen aktiviteter matcher de valgte filtre." : "Ingen aktiviteter registreret endnu."}
         </p>
       {:else}
-        {#if deleteAktivitetError}
-          <div class="mb-3 px-3 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-800">
-            {deleteAktivitetError}
-          </div>
-        {/if}
-
         <div class="space-y-3">
           {#each filteredAktiviteter as aktivitet}
             {@const style = feedStyle(aktivitet)}
@@ -1379,40 +1377,17 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                   <!-- Only comments can be deleted. System-written entries are
                        the case history, and the backend refuses them too. -->
                   {#if aktivitet.aktivitetstype === "Kommentar"}
-                    {#if confirmingDeleteAktivitetId === aktivitet.aktivitet_id}
-                      <div class="flex items-center gap-1.5 mt-1">
-                        <span class="text-[11px] text-gray-500">Slet permanent?</span>
-                        <button
-                          type="button"
-                          class="text-[11px] font-semibold text-red-600 hover:text-red-800 disabled:opacity-40"
-                          disabled={deletingAktivitet}
-                          on:click={() => deleteKommentar(aktivitet.aktivitet_id)}
-                        >
-                          {deletingAktivitet ? "Sletter..." : "Ja, slet"}
-                        </button>
-                        <span class="text-gray-300">|</span>
-                        <button
-                          type="button"
-                          class="text-[11px] text-gray-500 hover:text-gray-700"
-                          on:click={() => (confirmingDeleteAktivitetId = null)}
-                        >
-                          Fortryd
-                        </button>
-                      </div>
-                    {:else}
-                      <button
-                        type="button"
-                        title={canEdit ? "Slet kommentaren permanent" : "Kræver skriveadgang"}
-                        disabled={!canEdit || deletingAktivitet}
-                        class="mt-1 text-[11px] text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
-                        on:click={() => {
-                          deleteAktivitetError = null;
-                          confirmingDeleteAktivitetId = aktivitet.aktivitet_id;
-                        }}
-                      >
-                        Slet
-                      </button>
-                    {/if}
+                    <button
+                      type="button"
+                      title="Slet kommentar"
+                      disabled={!canEdit}
+                      class="mt-1 p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      on:click={() => { confirmingDeleteAktivitetId = aktivitet.aktivitet_id; deleteAktivitetError = null; }}
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   {/if}
                 </div>
 
@@ -1433,3 +1408,62 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
   {/if}
 
 </section>
+
+
+<!-- Delete kommentar confirmation modal -->
+{#if confirmingDeleteAktivitetId !== null}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    role="presentation"
+  >
+    <div
+      class="w-[420px] bg-white rounded-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="px-6 py-5 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900">Slet kommentar</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Kommentar #{confirmingDeleteAktivitetId}</p>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4">
+        <!-- Unlike bevilling og kørselsrække, this is a real delete: the row is
+             removed from the database and cannot be restored. Say so plainly —
+             the other dialogs promise the opposite. -->
+        <p class="text-sm text-gray-700">
+          Er du sikker på, at du vil slette denne kommentar?
+          Den slettes permanent fra databasen og kan ikke gendannes.
+        </p>
+        {#if deleteAktivitetError}
+          <p class="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{deleteAktivitetError}</p>
+        {/if}
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+          on:click={() => confirmingDeleteAktivitetId = null}
+        >
+          Annullér
+        </button>
+        <button
+          type="button"
+          disabled={deletingAktivitet}
+          class="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+          on:click={doDeleteKommentar}
+        >
+          {deletingAktivitet ? "Sletter…" : "Slet kommentar"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
