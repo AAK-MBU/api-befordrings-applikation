@@ -151,6 +151,50 @@
     }
   }
 
+  // Comment deletion is permanent — Sagsaktivitet has no aktiv flag, so there
+  // is no soft-delete to fall back on and no undo. Hence the two-step confirm
+  // rather than a single click, matching how kørselsrækker are deleted.
+  let confirmingDeleteAktivitetId: number | null = null;
+  let deletingAktivitet = false;
+  let deleteAktivitetError: string | null = null;
+
+  async function deleteKommentar(aktivitetId: number) {
+    if (deletingAktivitet) {
+      return;
+    }
+
+    deletingAktivitet = true;
+    deleteAktivitetError = null;
+    confirmingDeleteAktivitetId = null;
+
+    try {
+      const response = await backendFetch(`/aktivitet/kommentar/${aktivitetId}`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        // The backend distinguishes "you may not write" (403 from RequireEdit)
+        // from "this row is not a comment" (403 from the service), and says so
+        // in Danish either way — so show its message rather than a generic one.
+        let message = "Kunne ikke slette kommentaren";
+
+        try {
+          const errorData = await response.json();
+          message = errorData?.detail?.message ?? errorData?.detail ?? message;
+        } catch {
+          // Keep the fallback message.
+        }
+
+        deleteAktivitetError = message;
+        return;
+      }
+
+      await invalidateAll();
+    } finally {
+      deletingAktivitet = false;
+    }
+  }
+
   function getDisplayLabel(type: string): string {
     if (type.startsWith("Status sat til ")) return "Status opdateret";
     const map: Record<string, string> = {
@@ -1271,6 +1315,12 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
           {feedHasActiveFilters ? "Ingen aktiviteter matcher de valgte filtre." : "Ingen aktiviteter registreret endnu."}
         </p>
       {:else}
+        {#if deleteAktivitetError}
+          <div class="mb-3 px-3 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-800">
+            {deleteAktivitetError}
+          </div>
+        {/if}
+
         <div class="space-y-3">
           {#each filteredAktiviteter as aktivitet}
             {@const style = feedStyle(aktivitet)}
@@ -1313,7 +1363,7 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                   {/if}
                 </div>
 
-                <!-- Right: timestamp + sender -->
+                <!-- Right: timestamp + sender + delete -->
                 <div class="flex flex-col items-end shrink-0 text-right gap-0.5">
                   <span class="text-xs text-gray-500 whitespace-nowrap">
                     {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
@@ -1323,6 +1373,45 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                       <span class="text-xs italic text-gray-500">System</span>
                     {:else}
                       <span class="text-xs font-medium text-gray-700">{aktivitet.udfoert_af}</span>
+                    {/if}
+                  {/if}
+
+                  <!-- Only comments can be deleted. System-written entries are
+                       the case history, and the backend refuses them too. -->
+                  {#if aktivitet.aktivitetstype === "Kommentar"}
+                    {#if confirmingDeleteAktivitetId === aktivitet.aktivitet_id}
+                      <div class="flex items-center gap-1.5 mt-1">
+                        <span class="text-[11px] text-gray-500">Slet permanent?</span>
+                        <button
+                          type="button"
+                          class="text-[11px] font-semibold text-red-600 hover:text-red-800 disabled:opacity-40"
+                          disabled={deletingAktivitet}
+                          on:click={() => deleteKommentar(aktivitet.aktivitet_id)}
+                        >
+                          {deletingAktivitet ? "Sletter..." : "Ja, slet"}
+                        </button>
+                        <span class="text-gray-300">|</span>
+                        <button
+                          type="button"
+                          class="text-[11px] text-gray-500 hover:text-gray-700"
+                          on:click={() => (confirmingDeleteAktivitetId = null)}
+                        >
+                          Fortryd
+                        </button>
+                      </div>
+                    {:else}
+                      <button
+                        type="button"
+                        title={canEdit ? "Slet kommentaren permanent" : "Kræver skriveadgang"}
+                        disabled={!canEdit || deletingAktivitet}
+                        class="mt-1 text-[11px] text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
+                        on:click={() => {
+                          deleteAktivitetError = null;
+                          confirmingDeleteAktivitetId = aktivitet.aktivitet_id;
+                        }}
+                      >
+                        Slet
+                      </button>
                     {/if}
                   {/if}
                 </div>
