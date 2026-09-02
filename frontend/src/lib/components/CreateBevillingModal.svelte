@@ -80,6 +80,23 @@
   // Functions
   // ---------------------------------------------------------------------------
 
+    // The klassetrin the afstandskriterie is graded by. A bevilling being copied
+    // can hold a value outside this list, and a <select> whose value matches no
+    // option silently blanks itself — which looks exactly like the copy having
+    // dropped the field. Append the stored value instead.
+    const KLASSETRIN = [3, 6, 7, 9, 10];
+
+    function klassetrinOptions(current: string | number | null | undefined): string[] {
+      const value = String(current ?? "").trim();
+      const known = KLASSETRIN.map(String);
+
+      if (!value || known.includes(value)) {
+        return known;
+      }
+
+      return [...known, value];
+    }
+
     function resetLookupSelections() {
       newBevilling = { ...newBevilling, hjemmel_id: "", afgoerelsesbrev_id: "" };
     }
@@ -264,7 +281,10 @@
         revurderingsdato:            source.revurderingsdato ? String(source.revurderingsdato).slice(0, 10) : "",
         befordringsudvalg:           source.befordringsudvalg ? String(source.befordringsudvalg).slice(0, 10) : "",
         begrundelse_fra_formular:    rawBegrundelse,
-        esdh_noegle:                 "",
+        // A revurdering continues the same ESDH case, so the key carries over.
+        // The other fields below stay blank on purpose: they belong to the new
+        // bevilling, not the one being copied.
+        esdh_noegle:                 source.esdh_noegle ?? "",
         ansoegningsdato:             "",
         sagsbehandlingsdato:         "",
         foerste_koersel_dato:        "",
@@ -634,8 +654,8 @@
               Afstandskriterie klassetrin
               <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_klassetrin}>
                 <option value="">Vælg</option>
-                {#each [3, 6, 7, 9, 10] as trin}
-                  <option value={String(trin)}>{trin}</option>
+                {#each klassetrinOptions(newBevilling.afstandskriterie_klassetrin) as trin}
+                  <option value={trin}>{trin}</option>
                 {/each}
               </select>
             </label>
