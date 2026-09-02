@@ -410,15 +410,38 @@
     hjaelpemiddelSelectValue = "";
   }
 
+  /**
+   * The derived afstandskriterie values for the bevilling being edited, or null
+   * when there is nothing to offer — no klassetrin to derive from, or the
+   * entered values already match.
+   *
+   * A reactive statement rather than a call in the markup: it is read under two
+   * separate fields, and this way both re-evaluate when editableBevilling
+   * changes, so the offer disappears from both the moment it is applied.
+   */
+  $: beregnetForslag = beregnForslag(editableBevilling);
+
+  function beregnForslag(edit: any): { klassetrin: number; dato: string } | null {
+    const klassetrin = beregnAfstandskriterieKlassetrin(edit?.elevklassetrin);
+    const dato = beregnAfstandskriterieDato(edit?.elevklassetrin);
+
+    if (klassetrin === null || dato === null) {
+      return null;
+    }
+
+    const uaendret =
+      Number(edit.afstandskriterie_klassetrin) === klassetrin &&
+      String(edit.afstandskriterie_dato ?? "").slice(0, 10) === dato;
+
+    return uaendret ? null : { klassetrin, dato };
+  }
+
   /** Overwrite both afstandskriterie fields with the derived values. */
-  function brugBeregnet(bevilling: any) {
-    const klassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin);
-    const dato = beregnAfstandskriterieDato(bevilling.elevklassetrin);
+  function brugBeregnet() {
+    if (!beregnetForslag) return;
 
-    if (klassetrin === null || dato === null) return;
-
-    updateField("afstandskriterie_klassetrin", klassetrin);
-    updateField("afstandskriterie_dato", dato);
+    updateField("afstandskriterie_klassetrin", beregnetForslag.klassetrin);
+    updateField("afstandskriterie_dato", beregnetForslag.dato);
   }
 
 
@@ -789,6 +812,16 @@
                 value={editableBevilling.afstandskriterie_dato ?? ""}
                 on:change={(e) => updateField("afstandskriterie_dato", emptyToNull(e.currentTarget.value))}
               />
+              {#if beregnetForslag}
+                <button
+                  type="button"
+                  class="mt-1 text-[11px] text-sky-700 hover:text-sky-900 underline decoration-dotted"
+                  title="Sætter både dato og klassetrin ud fra elevens klassetrin"
+                  on:click={brugBeregnet}
+                >
+                  Brug beregnet: {formatDanishDate(beregnetForslag.dato)} · klassetrin {beregnetForslag.klassetrin}
+                </button>
+              {/if}
             {:else}
               <p class="text-sm text-gray-800">{formatDanishDate(bevilling.afstandskriterie_dato)}</p>
             {/if}
@@ -810,20 +843,14 @@
                   <option value={trin}>{trin}</option>
                 {/each}
               </select>
-              <!-- Only when the derived values differ from what is entered:
-                   nothing to offer when they already agree. -->
-              {@const beregnetKlassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin)}
-              {@const beregnetDato = beregnAfstandskriterieDato(bevilling.elevklassetrin)}
-              {#if beregnetKlassetrin !== null && beregnetDato !== null
-                && (Number(editableBevilling.afstandskriterie_klassetrin) !== beregnetKlassetrin
-                  || String(editableBevilling.afstandskriterie_dato ?? "").slice(0, 10) !== beregnetDato)}
+              {#if beregnetForslag}
                 <button
                   type="button"
                   class="mt-1 text-[11px] text-sky-700 hover:text-sky-900 underline decoration-dotted"
-                  title="Sætter både klassetrin og dato ud fra elevens klassetrin"
-                  on:click={() => brugBeregnet(bevilling)}
+                  title="Sætter både dato og klassetrin ud fra elevens klassetrin"
+                  on:click={brugBeregnet}
                 >
-                  Brug beregnet: {beregnetKlassetrin} · {formatDanishDate(beregnetDato)}
+                  Brug beregnet: {formatDanishDate(beregnetForslag.dato)} · klassetrin {beregnetForslag.klassetrin}
                 </button>
               {/if}
             {:else}
