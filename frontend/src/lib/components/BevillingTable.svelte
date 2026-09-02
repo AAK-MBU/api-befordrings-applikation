@@ -131,6 +131,7 @@
   // Holds the bevilling being confirmed *and* the state it is moving to, so one
   // dialog serves both directions.
   let confirmingLock: { bevillingId: number; final: boolean } | null = null;
+  let lockedEditBevilling: any | null = null;
   let isSettingLock = false;
   let lockError: string | null = null;
 
@@ -348,6 +349,25 @@
   );
 
   function startEdit(bevilling: any) {
+    // A locked bevilling is not read-only, but editing it should be a decision
+    // rather than a reflex — same guard the kørselsrække table puts on its own
+    // locked rows.
+    if (bevilling.final) {
+      lockedEditBevilling = bevilling;
+      return;
+    }
+
+    beginEdit(bevilling);
+  }
+
+  function doLockedEdit() {
+    if (!lockedEditBevilling) return;
+    const bevilling = lockedEditBevilling;
+    lockedEditBevilling = null;
+    beginEdit(bevilling);
+  }
+
+  function beginEdit(bevilling: any) {
     editingBevillingId = bevilling.bevilling_id;
 
     // Only pre-select a status if it's one of the manual ones.
@@ -543,20 +563,6 @@
                   <span class="text-xs opacity-60">{isExpanded ? "▲" : "▼"}</span>
                 </button>
               {/if}
-              {#if onSetBevillingLock}
-                <span class="w-px h-5 bg-gray-200 mx-1"></span>
-                <button
-                  type="button"
-                  title={bevilling.final ? "Lås bevilling op" : "Lås bevilling"}
-                  disabled={!canEdit}
-                  class="p-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed {bevilling.final ? 'text-amber-600 hover:text-amber-700' : 'text-gray-400 hover:text-gray-600'}"
-                  on:click={() => { confirmingLock = { bevillingId: bevilling.bevilling_id, final: !bevilling.final }; lockError = null; }}
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d={bevilling.final ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"} />
-                  </svg>
-                </button>
-              {/if}
               {#if onDeleteBevilling}
                 <span class="w-px h-5 bg-gray-200 mx-1"></span>
                 <button
@@ -581,6 +587,20 @@
               >
                 Redigér
               </button>
+              {#if onSetBevillingLock}
+                <span class="w-px h-5 bg-gray-200 mx-1"></span>
+                <button
+                  type="button"
+                  title={bevilling.final ? "Lås bevilling op" : "Lås bevilling"}
+                  disabled={!canEdit}
+                  class="p-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed {bevilling.final ? 'text-amber-600 hover:text-amber-700' : 'text-gray-400 hover:text-gray-600'}"
+                  on:click={() => { confirmingLock = { bevillingId: bevilling.bevilling_id, final: !bevilling.final }; lockError = null; }}
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d={bevilling.final ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"} />
+                  </svg>
+                </button>
+              {/if}
               {#if !readonlyKoerselsraekker}
                 <button
                   type="button"
@@ -933,6 +953,7 @@
 <svelte:window on:keydown={(e) => {
   if (e.key === 'Escape' && confirmingDeleteBevillingId !== null) confirmingDeleteBevillingId = null;
   if (e.key === 'Escape' && confirmingLock !== null) confirmingLock = null;
+  if (e.key === 'Escape' && lockedEditBevilling !== null) lockedEditBevilling = null;
 }} />
 
 <!-- Delete bevilling confirmation modal -->
@@ -1061,6 +1082,62 @@
           {:else}
             {confirmingLock.final ? "Lås bevilling" : "Lås op"}
           {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+
+<!-- Locked edit confirmation popup -->
+{#if lockedEditBevilling !== null}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    role="presentation"
+  >
+    <div
+      class="w-[440px] bg-white rounded-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      <div class="px-6 py-5 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-gray-900">Rediger låst bevilling</h2>
+            <p class="text-xs text-gray-500 mt-0.5">Kræver bekræftelse</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-5">
+        <p class="text-sm text-gray-700">
+          Bevillingen er låst. <strong>Husk at sende nyt brev</strong> når du har redigeret i en låst bevilling.
+        </p>
+        <p class="text-sm text-gray-500 mt-2">
+          Er du sikker på, at du vil redigere denne bevilling?
+        </p>
+      </div>
+
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-white transition-colors"
+          on:click={() => lockedEditBevilling = null}
+        >
+          Annullér
+        </button>
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded transition-colors"
+          on:click={doLockedEdit}
+        >
+          Redigér
         </button>
       </div>
     </div>
