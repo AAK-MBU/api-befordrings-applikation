@@ -1,9 +1,19 @@
 <script lang="ts">
   import { page } from "$app/stores";
   import { formatDanishDate } from "$lib/tableColumnConfig";
-  import { backendFetch } from "$lib/client/backendFetch";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
   import DagePicker from "$lib/components/DagePicker.svelte";
+  import {
+    availableKoerselstyper as koerselstyperFor,
+    isEgenbefordring as typeIsEgenbefordring,
+    isKoerselType as typeIsKoersel,
+    isSkolerejsekort as typeIsSkolerejsekort,
+    isTaxaType as typeIsTaxa,
+    labelIsEgenbefordring,
+    labelIsSkolerejsekort,
+    labelIsTaxa,
+  } from "$lib/koerselstype";
+  import { afstandFraAdresse } from "$lib/client/afstand";
 
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
   const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
@@ -65,71 +75,22 @@
   let distanceErrorFrom: 'edit' | 'new' | null = null;   // persists after finally for display
   let distanceError: string | null = null;
 
-  // Kørselstyper where Taxa-ID is relevant.
-  const TAXA_TYPES = new Set(['rutekørsel', 'skånekørsel', 'solokørsel', 'variabel kørsel']);
+  // Classification lives in $lib/koerselstype so the create modal, this table
+  // and BevillingTable can never disagree about what a kørselstype is. These
+  // thin wrappers bind the lookup list once so call sites stay readable.
+  $: availableKoerselstyper = koerselstyperFor(lookupOptions.koerselstyper, ansoegningstype);
 
-  // Kørselstyper the midlertidig-kørsel form actually offers. The lookup table
-  // holds every type used anywhere in the system, so without this a caseworker
-  // can pick one the form could never have produced.
-  const MIDLERTIDIG_ALLOWED = new Set([
-    'egenbefordring', 'skolerejsekort', 'rutekørsel',
-    'solokørsel', 'variabelkørsel', 'skånekørsel',
-  ]);
+  const isEgenbefordring = (typeId: string | number | null | undefined) =>
+    typeIsEgenbefordring(lookupOptions.koerselstyper, typeId);
 
-  // Compared with whitespace stripped, because the lookup labels are not
-  // consistent about it ("Variabel kørsel" vs "Variabelkørsel").
-  $: availableKoerselstyper = ansoegningstype === 'Midlertidig kørsel'
-    ? (lookupOptions.koerselstyper ?? []).filter(
-        (type: any) => MIDLERTIDIG_ALLOWED.has(normalizeType(type.label).replace(/\s/g, ''))
-      )
-    : (lookupOptions.koerselstyper ?? []);
+  const isTaxaType = (typeId: string | number | null | undefined) =>
+    typeIsTaxa(lookupOptions.koerselstyper, typeId);
 
-  function normalizeType(label: string | null | undefined): string {
-    return String(label ?? '').trim().toLowerCase();
-  }
+  const isSkolerejsekort = (typeId: string | number | null | undefined) =>
+    typeIsSkolerejsekort(lookupOptions.koerselstyper, typeId);
 
-  function labelForType(typeId: string | number | null | undefined): string | undefined {
-    if (!typeId) return undefined;
-    return lookupOptions.koerselstyper?.find(
-      (t: any) => Number(t.id) === Number(typeId)
-    )?.label;
-  }
-
-  // Tolerate both "Egen befordring" and "Egenbefordring".
-  function labelIsEgenbefordring(label: string | null | undefined): boolean {
-    return normalizeType(label).replace(/\s/g, '') === 'egenbefordring';
-  }
-
-  function labelIsTaxa(label: string | null | undefined): boolean {
-    return TAXA_TYPES.has(normalizeType(label));
-  }
-
-  function isEgenbefordring(typeId: string | number | null | undefined): boolean {
-    return labelIsEgenbefordring(labelForType(typeId));
-  }
-
-  function isTaxaType(typeId: string | number | null | undefined): boolean {
-    return labelIsTaxa(labelForType(typeId));
-  }
-
-  // Tillæg only applies to befordringstyper that are a form of "kørsel"
-  // (e.g. Rutekørsel, Skånekørsel) — not Skolerejsekort, Skolebus, Cykelbus, etc.
-  function labelIsKoersel(label: string | null | undefined): boolean {
-    return TAXA_TYPES.has(normalizeType(label));
-  }
-
-  function isKoerselType(typeId: string | number | null | undefined): boolean {
-    return labelIsKoersel(labelForType(typeId));
-  }
-
-  // Transporttid i bus / antal skift only apply to Skolerejsekort.
-  function labelIsSkolerejsekort(label: string | null | undefined): boolean {
-    return normalizeType(label) === 'skolerejsekort';
-  }
-
-  function isSkolerejsekort(typeId: string | number | null | undefined): boolean {
-    return labelIsSkolerejsekort(labelForType(typeId));
-  }
+  const isKoerselType = (typeId: string | number | null | undefined) =>
+    typeIsKoersel(lookupOptions.koerselstyper, typeId);
 
   async function calculateAndFillDistance(
     befordringtypeId: string | number | null,
@@ -144,76 +105,31 @@
       return;
     }
 
-    if (!adresseForBevilling) {
-      distanceError = 'Ingen adresse på bevillingen — kan ikke beregne afstand';
-      return;
-    }
-
-    if (!matrikelId) {
-      distanceError = 'Ingen skole valgt på bevillingen — kan ikke beregne afstand';
-      return;
-    }
-
     isCalculatingDistance = true;
     distanceCalcTarget = target;
     distanceError = null;
     distanceErrorFrom = null;
 
     try {
-      // 1. Geocode the citizen's address
-      const geocodeRes = await backendFetch(
-        `/bevilling/geocode_address?address=${encodeURIComponent(adresseForBevilling)}`
-      );
-      if (!geocodeRes.ok) {
-        let detail = 'Kunne ikke geokode adressen';
-        try { const body = await geocodeRes.json(); detail = body?.detail ?? detail; } catch { /* keep fallback */ }
-        throw new Error(detail);
+      const { km, error } = await afstandFraAdresse(adresseForBevilling, matrikelId);
+
+      if (error !== null) {
+        distanceError = error;
+        distanceErrorFrom = target;
+        return;
       }
-      const geocodeData = await geocodeRes.json();
 
-      // 2. Get school matrikel coordinates
-      const schoolRes = await backendFetch(`/lookup/skolematrikel/${matrikelId}/coordinates`);
-      if (!schoolRes.ok) {
-        let detail = 'Kunne ikke hente skolens koordinater';
-        try { const body = await schoolRes.json(); detail = body?.detail ?? detail; } catch { /* keep fallback */ }
-        throw new Error(detail);
-      }
-      const schoolData = await schoolRes.json();
-
-      // 3. Calculate driving distance
-      const distParams = new URLSearchParams({
-        lat1: String(geocodeData.latitude),
-        lon1: String(geocodeData.longitude),
-        lat2: String(schoolData.latitude),
-        lon2: String(schoolData.longitude)
-      });
-      const distRes = await backendFetch(`/bevilling/calculate_driving_distance?${distParams}`);
-      if (!distRes.ok) {
-        let detail = 'Kunne ikke beregne køreafstand';
-        try { const body = await distRes.json(); detail = body?.detail ?? detail; } catch { /* keep fallback */ }
-        throw new Error(detail);
-      }
-      const distData = await distRes.json();
-
-      const distance = distData.distance_km ?? distData.distance ?? distData.driving_distance_km;
-      if (distance == null) throw new Error('Ugyldigt svar fra afstandsberegning');
-
-      // 4. Guard: discard if the user changed the type while we were calculating
+      // Discard if the user changed the type while we were calculating.
       const currentTypeId = target === 'new'
         ? newKoerselsraekke.befordringstype_id
         : editableKoerselsraekke.befordringstype_id;
       if (Number(currentTypeId) !== Number(befordringtypeId)) return;
 
-      // 5. Auto-fill the km field
       if (target === 'new') {
-        updateNewField('bevilget_koereafstand_pr_vej', String(distance));
+        updateNewField('bevilget_koereafstand_pr_vej', String(km));
       } else {
-        updateField('bevilget_koereafstand_pr_vej', String(distance));
+        updateField('bevilget_koereafstand_pr_vej', String(km));
       }
-
-    } catch (err: any) {
-      distanceError = err?.message ?? 'Fejl ved beregning af afstand';
-      distanceErrorFrom = target;
     } finally {
       isCalculatingDistance = false;
       distanceCalcTarget = null;

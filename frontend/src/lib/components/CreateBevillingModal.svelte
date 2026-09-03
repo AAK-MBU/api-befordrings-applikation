@@ -9,6 +9,13 @@
     } from "$lib/afstandskriterie";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
     import DagePicker from "$lib/components/DagePicker.svelte";
+    import {
+      availableKoerselstyper as koerselstyperFor,
+      isEgenbefordring as typeIsEgenbefordring,
+      isSkolerejsekort as typeIsSkolerejsekort,
+      isTaxaType as typeIsTaxa,
+    } from "$lib/koerselstype";
+    import { afstandFraAdresse } from "$lib/client/afstand";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
     export let cpr: string;
@@ -85,17 +92,10 @@
     // fields, befordringsudvalg and PPR ansvarlig do not apply and are hidden.
     $: isMidlertidig = isMidlertidigKoersel(newBevilling.ansoegningstype);
 
-    // Same restriction as KoerselsraekkeTable: only the kørselstyper the
-    // midlertidig-kørsel form can actually produce. Whitespace is stripped
-    // because the lookup labels are inconsistent about it.
-    const MIDLERTIDIG_ALLOWED_MODAL = new Set([
-      'egenbefordring', 'skolerejsekort', 'rutekørsel',
-      'solokørsel', 'variabelkørsel', 'skånekørsel',
-    ]);
-
-    $: availableModalKoerselstyper = newBevilling.ansoegningstype === 'Midlertidig kørsel'
-      ? koerselstyper.filter((t: any) => MIDLERTIDIG_ALLOWED_MODAL.has(normalizeModalType(t.label).replace(/\s/g, '')))
-      : koerselstyper;
+    $: availableModalKoerselstyper = koerselstyperFor(
+      koerselstyper,
+      newBevilling.ansoegningstype
+    );
 
     $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
     $: selectedHjemmelLabel = visibleHjemler.find((h: any) => String(h.id) === String(newBevilling.hjemmel_id))?.label ?? null;
@@ -261,26 +261,15 @@
       }
     }
 
-    function isModalKoerselEgenbefordring(typeId: any): boolean {
-      if (!typeId) return false;
-      const type = koerselstyper.find((t: any) => Number(t.id) === Number(typeId));
-      return type?.label?.toLowerCase().replace(/\s/g, '') === 'egenbefordring';
-    }
-    
-    const TAXA_TYPES = new Set(['rutekørsel', 'skånekørsel', 'solokørsel', 'variabel kørsel']);
-    function normalizeModalType(label: string | null | undefined): string { return (label ?? '').toLowerCase().trim(); }
+    // Classification is shared with KoerselsraekkeTable and BevillingTable via
+    // $lib/koerselstype; these wrappers just bind the lookup list.
+    const isModalKoerselEgenbefordring = (typeId: any) =>
+      typeIsEgenbefordring(koerselstyper, typeId);
 
-    function isModalKoerselTaxaType(typeId: any): boolean {
-      if (!typeId) return false;
-      const type = koerselstyper.find((t: any) => Number(t.id) === Number(typeId));
-      return TAXA_TYPES.has(normalizeModalType(type?.label));
-    }
+    const isModalKoerselTaxaType = (typeId: any) => typeIsTaxa(koerselstyper, typeId);
 
-    function isModalKoerselSkolerejsekort(typeId: any): boolean {
-      if (!typeId) return false;
-      const type = koerselstyper.find((t: any) => Number(t.id) === Number(typeId));
-      return normalizeModalType(type?.label) === 'skolerejsekort';
-    }
+    const isModalKoerselSkolerejsekort = (typeId: any) =>
+      typeIsSkolerejsekort(koerselstyper, typeId);
 
     async function calculateModalKoerselDistance(typeId: any, idx: number) {
       if (!isModalKoerselEgenbefordring(typeId)) {
@@ -288,38 +277,26 @@
         modalKoerselList = modalKoerselList;
         return;
       }
-      if (!newBevilling.adresse_tekst) {
-        modalKoerselList[idx].distanceError = "Ingen adresse på bevillingen — kan ikke beregne afstand";
-        modalKoerselList = modalKoerselList;
-        return;
-      }
-      if (!newBevilling.matrikel_id) {
-        modalKoerselList[idx].distanceError = "Ingen skole valgt på bevillingen — kan ikke beregne afstand";
-        modalKoerselList = modalKoerselList;
-        return;
-      }
+
       modalKoerselList[idx].calculatingDistance = true;
       modalKoerselList[idx].distanceError = null;
       modalKoerselList = modalKoerselList;
+
       try {
-        const geoRes = await backendFetch(`/bevilling/geocode_address?address=${encodeURIComponent(newBevilling.adresse_tekst)}`);
-        if (!geoRes.ok) throw new Error("Kunne ikke geokode adressen");
-        const geo = await geoRes.json();
-        const schoolRes = await backendFetch(`/lookup/skolematrikel/${newBevilling.matrikel_id}/coordinates`);
-        if (!schoolRes.ok) throw new Error("Kunne ikke hente skolens koordinater");
-        const school = await schoolRes.json();
-        const params = new URLSearchParams({ lat1: String(geo.latitude), lon1: String(geo.longitude), lat2: String(school.latitude), lon2: String(school.longitude) });
-        const distRes = await backendFetch(`/bevilling/calculate_driving_distance?${params}`);
-        if (!distRes.ok) throw new Error("Kunne ikke beregne køreafstand");
-        const dist = await distRes.json();
-        const km = dist.distance_km ?? dist.distance ?? dist.driving_distance_km;
-        if (km == null) throw new Error("Ugyldigt svar fra afstandsberegning");
+        const { km, error } = await afstandFraAdresse(
+          newBevilling.adresse_tekst,
+          newBevilling.matrikel_id
+        );
+
+        if (error !== null) {
+          modalKoerselList[idx].distanceError = error;
+          return;
+        }
+
+        // Discard if the user changed the type on this row while we calculated.
         if (Number(modalKoerselList[idx]?.koersel?.befordringstype_id) !== Number(typeId)) return;
+
         modalKoerselList[idx].koersel.bevilget_koereafstand_pr_vej = String(km);
-        modalKoerselList = modalKoerselList;
-      } catch (err: any) {
-        modalKoerselList[idx].distanceError = err?.message ?? "Fejl ved beregning af afstand";
-        modalKoerselList = modalKoerselList;
       } finally {
         modalKoerselList[idx].calculatingDistance = false;
         modalKoerselList = modalKoerselList;
