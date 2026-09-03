@@ -584,7 +584,7 @@
 
   <!-- Backdrop -->
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="presentation">
-    <div class="w-[750px] max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
+    <div class="w-[1150px] max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
 
       <div class="sticky top-0 z-10 px-8 py-5 border-b border-gray-200" style="background-color: #032A42;">
         <h2 class="text-lg font-bold text-white">Opret ny bevilling</h2>
