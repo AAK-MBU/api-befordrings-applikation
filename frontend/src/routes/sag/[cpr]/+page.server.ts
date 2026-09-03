@@ -1,4 +1,4 @@
-import { backendApiFetch } from "$lib/server/backendApi";
+import { backendUserFetcher } from "$lib/server/backendApi";
 
 import type { PageServerLoad } from "./$types";
 
@@ -23,8 +23,9 @@ async function assertResponseOk(response: Response, errorMessage: string) {
 }
 
 
-export const load: PageServerLoad = async ({ params, fetch }) => {
-  const { cpr } = params;
+export const load: PageServerLoad = async (event) => {
+  const { cpr } = event.params;
+  const api = backendUserFetcher(event);
 
   const [
     stamdataRes,
@@ -32,39 +33,17 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     parterRes,
     bevillingerRes,
     aktiviteterRes,
-    statusRes,
-    skolematriklerRes,
-    hjemlerRes,
-    afgoerelsesbreveRes,
-    sagsbehandlereRes,
-    pprSagsbehandlereRes,
-    hjaelpemidlerRes,
-    tidspunkterRes,
-    koerselstyperRes,
-    koerselstypeTillaegRes,
-    dageRes,
-    ungdomsuddannelserRes,
-    rutetyperRes
+    lookupRes
   ] = await Promise.all([
-    backendApiFetch(fetch, `/citizen/stamdata/${cpr}`),
-    backendApiFetch(fetch, `/citizen/stamdata/${cpr}/parents`),
-    backendApiFetch(fetch, `/part/${cpr}`),
-    backendApiFetch(fetch, `/bevilling/get_student_bevillinger/${cpr}`),
-    backendApiFetch(fetch, `/aktivitet/${cpr}`),
+    api(`/citizen/stamdata/${cpr}`),
+    api(`/citizen/stamdata/${cpr}/parents`),
+    api(`/part/${cpr}`),
+    api(`/bevilling/get_student_bevillinger/${cpr}`),
+    api(`/aktivitet/${cpr}`),
 
-    backendApiFetch(fetch, "/lookup/status"),
-    backendApiFetch(fetch, "/lookup/skolematrikel"),
-    backendApiFetch(fetch, "/lookup/hjemler"),
-    backendApiFetch(fetch, "/lookup/afgoerelsesbreve"),
-    backendApiFetch(fetch, "/lookup/sagsbehandlere"),
-    backendApiFetch(fetch, "/lookup/ppr_sagsbehandlere"),
-    backendApiFetch(fetch, "/lookup/hjaelpemidler"),
-    backendApiFetch(fetch, "/lookup/tidspunkter"),
-    backendApiFetch(fetch, "/lookup/koerselstyper"),
-    backendApiFetch(fetch, "/lookup/koerselstype_tillaeg"),
-    backendApiFetch(fetch, "/lookup/dage"),
-    backendApiFetch(fetch, "/lookup/ungdomsuddannelser"),
-    backendApiFetch(fetch, "/lookup/rutetyper")
+    // One request for all thirteen dropdown lists. Fetching them individually
+    // meant this page opened eighteen connections against a pool of thirty.
+    api("/lookup/all")
   ]);
 
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
@@ -72,43 +51,18 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
   await assertResponseOk(parterRes, "Failed to fetch parter");
   await assertResponseOk(bevillingerRes, "Failed to fetch bevillinger");
   await assertResponseOk(aktiviteterRes, "Failed to fetch aktiviteter");
-  await assertResponseOk(statusRes, "Failed to fetch status");
-  await assertResponseOk(skolematriklerRes, "Failed to fetch skolematrikler");
-  await assertResponseOk(hjemlerRes, "Failed to fetch hjemler");
-  await assertResponseOk(afgoerelsesbreveRes, "Failed to fetch afgoerelsesbreve");
-  await assertResponseOk(sagsbehandlereRes, "Failed to fetch sagsbehandlere");
-  await assertResponseOk(pprSagsbehandlereRes, "Failed to fetch ppr sagsbehandlere");
-  await assertResponseOk(hjaelpemidlerRes, "Failed to fetch hjaelpemidler");
-  await assertResponseOk(tidspunkterRes, "Failed to fetch tidspunkter");
-  await assertResponseOk(koerselstyperRes, "Failed to fetch koerselstyper");
-  await assertResponseOk(koerselstypeTillaegRes, "Failed to fetch koerselstype tillaeg");
-  await assertResponseOk(dageRes, "Failed to fetch dage");
-  await assertResponseOk(ungdomsuddannelserRes, "Failed to fetch ungdomsuddannelser");
-  await assertResponseOk(rutetyperRes, "Failed to fetch rutetyper");
+  await assertResponseOk(lookupRes, "Failed to fetch lookup data");
 
   const stamdataResponse = await stamdataRes.json();
   const parents = await parentsRes.json();
   const parter = await parterRes.json();
   const bevillinger: BevillingRecord[] = await bevillingerRes.json();
   const aktiviteter = await aktiviteterRes.json();
-  const statuser = await statusRes.json();
-  const skolematrikler = await skolematriklerRes.json();
-  const hjemler = await hjemlerRes.json();
-  const afgoerelsesbreve = await afgoerelsesbreveRes.json();
-  const sagsbehandlere = await sagsbehandlereRes.json();
-  const pprSagsbehandlere = await pprSagsbehandlereRes.json();
-  const hjaelpemidler = await hjaelpemidlerRes.json();
-  const tidspunkter = await tidspunkterRes.json();
-  const koerselstyper = await koerselstyperRes.json();
-  const koerselstypeTillaeg = await koerselstypeTillaegRes.json();
-  const dage = await dageRes.json();
-  const ungdomsuddannelser = await ungdomsuddannelserRes.json();
-  const rutetyper = await rutetyperRes.json();
+  const lookup = await lookupRes.json();
 
   const bevillingerWithKoerselsraekker = await Promise.all(
     bevillinger.map(async (bevilling) => {
-      const koerselsraekkerRes = await backendApiFetch(
-        fetch,
+      const koerselsraekkerRes = await api(
         `/bevilling/get_bevilling_koerselsraekker/${bevilling.bevilling_id}`
       );
 
@@ -162,19 +116,19 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     aktiviteter,
 
     lookupOptions: {
-      statuser,
-      skolematrikler,
-      hjemler,
-      afgoerelsesbreve,
-      sagsbehandlere,
-      pprSagsbehandlere,
-      hjaelpemidler,
-      tidspunkter,
-      koerselstyper,
-      koerselstypeTillaeg,
-      dage,
-      ungdomsuddannelser,
-      rutetyper
+      statuser: lookup.status,
+      skolematrikler: lookup.skolematrikel,
+      hjemler: lookup.hjemler,
+      afgoerelsesbreve: lookup.afgoerelsesbreve,
+      sagsbehandlere: lookup.sagsbehandlere,
+      pprSagsbehandlere: lookup.ppr_sagsbehandlere,
+      hjaelpemidler: lookup.hjaelpemidler,
+      tidspunkter: lookup.tidspunkter,
+      koerselstyper: lookup.koerselstyper,
+      koerselstypeTillaeg: lookup.koerselstype_tillaeg,
+      dage: lookup.dage,
+      ungdomsuddannelser: lookup.ungdomsuddannelser,
+      rutetyper: lookup.rutetyper
     }
   };
 };

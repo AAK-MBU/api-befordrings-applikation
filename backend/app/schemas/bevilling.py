@@ -77,6 +77,10 @@ class BevillingUpdateRequest(BaseModel):
     revurderet_af_ppr: bool | None = None
     revurderet_af_br: bool | None = None
 
+    # Lock flag. Sent on its own by the lock/unlock control, exactly as the
+    # kørselsrække lock sends {"final": true} to its own update endpoint.
+    final: bool | None = None
+
 
 class HjaelpemidlerUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -101,6 +105,13 @@ class KoerselsraekkeCreateRequest(BaseModel):
     # Skolerejsekort-specific.
     transporttid_i_bus: int | None = None
     skift_med_bus: int | None = None
+
+    # Taxa-specific (Rutekørsel, Skånekørsel, Solo kørsel, Variabel kørsel).
+    koersel_til_institution: bool | None = None
+    max_minutter_i_transport: int | None = None
+
+    # Egenbefordring-specific: the Part receiving the kilometre reimbursement.
+    koerselsgodtgoerelse_modtager_id: int | None = None
 
     tillaeg_ids: list[int] = Field(default_factory=list)
     dag_ids: list[int] = Field(default_factory=list)
@@ -127,6 +138,13 @@ class KoerselsraekkeUpdateRequest(BaseModel):
     # Skolerejsekort-specific.
     transporttid_i_bus: int | None = None
     skift_med_bus: int | None = None
+
+    # Taxa-specific (Rutekørsel, Skånekørsel, Solo kørsel, Variabel kørsel).
+    koersel_til_institution: bool | None = None
+    max_minutter_i_transport: int | None = None
+
+    # Egenbefordring-specific: the Part receiving the kilometre reimbursement.
+    koerselsgodtgoerelse_modtager_id: int | None = None
 
 
 class KoerselTillaegUpdateRequest(BaseModel):

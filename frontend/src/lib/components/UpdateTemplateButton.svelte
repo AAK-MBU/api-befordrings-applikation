@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { page } from "$app/stores";
+
   import { backendFetch } from "$lib/client/backendFetch";
 
   // Which template process to refresh. Matches the {process} route param on
@@ -12,8 +14,13 @@
 
   let updating = false;
 
+  // Refreshing template data writes to rpa.Templates, so it needs the same
+  // roles as any other change. Resolved by the backend from EDIT_ROLES; the
+  // endpoint enforces it with RequireEdit regardless of what the button shows.
+  $: canEdit = $page.data.user?.can_edit ?? false;
+
   async function updateTemplateData() {
-    if (updating) return;
+    if (updating || !canEdit) return;
 
     updating = true;
 
@@ -50,7 +57,7 @@
 
 <button
   type="button"
-  disabled={updating}
+  disabled={updating || !canEdit}
   class="{extraClass} font-medium text-white rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
   style="background-color: #032A42;"
   on:click={updateTemplateData}

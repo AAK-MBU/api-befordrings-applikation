@@ -8,7 +8,7 @@ read-only in this application. Only GET endpoints are exposed here.
 
 from fastapi import APIRouter
 
-from app.api.dependencies import DbSession
+from app.api.dependencies import DbSession, RequireEdit
 from app.schemas.citizen import ElevCreateRequest
 from app.services.citizen_service import CitizenService
 
@@ -18,7 +18,7 @@ from app.services.citizen_service import CitizenService
 router = APIRouter(prefix="/citizen", tags=["Citizen"])
 
 
-@router.post("/create_elev")
+@router.post("/create_elev", dependencies=[RequireEdit])
 def create_elev(request: ElevCreateRequest, db: DbSession):
     """Create a new student in the Elev table if not already present.
 

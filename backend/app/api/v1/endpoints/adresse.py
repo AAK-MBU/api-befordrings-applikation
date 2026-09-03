@@ -16,7 +16,7 @@ POST /adresse/create when an address resolved from LOIS does not yet exist.
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.dependencies import DbSession
+from app.api.dependencies import DbSession, RequireEdit
 from app.models.adresse import Adresse
 from app.schemas.adresse import AdresseCreateRequest, AdresseCreateResponse, AdresseSearchResult
 
@@ -77,7 +77,7 @@ def get_adresse_by_tekst(
     return db.query(Adresse).filter(Adresse.adresse_tekst == tekst).one_or_none()
 
 
-@router.post("/create", response_model=AdresseCreateResponse)
+@router.post("/create", response_model=AdresseCreateResponse, dependencies=[RequireEdit])
 def create_adresse(
     request: AdresseCreateRequest,
     db: DbSession,

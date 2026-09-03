@@ -6,10 +6,6 @@
    seeded as Aktiv bevillinger with revurdering = 1 (see the UPDATE
    after the Bevilling inserts). Requires migrations 0005–0007 applied.
 
-   NOTE: sagsbehandlingsdato is not inserted directly. It is stamped when
-   a letter is created, so it is backfilled from each bevilling's
-   'Brev oprettet' Sagsaktivitet (see the UPDATE near the end).
-
    Runs inside a transaction that ROLLBACKs by default — change the
    final ROLLBACK to COMMIT once the previewed data looks correct.
    ============================================================ */
@@ -40,6 +36,7 @@ DELETE FROM [befordring].[Hjemmel];
 DELETE FROM [befordring].[KoerselstypeTillaeg];
 DELETE FROM [befordring].[PPR_Sagsbehandler];
 DELETE FROM [befordring].[Rutetype];
+DELETE FROM [befordring].[PortalAuditLog];
 DELETE FROM [befordring].[Sagsbehandler];
 DELETE FROM [befordring].[Sagsaktivitet];
 DELETE FROM [befordring].[Skolematrikel];
@@ -256,6 +253,7 @@ VALUES
     ('Mellem hjem og skole',    '', 1),
     ('Mellem hjem og klub',     '', 1),
     ('Mellem skole og klub',    '', 1),
+    ('Mellem skole, klub, og hjem', '', 1),
     ('Hjem til skole',          '', 1),
     ('Hjem til klub',           '', 1),
     ('Skole til hjem',          '', 1),
@@ -400,7 +398,7 @@ INSERT INTO [befordring].[Elev]
 VALUES
 (
     '0101101234', 'Kasper Søndergaard', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
-    4.2, 'Normalklasse', '1', '1A',
+    2.8, 'Normalklasse', '1', '1A',
     'SFO - Bakkegårdsskolen', 'Bakkegårdsskolen',
     @matrikel_1, NULL, 751002
 ),
@@ -536,7 +534,7 @@ VALUES
     'ESDH-TEST-001', @sagsbehandler_1, @ppr_1,
     '2026-01-01', NULL, 'Forældremyndighed',
     '2026-02-01', 'Kørsel',
-    '2027-06-30', 2,
+    '2027-06-30', 3,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_1 int = SCOPE_IDENTITY();
@@ -580,7 +578,7 @@ VALUES
     'ESDH-TEST-003', @sagsbehandler_1, @ppr_1,
     '2025-06-01', NULL, 'Forældremyndighed',
     '2025-08-01', 'Kørsel',
-    '2026-06-30', 4,
+    '2026-06-30', 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_3 int = SCOPE_IDENTITY();
@@ -602,7 +600,7 @@ VALUES
     'ESDH-TEST-004', @sagsbehandler_2, @ppr_2,
     '2025-12-01', NULL, 'Værge',
     '2026-01-01', 'Kørsel',
-    '2026-06-30', 4,
+    '2026-06-30', 9,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_4 int = SCOPE_IDENTITY();
@@ -666,7 +664,7 @@ VALUES
     'ESDH-TEST-007', @sagsbehandler_1, @ppr_1,
     '2026-05-01', NULL, 'Mor',
     '2026-08-01', 'Kørsel',
-    '2027-06-30', 2,
+    '2027-06-30', 10,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 
@@ -687,7 +685,7 @@ VALUES
     'ESDH-TEST-008', @sagsbehandler_2, @ppr_1,
     '2025-11-01', NULL, 'Far',
     NULL, 'Kørsel',
-    NULL, 3,
+    NULL, 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 
@@ -708,7 +706,7 @@ VALUES
     'ESDH-TEST-009', @sagsbehandler_1, @ppr_2,
     '2026-04-15', NULL, 'Mor',
     '2026-08-10', 'Kørsel',
-    '2027-06-30', 5,
+    '2027-06-30', 3,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_9 int = SCOPE_IDENTITY();
@@ -752,7 +750,7 @@ VALUES
     'ESDH-TEST-011', @sagsbehandler_1, NULL,
     '2026-04-01', NULL, 'Mor',
     '2026-05-01', 'Kørsel',
-    NULL, 1,
+    NULL, 10,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
 
@@ -773,7 +771,7 @@ VALUES
     'ESDH-TEST-012', @sagsbehandler_2, @ppr_2,
     '2023-08-01', NULL, 'Far',
     '2023-08-15', 'Kørsel',
-    '2025-06-30', 8,
+    '2025-06-30', 7,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_12 int = SCOPE_IDENTITY();

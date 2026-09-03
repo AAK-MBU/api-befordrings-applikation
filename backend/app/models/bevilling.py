@@ -123,6 +123,18 @@ class Bevilling(Base):
 
     updated_by: Mapped[str] = mapped_column(String, nullable=False)
 
+    # Lock flag, mirroring Koersel.final. Set when a decision letter is created
+    # and togglable by hand afterwards. Like the kørselsrække flag it marks the
+    # bevilling as settled rather than making it read-only — see
+    # BevillingService.lock_bevilling. Requires the DB column:
+    #   ALTER TABLE [befordring].[Bevilling] ADD final BIT NOT NULL DEFAULT 0
+    # (see backend/db/migrations/005_add_bevilling_final.sql).
+    final: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("0"),
+    )
+
     aktiv: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     koerselsraekker = relationship(
@@ -182,6 +194,22 @@ class Koersel(Base):
     # Nullable and type-specific, exactly like taxa_id / bevilget_koereafstand_pr_vej.
     transporttid_i_bus: Mapped[int | None] = mapped_column(Integer, nullable=True)
     skift_med_bus: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Taxa-specific values, shown for the four taxa kørselstyper (Rutekørsel,
+    # Skånekørsel, Solo kørsel, Variabel kørsel). Same pattern as the
+    # skolerejsekort pair above: nullable, and cleared when the kørselstype is
+    # something else, so a value can never survive a change of type.
+    koersel_til_institution: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    max_minutter_i_transport: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Egenbefordring-specific: which Part receives the kilometre reimbursement.
+    # Soft in practice — Part rows are soft-deleted rather than removed, so the
+    # reference stays resolvable even after a party is deleted from the case.
+    koerselsgodtgoerelse_modtager_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Part.part_id"),
+        nullable=True,
+    )
 
     final: Mapped[bool] = mapped_column(Boolean, nullable=False)
 

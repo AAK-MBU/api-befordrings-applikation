@@ -13,9 +13,16 @@ The expected flow is:
 3. The hashed incoming key is compared against the allowed hashes stored in
    the API_KEY_HASHES environment variable.
 
-4. If a matching hash is found, the request is allowed.
+4. If a matching hash is found, the request is allowed and the key's name is
+   recorded on request.state for the audit trail.
 
 5. If no matching hash is found, the request is rejected.
+
+Each comma-separated entry in API_KEY_HASHES is either a bare hash or a
+"<name>:<hash>" pair. Naming a key is what lets an audit row say which
+automated caller acted, so prefer the named form:
+
+    API_KEY_HASHES=os2forms:<hash>,konverteringsbot:<hash>
 
 Important:
     The plain API keys are never stored in the application settings.
@@ -28,7 +35,7 @@ import os
 
 from typing import Annotated
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
 
@@ -64,35 +71,85 @@ def hash_api_key(api_key: str) -> str:
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
 
-def get_valid_api_key_hashes() -> list[str]:
-    """Get valid API key hashes from the environment.
+# Separator between an optional key name and its hash in API_KEY_HASHES.
+# A SHA-256 hex digest never contains a colon, so splitting on the last one is
+# unambiguous and leaves bare-hash entries working exactly as before.
+_NAME_SEPARATOR = ":"
 
-    The API_KEY_HASHES environment variable is expected to contain one or more
-    SHA-256 hashes.
 
-    Multiple hashes can be separated by commas.
+# Stand-in name for a key configured without one. Naming keys is what lets an
+# audit row say *which* automated caller acted, so this is a nudge rather than
+# something to aim for.
+UNNAMED_API_KEY = "unnamed-api-key"
+
+
+def get_api_key_entries() -> list[tuple[str, str]]:
+    """Get (name, hash) pairs for every configured API key.
+
+    Two forms are accepted per entry, so configuration written before names
+    existed keeps working unchanged:
+
+        <sha256-hash>            -> named UNNAMED_API_KEY
+        <name>:<sha256-hash>     -> named <name>
 
     Example:
-        API_KEY_HASHES=hash1,hash2,hash3
+        API_KEY_HASHES=os2forms:hash1,konverteringsbot:hash2,hash3
 
     Returns:
-        A cleaned list of valid API key hashes.
-
-    Notes:
-        Empty values are ignored. This makes the function more tolerant of
-        extra commas or whitespace in the environment variable.
+        One (name, hash) pair per entry. Empty values are ignored, which makes
+        the parse tolerant of stray commas and whitespace.
     """
 
-    raw_hashes = os.getenv("API_KEY_HASHES", "")
+    raw_entries = os.getenv("API_KEY_HASHES", "")
 
-    return [
-        api_key_hash.strip()
-        for api_key_hash in raw_hashes.split(",")
-        if api_key_hash.strip()
-    ]
+    entries: list[tuple[str, str]] = []
+
+    for raw_entry in raw_entries.split(","):
+        entry = raw_entry.strip()
+
+        if not entry:
+            continue
+
+        name, separator, key_hash = entry.rpartition(_NAME_SEPARATOR)
+
+        if not separator:
+            entries.append((UNNAMED_API_KEY, entry))
+            continue
+
+        if not key_hash.strip():
+            continue
+
+        entries.append((name.strip() or UNNAMED_API_KEY, key_hash.strip()))
+
+    return entries
+
+
+def match_api_key(api_key: str) -> str | None:
+    """Find the name of the configured key matching a presented one.
+
+    Args:
+        api_key:
+            The plain API key received from the client.
+
+    Returns:
+        The matching key's name, or None if no configured key matches.
+
+    Notes:
+        hmac.compare_digest is used instead of a normal == comparison because
+        it is safer for comparing secrets. It helps avoid timing-based attacks.
+    """
+
+    incoming_hash = hash_api_key(api_key)
+
+    for name, valid_hash in get_api_key_entries():
+        if hmac.compare_digest(incoming_hash, valid_hash):
+            return name
+
+    return None
 
 
 async def verify_api_key(
+    request: Request,
     api_key: Annotated[str | None, Security(api_key_header)],
 ) -> None:
     """Validate the API key from the request header.
@@ -100,6 +157,11 @@ async def verify_api_key(
     This function is used as a FastAPI dependency.
 
     Args:
+        request:
+            The incoming request. The matched key's name is stamped onto
+            request.state so the audit middleware can attribute the call to a
+            named automated caller instead of logging it as anonymous.
+
         api_key:
             The API key extracted from the X-API-Key request header.
 
@@ -118,9 +180,6 @@ async def verify_api_key(
     Notes:
         This function does not return user data or a token.
         It only allows or blocks access to protected routes.
-
-        hmac.compare_digest is used instead of normal == comparison because it
-        is safer for comparing secrets. It helps avoid timing-based attacks.
     """
 
     # No API key was provided in the X-API-Key header.
@@ -132,24 +191,13 @@ async def verify_api_key(
             detail="Missing API key",
         )
 
-    # Hash the incoming plain-text API key so it can be compared against the
-    # stored hashes from the environment.
-    incoming_hash = hash_api_key(api_key)
-
-    # Load all allowed API key hashes from the API_KEY_HASHES environment
-    # variable.
-    valid_hashes = get_valid_api_key_hashes()
-
-    # Compare the incoming hash with each allowed hash.
-    #
-    # hmac.compare_digest is preferred for secret comparison because it avoids
-    # some timing-leak issues that can happen with normal string comparison.
-    for valid_hash in valid_hashes:
-        if hmac.compare_digest(incoming_hash, valid_hash):
-            return
+    key_name = match_api_key(api_key)
 
     # An API key was provided, but it did not match any known valid hash.
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Invalid API key",
-    )
+    if key_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid API key",
+        )
+
+    request.state.api_key_name = key_name

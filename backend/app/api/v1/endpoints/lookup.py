@@ -26,7 +26,49 @@ from app.services.lookup_service import LookupService
 
 # All routes in this file are grouped under /lookup.
 # The tag is used by Swagger/OpenAPI to group these endpoints visually.
+# WARNING: successful calls to routes on this router are NOT audit-logged.
+# They are dropped as noise because everything here is reference data — the
+# contents of dropdowns. Only their failures reach PortalAuditLog.
+#
+# So do not add an endpoint here that takes a CPR or returns citizen data: it
+# would silently fall outside the audit trail. Such endpoints belong on the
+# citizen, bevilling, part or aktivitet routers. See _REFERENCE_PATH_PREFIXES
+# in app/middleware/audit_middleware.py.
 router = APIRouter(prefix="/lookup", tags=["Lookup"])
+
+
+@router.get("/all")
+def get_all(db: DbSession):
+    """Get every parameterless lookup list in a single request.
+
+    The case and revurdering pages each need thirteen lookups to render. Asking
+    for them one route at a time meant thirteen HTTP requests per page load,
+    each taking its own connection from the pool — enough that two caseworkers
+    opening a case at the same moment could exhaust it. This returns the same
+    data in one request on one connection.
+
+    Returns:
+        An object keyed by lookup name, each value the list that the
+        corresponding single-lookup route returns:
+
+            {
+                "status": [{"id": 1, "label": "Aktiv"}, ...],
+                "skolematrikel": [...],
+                ...
+            }
+
+    Notes:
+        The single-lookup routes below are kept: other callers use them, and a
+        page that needs one or two lookups should not pull thirteen.
+
+        An object rather than a list, so a caller can read the keys it needs
+        and a fourteenth lookup can be added without breaking the existing
+        ones.
+    """
+
+    service = LookupService(db=db)
+
+    return service.get_all()
 
 
 @router.get("/hjemler")

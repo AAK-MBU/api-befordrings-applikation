@@ -47,6 +47,20 @@ class Settings:
     oidc_discovery_url: str | None = os.getenv("OIDC_DISCOVERY_URL") or None
     oidc_scopes: str = os.getenv("OIDC_SCOPES", "openid")
     oidc_environment: str = os.getenv("OIDC_ENVIRONMENT", "production")
+    # Where the IdP returns the browser after ending the session. Azure B2C
+    # rejects a logout that omits it ("AADB2C90036: The request does not contain
+    # a URI to redirect the user to post logout"), so leaving this unset turns
+    # every logout into an error page. It does *not* have to be a registered
+    # reply URL — B2C validates redirect_uri but not this.
+    oidc_post_logout_redirect: str | None = (
+        os.getenv("OIDC_POST_LOGOUT_REDIRECT") or None
+    )
+    # Comma-separated IdP role claim values that may write. Configurable
+    # because the values are provisioned in Systemregisteret, so they can be
+    # renamed there without a code change. Roles that are not listed can read.
+    # `or`, not a getenv default: an env var set to "" would otherwise leave
+    # the set empty and lock every user out of writing.
+    edit_roles: str = os.getenv("EDIT_ROLES") or "admin,user-edit"
 
     # Secret used to sign the Starlette session cookie.
     session_secret: str = os.getenv("SESSION_SECRET", "dev-only-change-in-prod")

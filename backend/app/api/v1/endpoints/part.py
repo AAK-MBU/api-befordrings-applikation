@@ -7,7 +7,7 @@ a separate box on the "Parter" tab, kept distinct from Foraelder.
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.dependencies import CurrentUser, DbSession
+from app.api.dependencies import CurrentUser, DbSession, RequireEdit
 from app.schemas.part import PartCreateRequest, PartResponse, PartUpdateRequest
 from app.services.part_service import PartService
 
@@ -22,7 +22,7 @@ def get_parts(cpr: str, db: DbSession):
     return PartService(db=db).get_parts(cpr=cpr)
 
 
-@router.post("/{cpr}", response_model=PartResponse)
+@router.post("/{cpr}", response_model=PartResponse, dependencies=[RequireEdit])
 def create_part(
     cpr: str,
     payload: PartCreateRequest,
@@ -37,7 +37,7 @@ def create_part(
     return PartService(db=db).create_part(cpr=cpr, payload=payload)
 
 
-@router.put("/{part_id}", response_model=PartResponse)
+@router.put("/{part_id}", response_model=PartResponse, dependencies=[RequireEdit])
 def update_part(part_id: int, payload: PartUpdateRequest, db: DbSession):
     """Update a party. Only provided fields are changed."""
 
@@ -49,7 +49,7 @@ def update_part(part_id: int, payload: PartUpdateRequest, db: DbSession):
     return part
 
 
-@router.delete("/{part_id}")
+@router.delete("/{part_id}", dependencies=[RequireEdit])
 def delete_part(part_id: int, db: DbSession):
     """Soft-delete a party."""
 

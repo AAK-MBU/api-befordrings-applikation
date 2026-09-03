@@ -35,6 +35,8 @@ from openpyxl.cell.rich_text import CellRichText
 
 from sqlalchemy import create_engine, text
 
+from app.api.dependencies import RequireEdit
+
 
 router = APIRouter(prefix="/templates_handler", tags=["Templates handler (TEMP mock)"])
 
@@ -50,7 +52,10 @@ SHAREPOINT_KWARGS = {
 }
 
 
-@router.get("/update_template_data/{process}")
+# Gated even though it is a GET: this refreshes the stored template data from
+# SharePoint, so it writes. A rule that keys off the HTTP method alone would
+# miss it — worth carrying over when api-skabelonmotor replaces this mock.
+@router.get("/update_template_data/{process}", dependencies=[RequireEdit])
 def update_template_data(process: str):
     """
     Refresh the DB copy of a process' template data from the SharePoint source
