@@ -66,6 +66,12 @@
   export let onDeleteBevilling: ((bevillingId: number) => Promise<string | null>) | undefined = undefined;
   export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
 
+  // Parties on the case, passed straight through to KoerselsraekkeTable so the
+  // egenbefordring kørselsrække can name who receives the kilometre
+  // reimbursement. Empty by default: a page that does not load parter simply
+  // gets an empty dropdown rather than an error.
+  export let parter: any[] = [];
+
   // Optional lock handler — if not provided, the lock control is hidden, the
   // same way the delete buttons are. Takes the *target* state so one handler
   // covers both locking and unlocking.
@@ -1020,6 +1026,8 @@
                 onCreateKoerselsraekke={(updates) => onCreateKoerselsraekke(bevilling.bevilling_id, updates)}
                 onFinalizeKoerselsraekke={onFinalizeKoerselsraekke}
                 onDeleteKoerselsraekke={onDeleteKoerselsraekke}
+                {parter}
+                ansoegningstype={bevilling.ansoegningstype ?? ""}
               />
             </div>
 

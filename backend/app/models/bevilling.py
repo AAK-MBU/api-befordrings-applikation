@@ -195,6 +195,22 @@ class Koersel(Base):
     transporttid_i_bus: Mapped[int | None] = mapped_column(Integer, nullable=True)
     skift_med_bus: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Taxa-specific values, shown for the four taxa kørselstyper (Rutekørsel,
+    # Skånekørsel, Solo kørsel, Variabel kørsel). Same pattern as the
+    # skolerejsekort pair above: nullable, and cleared when the kørselstype is
+    # something else, so a value can never survive a change of type.
+    koersel_til_institution: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    max_minutter_i_transport: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Egenbefordring-specific: which Part receives the kilometre reimbursement.
+    # Soft in practice — Part rows are soft-deleted rather than removed, so the
+    # reference stays resolvable even after a party is deleted from the case.
+    koerselsgodtgoerelse_modtager_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Part.part_id"),
+        nullable=True,
+    )
+
     final: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     # Soft-delete flag. Rows are hidden (aktiv = 0) rather than hard-deleted so

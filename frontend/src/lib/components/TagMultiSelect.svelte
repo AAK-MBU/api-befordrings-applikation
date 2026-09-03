@@ -47,7 +47,7 @@
 <div class="relative" bind:this={container}>
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div
-    class="flex flex-wrap items-center gap-1.5 min-h-[38px] w-full border border-gray-300 rounded px-2 py-1 text-sm cursor-text focus-within:border-blue-400"
+    class="flex flex-wrap items-center gap-1.5 min-h-[38px] w-full border border-gray-300 rounded px-2 py-1 text-sm cursor-text focus-within:border-blue-400 bg-white"
     on:click={() => { open = true; inputEl?.focus(); }}
   >
     {#each selected as id}

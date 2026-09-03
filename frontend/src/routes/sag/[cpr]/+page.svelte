@@ -1063,6 +1063,7 @@
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
         elevklassetrin={stamdata?.elevklassetrin ?? null}
+        {parter}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}
         on:cancel={() => { showCreateBevillingModal = false; }}
@@ -1176,6 +1177,7 @@
       onSaveKoerselsraekke={handleSaveKoerselsraekke}
       onCreateKoerselsraekke={handleCreateKoerselsraekke}
       onFinalizeKoerselsraekke={handleFinalizeKoerselsraekke}
+      {parter}
       onSetBevillingLock={handleSetBevillingLock}
       onDeleteBevilling={handleDeleteBevilling}
       onDeleteKoerselsraekke={handleDeleteKoerselsraekke}
