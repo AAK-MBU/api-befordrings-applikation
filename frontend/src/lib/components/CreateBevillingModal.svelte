@@ -8,6 +8,7 @@
       beregnAfstandskriterieKlassetrin
     } from "$lib/afstandskriterie";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
+    import DagePicker from "$lib/components/DagePicker.svelte";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
     export let cpr: string;
@@ -83,19 +84,6 @@
     // Midlertidig kørsel is granted on a different basis, so the afstandskriterie
     // fields, befordringsudvalg and PPR ansvarlig do not apply and are hidden.
     $: isMidlertidig = isMidlertidigKoersel(newBevilling.ansoegningstype);
-
-    // Weekday chips: short labels, and "Alle" first rather than wherever its id
-    // happens to fall.
-    const DAG_SHORT: Record<string, string> = {
-      'Mandag': 'Man', 'Tirsdag': 'Tirs', 'Onsdag': 'Ons',
-      'Torsdag': 'Tors', 'Fredag': 'Fre', 'Alle': 'Alle',
-    };
-
-    $: sortedDage = [...dage].sort((a: any, b: any) => {
-      if (a.label === 'Alle') return -1;
-      if (b.label === 'Alle') return 1;
-      return Number(a.id) - Number(b.id);
-    });
 
     // Same restriction as KoerselsraekkeTable: only the kørselstyper the
     // midlertidig-kørsel form can actually produce. Whitespace is stripped
@@ -892,20 +880,7 @@
               </label>
               <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage *</span>
-                <div class="flex flex-wrap gap-1">
-                  {#each sortedDage as opt}
-                    <button type="button"
-                      class="px-2 py-1.5 text-xs rounded border transition-colors {entry.dagIds.includes(Number(opt.id)) ? 'bg-[#032A42] text-white border-[#032A42]' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}"
-                      on:click={() => {
-                        const id = Number(opt.id);
-                        const isSelected = entry.dagIds.includes(id);
-                        modalKoerselList[i].dagIds = isSelected ? entry.dagIds.filter((x: number) => x !== id) : [...entry.dagIds, id];
-                        modalKoerselList = modalKoerselList;
-                      }}>
-                      {DAG_SHORT[opt.label] ?? opt.label}
-                    </button>
-                  {/each}
-                </div>
+                <DagePicker options={dage} bind:selected={modalKoerselList[i].dagIds} />
               </div>
 
               {#if isEgb}

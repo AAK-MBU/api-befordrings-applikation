@@ -3,6 +3,7 @@
   import { formatDanishDate } from "$lib/tableColumnConfig";
   import { backendFetch } from "$lib/client/backendFetch";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
+  import DagePicker from "$lib/components/DagePicker.svelte";
 
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
   const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
@@ -683,7 +684,7 @@
         </label>
         <div>
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage *</span>
-          <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={newSelectedDagIds} placeholder="Tilføj dag" />
+          <DagePicker options={lookupOptions.dage ?? []} bind:selected={newSelectedDagIds} />
         </div>
         
         {#if isEgenbefordring(newKoerselsraekke.befordringstype_id)}
@@ -948,7 +949,7 @@
           </label>
           <div>
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage *</span>
-            <TagMultiSelect options={lookupOptions.dage ?? []} bind:selected={selectedDagIds} placeholder="Tilføj dag" />
+            <DagePicker options={lookupOptions.dage ?? []} bind:selected={selectedDagIds} />
           </div>
 
           {#if isEgenbefordring(editableKoerselsraekke.befordringstype_id)}
