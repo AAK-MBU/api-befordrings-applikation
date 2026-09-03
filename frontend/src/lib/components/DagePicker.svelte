@@ -27,12 +27,25 @@
   $: alleValgt = selected.some((id) => alleIds.includes(id));
   $: dageValgt = selected.some((id) => !alleIds.includes(id));
 
+  // Derived here in the script, not by calling a helper from the template.
+  // Svelte compiles `{@const x = isDisabled(option)}` to a derived that reads
+  // the call inside $.untrack(), so nothing the helper touches is a dependency:
+  // it computes once on first render and never updates again.
+  //
   // A selected chip is never disabled — otherwise a row that somehow holds both
   // kinds (older data, an import) could never be untangled.
-  function isDisabled(option: { id: number | string; label: string }): boolean {
-    if (selected.includes(Number(option.id))) return false;
-    return isAlle(option) ? dageValgt : alleValgt;
-  }
+  $: chips = sortedDage.map((option) => {
+    const valgt = selected.includes(Number(option.id));
+    return {
+      id: option.id,
+      tekst: DAG_SHORT[option.label] ?? option.label,
+      valgt,
+      deaktiveret: valgt ? false : (isAlle(option) ? dageValgt : alleValgt),
+      forklaring: isAlle(option)
+        ? "Kan ikke vælges, når enkelte dage er valgt"
+        : "Kan ikke vælges, når 'Alle' er valgt",
+    };
+  });
 
   function toggle(id: number | string) {
     const n = Number(id);
@@ -43,26 +56,20 @@
 </script>
 
 <div class="flex flex-wrap gap-1">
-  {#each sortedDage as option}
-    {@const valgt = selected.includes(Number(option.id))}
-    {@const deaktiveret = isDisabled(option)}
+  {#each chips as chip}
     <button
       type="button"
-      aria-pressed={valgt}
-      disabled={deaktiveret}
-      title={deaktiveret
-        ? (isAlle(option)
-            ? "Kan ikke vælges, når enkelte dage er valgt"
-            : "Kan ikke vælges, når 'Alle' er valgt")
-        : undefined}
-      class="px-2 py-1.5 text-xs rounded border transition-colors {valgt
+      aria-pressed={chip.valgt}
+      disabled={chip.deaktiveret}
+      title={chip.deaktiveret ? chip.forklaring : undefined}
+      class="px-2 py-1.5 text-xs rounded border transition-colors {chip.valgt
         ? 'bg-[#032A42] text-white border-[#032A42]'
-        : deaktiveret
+        : chip.deaktiveret
           ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
           : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}"
-      on:click={() => toggle(option.id)}
+      on:click={() => toggle(chip.id)}
     >
-      {DAG_SHORT[option.label] ?? option.label}
+      {chip.tekst}
     </button>
   {/each}
 </div>
