@@ -123,6 +123,20 @@
 
     let expandedIds = new Set<number>();
 
+    // Parties per citizen, loaded lazily alongside aktiviteter and bevillinger
+    // when a row is expanded. Needed by the egenbefordring kørselsrække, which
+    // names one of them as the recipient of the kilometre reimbursement.
+    let parterByCpr: Record<string, any[]> = {};
+
+    async function loadParter(cpr: string) {
+      const res = await backendFetch(`/part/${cpr}`);
+
+      if (!res.ok) return;
+
+      parterByCpr[cpr] = await res.json();
+      parterByCpr = { ...parterByCpr };
+    }
+
     function toggleExpand(id: number) {
       if (expandedIds.has(id)) {
         expandedIds.delete(id);
@@ -132,6 +146,7 @@
         if (bev) {
           if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
           if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
+          if (!parterByCpr[bev.cpr_elev]) loadParter(bev.cpr_elev);
         }
       }
       expandedIds = new Set(expandedIds);
@@ -142,6 +157,7 @@
       filteredRevurderinger.forEach((bev: any) => {
         if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
         if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
+        if (!parterByCpr[bev.cpr_elev]) loadParter(bev.cpr_elev);
       });
     }
 
@@ -577,6 +593,7 @@
     mode={createBevillingModalMode}
     existingBevillinger={bevillingerByCpr[bevillingModalCpr] ?? []}
     elevklassetrin={bevillingModalElevklassetrin}
+    parter={parterByCpr[bevillingModalCpr] ?? []}
     {lookupOptions}
     on:created={async () => { showCreateBevillingModal = false; await loadBevillinger(bevillingModalCpr); await invalidateAll(); }}
     on:cancel={() => { showCreateBevillingModal = false; }}
@@ -1183,6 +1200,7 @@
                     <BevillingTable
                       bevillinger={bevillingerByCpr[bev.cpr_elev]}
                       lookupOptions={lookupOptions}
+                      parter={parterByCpr[bev.cpr_elev] ?? []}
                       readonlyKoerselsraekker={true}
                       onSaveBevilling={async (id, updates) => {
                         const error = await handleSaveBevilling(id, updates);

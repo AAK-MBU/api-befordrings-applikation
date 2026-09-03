@@ -42,6 +42,14 @@
   export let matrikelId: number | null = null;
   export let readonly: boolean = false;
 
+  // Parties on the case, used by the egenbefordring kørselsrække to name the
+  // recipient of the kilometre reimbursement.
+  export let parter: any[] = [];
+
+  // The bevilling's ansøgningstype. Only "Midlertidig kørsel" restricts which
+  // kørselstyper may be chosen; every other type shows the full lookup.
+  export let ansoegningstype: string = "";
+
   // Optional — if not provided, the delete button is hidden entirely.
   // Wire this up from the parent page only for users with the correct role.
   export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
@@ -58,6 +66,22 @@
 
   // Kørselstyper where Taxa-ID is relevant.
   const TAXA_TYPES = new Set(['rutekørsel', 'skånekørsel', 'solokørsel', 'variabel kørsel']);
+
+  // Kørselstyper the midlertidig-kørsel form actually offers. The lookup table
+  // holds every type used anywhere in the system, so without this a caseworker
+  // can pick one the form could never have produced.
+  const MIDLERTIDIG_ALLOWED = new Set([
+    'egenbefordring', 'skolerejsekort', 'rutekørsel',
+    'solokørsel', 'variabelkørsel', 'skånekørsel',
+  ]);
+
+  // Compared with whitespace stripped, because the lookup labels are not
+  // consistent about it ("Variabel kørsel" vs "Variabelkørsel").
+  $: availableKoerselstyper = ansoegningstype === 'Midlertidig kørsel'
+    ? (lookupOptions.koerselstyper ?? []).filter(
+        (type: any) => MIDLERTIDIG_ALLOWED.has(normalizeType(type.label).replace(/\s/g, ''))
+      )
+    : (lookupOptions.koerselstyper ?? []);
 
   function normalizeType(label: string | null | undefined): string {
     return String(label ?? '').trim().toLowerCase();
@@ -295,6 +319,21 @@
   // Small helpers
   // -----------------------------
 
+  // Unanswered means "", null or undefined. Zero is a real answer — 0 skift and
+  // 0 minutter are both meaningful — so a plain falsy check would reject them.
+  function isBlank(value: unknown): boolean {
+    return value === "" || value === null || value === undefined;
+  }
+
+  // The Ja/Nej selects carry "true"/"false" strings, while a row loaded from
+  // the API carries a real boolean. Unset stays null rather than collapsing to
+  // false — "not answered" and "Nej" are different answers.
+  function boolOrNull(value: unknown): boolean | null {
+    if (value === true || value === "true") return true;
+    if (value === false || value === "false") return false;
+    return null;
+  }
+
   function numberOrNull(value: string | number | null | undefined) {
     if (value === "" || value === null || value === undefined) {
       return null;
@@ -326,6 +365,9 @@
       taxa_id: "",
       kommentar: "",
       rutetype_id: "",
+      koersel_til_institution: "",
+      max_minutter_i_transport: "",
+      koerselsgodtgoerelse_modtager_id: "",
       final: false
     };
   }
@@ -365,6 +407,13 @@
 
   async function saveEdit(row: any) {
     editError = null;
+
+    // The edit form only checked the dates; the same required fields apply on
+    // both sides, so the presence checks come first here too.
+    if (!editableKoerselsraekke.tidspunkt_id) { editError = "Tidspunkt skal udfyldes"; return; }
+    if (!editableKoerselsraekke.gyldig_fra)   { editError = "Gyldig fra skal udfyldes"; return; }
+    if (!editableKoerselsraekke.gyldig_til)   { editError = "Gyldig til skal udfyldes"; return; }
+
     if (isDateOutOfRange(editableKoerselsraekke.gyldig_fra)) {
       editError = "Gyldig fra: Dato er ugyldig — kontrollér årstallet";
       return;
@@ -376,6 +425,17 @@
     if (editableKoerselsraekke.gyldig_fra && editableKoerselsraekke.gyldig_til &&
         editableKoerselsraekke.gyldig_fra > editableKoerselsraekke.gyldig_til) {
       editError = "Gyldig fra kan ikke være efter gyldig til";
+      return;
+    }
+
+    const koerselstypeError = validateKoerselstypeFields(
+      editableKoerselsraekke,
+      editableKoerselsraekke.befordringstype_id,
+      selectedDagIds
+    );
+
+    if (koerselstypeError) {
+      editError = koerselstypeError;
       return;
     }
 
@@ -392,6 +452,11 @@
 
       transporttid_i_bus: isSkolerejsekort(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.transporttid_i_bus) : null,
       skift_med_bus: isSkolerejsekort(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.skift_med_bus) : null,
+      // Only the fields belonging to the chosen kørselstype are sent; the rest
+      // are nulled so a value cannot survive a change of type.
+      koersel_til_institution: isTaxaType(editableKoerselsraekke.befordringstype_id) ? boolOrNull(editableKoerselsraekke.koersel_til_institution) : null,
+      max_minutter_i_transport: isTaxaType(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.max_minutter_i_transport) : null,
+      koerselsgodtgoerelse_modtager_id: isEgenbefordring(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
 
       tillaeg_ids: isKoerselType(editableKoerselsraekke.befordringstype_id) ? selectedTillaegIds : [],
       dag_ids: selectedDagIds
@@ -431,6 +496,9 @@
         taxa_id: source.taxa_id ?? "",
         kommentar: source.kommentar ?? "",
         rutetype_id: source.rutetype_id ?? "",
+        koersel_til_institution: source.koersel_til_institution != null ? String(source.koersel_til_institution) : "",
+        max_minutter_i_transport: source.max_minutter_i_transport != null ? String(source.max_minutter_i_transport) : "",
+        koerselsgodtgoerelse_modtager_id: source.koerselsgodtgoerelse_modtager_id ?? "",
         final: false,
       };
       newSelectedTillaegIds = parseIds(source.tillaeg_ids);
@@ -460,6 +528,37 @@
     };
   }
 
+
+  // The rules that depend on the chosen kørselstype. Shared by both the edit
+  // and the create path so the two can never drift — they did in the code this
+  // was ported from, where transporttid and antal skift used two different
+  // idioms for the same "unanswered" check.
+  function validateKoerselstypeFields(
+    values: any,
+    befordringstypeId: string | number | null | undefined,
+    dagIds: number[]
+  ): string | null {
+    if (dagIds.length === 0) return "Dage skal udfyldes";
+    if (!values.rutetype_id) return "Rutetype skal udfyldes";
+
+    if (isEgenbefordring(befordringstypeId)) {
+      if (isBlank(values.bevilget_koereafstand_pr_vej)) return "Bevilget km pr. vej skal udfyldes";
+      if (isBlank(values.koerselsgodtgoerelse_modtager_id)) return "Kørselsgodtgørelse modtager skal udfyldes";
+    }
+
+    if (isTaxaType(befordringstypeId)) {
+      if (isBlank(values.koersel_til_institution)) return "Kørsel til institution skal udfyldes";
+      if (isBlank(values.max_minutter_i_transport)) return "Max. antal min. i transport skal udfyldes";
+    }
+
+    if (isSkolerejsekort(befordringstypeId)) {
+      if (isBlank(values.transporttid_i_bus)) return "Transporttid i bus skal udfyldes";
+      if (isBlank(values.skift_med_bus)) return "Antal skift skal udfyldes";
+    }
+
+    return null;
+  }
+
   function validateNewKoerselsraekke(): string | null {
     if (!newKoerselsraekke.tidspunkt_id) return "Tidspunkt skal udfyldes";
     if (!newKoerselsraekke.befordringstype_id) return "Kørselstype skal udfyldes";
@@ -468,7 +567,12 @@
     if (isDateOutOfRange(newKoerselsraekke.gyldig_fra)) return "Gyldig fra: Dato er ugyldig — kontrollér årstallet";
     if (isDateOutOfRange(newKoerselsraekke.gyldig_til)) return "Gyldig til: Dato er ugyldig — kontrollér årstallet";
     if (newKoerselsraekke.gyldig_fra > newKoerselsraekke.gyldig_til) return "Gyldig fra kan ikke være efter gyldig til";
-    return null;
+
+    return validateKoerselstypeFields(
+      newKoerselsraekke,
+      newKoerselsraekke.befordringstype_id,
+      newSelectedDagIds
+    );
   }
 
 
@@ -493,6 +597,11 @@
 
       transporttid_i_bus: isSkolerejsekort(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.transporttid_i_bus) : null,
       skift_med_bus: isSkolerejsekort(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.skift_med_bus) : null,
+      // Only the fields belonging to the chosen kørselstype are sent; the rest
+      // are nulled so a value cannot survive a change of type.
+      koersel_til_institution: isTaxaType(newKoerselsraekke.befordringstype_id) ? boolOrNull(newKoerselsraekke.koersel_til_institution) : null,
+      max_minutter_i_transport: isTaxaType(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.max_minutter_i_transport) : null,
+      koerselsgodtgoerelse_modtager_id: isEgenbefordring(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
 
       tillaeg_ids: isKoerselType(newKoerselsraekke.befordringstype_id) ? newSelectedTillaegIds : [],
       dag_ids: newSelectedDagIds
@@ -540,9 +649,20 @@
             }}
           >
             <option value="">Vælg</option>
-            {#each lookupOptions.koerselstyper ?? [] as option}
+            {#each availableKoerselstyper as option}
               <option value={option.id}>{option.label}</option>
             {/each}
+          </select>
+        </label>
+
+        <!-- Rutetype applies to every kørselstype, so it sits with Kørselstype
+             above the type-specific branches — and therefore above every
+             Kommentar, which each branch ends with. -->
+        <label class="block">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
+          <select class={selectClass} value={newKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateNewField("rutetype_id", numberOrNull(e.currentTarget.value))}>
+            <option value="">Vælg</option>
+            {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
           </select>
         </label>
 
@@ -563,6 +683,13 @@
               value={newKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
               on:change={(e) => updateNewField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
             />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager</span>
+            <select class={selectClass} value={newKoerselsraekke.koerselsgodtgoerelse_modtager_id ?? ""} on:change={(e) => updateNewField("koerselsgodtgoerelse_modtager_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each parter as part}<option value={part.part_id}>{part.fulde_navn ?? part.part_id}</option>{/each}
+            </select>
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
@@ -612,6 +739,18 @@
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
             <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørsel til institution</span>
+            <select class={selectClass} value={newKoerselsraekke.koersel_til_institution ?? ""} on:change={(e) => updateNewField("koersel_til_institution", e.currentTarget.value)}>
+              <option value="">Vælg</option>
+              <option value="true">Ja</option>
+              <option value="false">Nej</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
+            <input type="number" min="0" max="500" class={inputClass} value={newKoerselsraekke.max_minutter_i_transport ?? ""} on:change={(e) => updateNewField("max_minutter_i_transport", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
@@ -683,14 +822,6 @@
           </label>
         {/if}
 
-        <!-- Rutetype — applies to all kørselstyper -->
-        <label class="block md:col-start-1">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype</span>
-          <select class={selectClass} value={newKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateNewField("rutetype_id", numberOrNull(e.currentTarget.value))}>
-            <option value="">Vælg</option>
-            {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
-          </select>
-        </label>
         
       </div>
 
@@ -808,9 +939,18 @@
               }}
             >
               <option value="">Vælg</option>
-              {#each lookupOptions.koerselstyper ?? [] as option}
+              {#each availableKoerselstyper as option}
                 <option value={option.id}>{option.label}</option>
               {/each}
+            </select>
+          </label>
+
+          <!-- Rutetype applies to every kørselstype — see the new-row form. -->
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
+            <select class={selectClass} value={editableKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateField("rutetype_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
             </select>
           </label>
 
@@ -831,6 +971,13 @@
                 value={editableKoerselsraekke.bevilget_koereafstand_pr_vej ?? ""}
                 on:change={(e) => updateField("bevilget_koereafstand_pr_vej", e.currentTarget.value)}
               />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager</span>
+              <select class={selectClass} value={editableKoerselsraekke.koerselsgodtgoerelse_modtager_id ?? ""} on:change={(e) => updateField("koerselsgodtgoerelse_modtager_id", numberOrNull(e.currentTarget.value))}>
+                <option value="">Vælg</option>
+                {#each parter as part}<option value={part.part_id}>{part.fulde_navn ?? part.part_id}</option>{/each}
+              </select>
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt</span>
@@ -880,6 +1027,18 @@
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til</span>
               <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørsel til institution</span>
+              <select class={selectClass} value={editableKoerselsraekke.koersel_til_institution ?? ""} on:change={(e) => updateField("koersel_til_institution", e.currentTarget.value)}>
+                <option value="">Vælg</option>
+                <option value="true">Ja</option>
+                <option value="false">Nej</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
+              <input type="number" min="0" max="500" class={inputClass} value={editableKoerselsraekke.max_minutter_i_transport ?? ""} on:change={(e) => updateField("max_minutter_i_transport", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
@@ -951,14 +1110,6 @@
             </label>
           {/if}
 
-          <!-- Rutetype — applies to all kørselstyper -->
-          <label class="block md:col-start-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype</span>
-            <select class={selectClass} value={editableKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateField("rutetype_id", numberOrNull(e.currentTarget.value))}>
-              <option value="">Vælg</option>
-              {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
-            </select>
-          </label>
 
         </div>
 
@@ -992,6 +1143,10 @@
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Bevilget km pr. vej</p>
                 <p class="text-sm text-gray-800">{row.bevilget_koereafstand_pr_vej != null ? String(parseFloat(row.bevilget_koereafstand_pr_vej)).replace('.', ',') : "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselsgodtgørelse modtager</p>
+                <p class="text-sm text-gray-800 break-words">{parter.find((part: any) => part.part_id === row.koerselsgodtgoerelse_modtager_id)?.fulde_navn ?? "—"}</p>
               </div>
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tidspunkt</p>
@@ -1044,6 +1199,14 @@
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Taxa-ID</p>
                 <p class="text-sm text-gray-800 break-words">{row.taxa_id || "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørsel til institution</p>
+                <p class="text-sm text-gray-800">{row.koersel_til_institution === true ? "Ja" : row.koersel_til_institution === false ? "Nej" : "—"}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Max. antal min. i transport</p>
+                <p class="text-sm text-gray-800">{row.max_minutter_i_transport ?? "—"}</p>
               </div>
               <div class="md:col-start-1 md:col-span-4">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>

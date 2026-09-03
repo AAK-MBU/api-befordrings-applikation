@@ -20,6 +20,10 @@
     // manual, which is what an ungdomsuddannelse student needs anyway.
     export let elevklassetrin: string | number | null = null;
 
+    // Parties on the case — the egenbefordring kørselsrække names one of them
+    // as the recipient of the kilometre reimbursement.
+    export let parter: any[] = [];
+
     const dispatch = createEventDispatcher<{ created: void; cancel: void }>();
 
     function emptyToNull(value: any) { return value === "" ? null : value; }
@@ -55,14 +59,13 @@
   // ---------------------------------------------------------------------------
 
     let createBevillingStep: 1 | 2 = 1;
-    let modalKoersel: any = {};
-    let modalKoerselTillaegIds: number[] = [];
-    let modalKoerselDagIds: number[] = [];
-    let modalKoerselTillaegSelectValue = "";
-    let modalKoerselDagSelectValue = "";
+    // One entry per kørselsrække being created. Step 2 used to build exactly
+    // one; a caseworker can now add several in the same pass, so the per-row
+    // state (tillæg, dage, the select values, the distance lookup) moves onto
+    // each entry instead of sitting in module-level variables.
+    let modalKoerselList: any[] = [];
     let isCreatingKoerselInModal = false;
     let isCalculatingModalKoerselDistance = false;
-    let modalKoerselDistanceError: string | null = null;
     let modalError: string | null = null;
     let skoleType: 'folkeskole' | 'ungdomsuddannelse' | null = null;
     let newBevilling: any = {};
@@ -76,11 +79,35 @@
     $: koerselstypeTillaeg = lookupOptions.koerselstypeTillaeg ?? [];
     $: dage                = lookupOptions.dage                ?? [];
 
-    $: modalBefordringstypeLabel = (koerselstyper.find((t: any) => Number(t.id) === Number(modalKoersel.befordringstype_id))?.label ?? '').toLowerCase().trim();
 
     // Midlertidig kørsel is granted on a different basis, so the afstandskriterie
     // fields, befordringsudvalg and PPR ansvarlig do not apply and are hidden.
     $: isMidlertidig = isMidlertidigKoersel(newBevilling.ansoegningstype);
+
+    // Weekday chips: short labels, and "Alle" first rather than wherever its id
+    // happens to fall.
+    const DAG_SHORT: Record<string, string> = {
+      'Mandag': 'Man', 'Tirsdag': 'Tirs', 'Onsdag': 'Ons',
+      'Torsdag': 'Tors', 'Fredag': 'Fre', 'Alle': 'Alle',
+    };
+
+    $: sortedDage = [...dage].sort((a: any, b: any) => {
+      if (a.label === 'Alle') return -1;
+      if (b.label === 'Alle') return 1;
+      return Number(a.id) - Number(b.id);
+    });
+
+    // Same restriction as KoerselsraekkeTable: only the kørselstyper the
+    // midlertidig-kørsel form can actually produce. Whitespace is stripped
+    // because the lookup labels are inconsistent about it.
+    const MIDLERTIDIG_ALLOWED_MODAL = new Set([
+      'egenbefordring', 'skolerejsekort', 'rutekørsel',
+      'solokørsel', 'variabelkørsel', 'skånekørsel',
+    ]);
+
+    $: availableModalKoerselstyper = newBevilling.ansoegningstype === 'Midlertidig kørsel'
+      ? koerselstyper.filter((t: any) => MIDLERTIDIG_ALLOWED_MODAL.has(normalizeModalType(t.label).replace(/\s/g, '')))
+      : koerselstyper;
 
     $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
     $: selectedHjemmelLabel = visibleHjemler.find((h: any) => String(h.id) === String(newBevilling.hjemmel_id))?.label ?? null;
@@ -178,40 +205,72 @@
       begrundelseSelectValue = "";
     }
 
+    function makeEmptyModalEntry(): any {
+      return {
+        koersel: { tidspunkt_id: "", befordringstype_id: "", bevilget_koereafstand_pr_vej: "",
+          gyldig_fra: "", gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
+          koersel_til_institution: "", max_minutter_i_transport: "",
+          koerselsgodtgoerelse_modtager_id: "", transporttid_i_bus: "", skift_med_bus: "" },
+        dagIds: [] as number[],
+        tillaegIds: [] as number[],
+        dagSelectValue: "",
+        tillaegSelectValue: "",
+        distanceError: null as string | null,
+        calculatingDistance: false,
+      };
+    }
+
+    function makeModalEntryCopy(src: any): any {
+      return {
+        koersel: { ...src.koersel, gyldig_fra: "", gyldig_til: "" },
+        dagIds: [...src.dagIds],
+        tillaegIds: [...src.tillaegIds],
+        dagSelectValue: "",
+        tillaegSelectValue: "",
+        distanceError: null,
+        calculatingDistance: false,
+      };
+    }
+
     function resetModalKoerselEmpty() {
-      modalKoersel = { tidspunkt_id: "", befordringstype_id: "", bevilget_koereafstand_pr_vej: "", gyldig_fra: "", gyldig_til: "", taxa_id: "", kommentar: "", transporttid_i_bus: "", skift_med_bus: "" };
-      modalKoerselTillaegIds = [];
-      modalKoerselDagIds = [];
+      modalKoerselList = [makeEmptyModalEntry()];
     }
 
     function resetModalKoersel(m: 'kopi' | 'tom', sourceBev?: any) {
       if (m === 'kopi') {
-        const src = sourceBev?.koerselsraekker?.[0] ?? null;        
+        const src = sourceBev?.koerselsraekker?.[0] ?? null;    
         if (src) {
-          modalKoersel = {
-            tidspunkt_id: src.tidspunkt_id ?? "",
-            befordringstype_id: src.befordringstype_id ?? "",
-            bevilget_koereafstand_pr_vej: src.bevilget_koereafstand_pr_vej != null ? String(src.bevilget_koereafstand_pr_vej) : "",
-            gyldig_fra: "",
-            gyldig_til: "",
-            taxa_id: src.taxa_id ?? "",
-            kommentar: src.kommentar ?? "",
-            transporttid_i_bus: src.transporttid_i_bus != null ? String(src.transporttid_i_bus) : "",
-            skift_med_bus: src.skift_med_bus != null ? String(src.skift_med_bus) : "",
-          };
           const rawTillaeg = src.tillaeg_ids ?? "";
-          modalKoerselTillaegIds = rawTillaeg ? String(rawTillaeg).split(",").map(Number).filter((n: number) => !isNaN(n)) : [];
           const rawDage = src.dag_ids ?? "";
-          modalKoerselDagIds = rawDage ? String(rawDage).split(",").map(Number).filter((n: number) => !isNaN(n)) : [];
+          modalKoerselList = [{
+            koersel: {
+              tidspunkt_id: src.tidspunkt_id ?? "",
+              befordringstype_id: src.befordringstype_id ?? "",
+              bevilget_koereafstand_pr_vej: src.bevilget_koereafstand_pr_vej != null ? String(src.bevilget_koereafstand_pr_vej) : "",
+              gyldig_fra: "",
+              gyldig_til: "",
+              taxa_id: src.taxa_id ?? "",
+              kommentar: src.kommentar ?? "",
+              rutetype_id: src.rutetype_id ?? "",
+              koersel_til_institution: src.koersel_til_institution != null ? String(src.koersel_til_institution) : "",
+              max_minutter_i_transport: src.max_minutter_i_transport != null ? String(src.max_minutter_i_transport) : "",
+              koerselsgodtgoerelse_modtager_id: src.koerselsgodtgoerelse_modtager_id ?? "",
+              transporttid_i_bus: src.transporttid_i_bus != null ? String(src.transporttid_i_bus) : "",
+              skift_med_bus: src.skift_med_bus != null ? String(src.skift_med_bus) : "",
+            },
+            dagIds: rawDage ? String(rawDage).split(",").map(Number).filter((n: number) => !isNaN(n)) : [],
+            tillaegIds: rawTillaeg ? String(rawTillaeg).split(",").map(Number).filter((n: number) => !isNaN(n)) : [],
+            dagSelectValue: "",
+            tillaegSelectValue: "",
+            distanceError: null,
+            calculatingDistance: false,
+          }];
         } else {
           resetModalKoerselEmpty();
         }
       } else {
         resetModalKoerselEmpty();
       }
-      modalKoerselTillaegSelectValue = "";
-      modalKoerselDagSelectValue = "";
-      modalKoerselDistanceError = null;
     }
 
     function isModalKoerselEgenbefordring(typeId: any): boolean {
@@ -235,21 +294,25 @@
       return normalizeModalType(type?.label) === 'skolerejsekort';
     }
 
-    async function calculateModalKoerselDistance(typeId: any) {
+    async function calculateModalKoerselDistance(typeId: any, idx: number) {
       if (!isModalKoerselEgenbefordring(typeId)) {
-        modalKoersel = { ...modalKoersel, bevilget_koereafstand_pr_vej: "" };
+        modalKoerselList[idx].koersel.bevilget_koereafstand_pr_vej = "";
+        modalKoerselList = modalKoerselList;
         return;
       }
       if (!newBevilling.adresse_tekst) {
-        modalKoerselDistanceError = "Ingen adresse på bevillingen — kan ikke beregne afstand";
+        modalKoerselList[idx].distanceError = "Ingen adresse på bevillingen — kan ikke beregne afstand";
+        modalKoerselList = modalKoerselList;
         return;
       }
       if (!newBevilling.matrikel_id) {
-        modalKoerselDistanceError = "Ingen skole valgt på bevillingen — kan ikke beregne afstand";
+        modalKoerselList[idx].distanceError = "Ingen skole valgt på bevillingen — kan ikke beregne afstand";
+        modalKoerselList = modalKoerselList;
         return;
       }
-      isCalculatingModalKoerselDistance = true;
-      modalKoerselDistanceError = null;
+      modalKoerselList[idx].calculatingDistance = true;
+      modalKoerselList[idx].distanceError = null;
+      modalKoerselList = modalKoerselList;
       try {
         const geoRes = await backendFetch(`/bevilling/geocode_address?address=${encodeURIComponent(newBevilling.adresse_tekst)}`);
         if (!geoRes.ok) throw new Error("Kunne ikke geokode adressen");
@@ -263,12 +326,15 @@
         const dist = await distRes.json();
         const km = dist.distance_km ?? dist.distance ?? dist.driving_distance_km;
         if (km == null) throw new Error("Ugyldigt svar fra afstandsberegning");
-        if (Number(modalKoersel.befordringstype_id) !== Number(typeId)) return;
-        modalKoersel = { ...modalKoersel, bevilget_koereafstand_pr_vej: String(km) };
+        if (Number(modalKoerselList[idx]?.koersel?.befordringstype_id) !== Number(typeId)) return;
+        modalKoerselList[idx].koersel.bevilget_koereafstand_pr_vej = String(km);
+        modalKoerselList = modalKoerselList;
       } catch (err: any) {
-        modalKoerselDistanceError = err?.message ?? "Fejl ved beregning af afstand";
+        modalKoerselList[idx].distanceError = err?.message ?? "Fejl ved beregning af afstand";
+        modalKoerselList = modalKoerselList;
       } finally {
-        isCalculatingModalKoerselDistance = false;
+        modalKoerselList[idx].calculatingDistance = false;
+        modalKoerselList = modalKoerselList;
       }
     }
 
@@ -388,51 +454,64 @@
       modalError = null;
       if (!newBevilling.adresse_id) { modalError = "Adresse mangler"; return; }
       if (!validateBevillingDates()) return;
-      if (!modalKoersel.befordringstype_id) { modalError = "Kørselstype skal udfyldes"; return; }
-      if (!modalKoersel.tidspunkt_id)       { modalError = "Tidspunkt skal udfyldes"; return; }
-      if (!modalKoersel.gyldig_fra)         { modalError = "Gyldig fra skal udfyldes"; return; }
-      if (!modalKoersel.gyldig_til)         { modalError = "Gyldig til skal udfyldes"; return; }
-      if (isDateOutOfRange(modalKoersel.gyldig_fra)) { modalError = "Gyldig fra: Dato er ugyldig — kontrollér årstallet"; return; }
-      if (isDateOutOfRange(modalKoersel.gyldig_til))  { modalError = "Gyldig til: Dato er ugyldig — kontrollér årstallet"; return; }
-      if (modalKoersel.gyldig_fra && modalKoersel.gyldig_til && modalKoersel.gyldig_fra > modalKoersel.gyldig_til) {
-        modalError = "Gyldig fra kan ikke være efter gyldig til";
-        return;
+
+      for (let i = 0; i < modalKoerselList.length; i++) {
+        const entry = modalKoerselList[i];
+        const krs = entry.koersel;
+        const prefix = modalKoerselList.length > 1 ? `Kørselsrække ${i + 1}: ` : "";
+        if (!krs.befordringstype_id) { modalError = `${prefix}Kørselstype skal udfyldes`; return; }
+        if (!krs.tidspunkt_id)       { modalError = `${prefix}Tidspunkt skal udfyldes`; return; }
+        if (!krs.gyldig_fra)         { modalError = `${prefix}Gyldig fra skal udfyldes`; return; }
+        if (!krs.gyldig_til)         { modalError = `${prefix}Gyldig til skal udfyldes`; return; }
+        if (isDateOutOfRange(krs.gyldig_fra)) { modalError = `${prefix}Gyldig fra: Dato er ugyldig — kontrollér årstallet`; return; }
+        if (isDateOutOfRange(krs.gyldig_til)) { modalError = `${prefix}Gyldig til: Dato er ugyldig — kontrollér årstallet`; return; }
+        if (krs.gyldig_fra && krs.gyldig_til && krs.gyldig_fra > krs.gyldig_til) {
+          modalError = `${prefix}Gyldig fra kan ikke være efter gyldig til`; return;
+        }
+        if (entry.dagIds.length === 0) { modalError = `${prefix}Mindst én dag skal vælges`; return; }
+        if (!krs.rutetype_id) { modalError = `${prefix}Rutetype skal udfyldes`; return; }
+        if (isModalKoerselEgenbefordring(krs.befordringstype_id)) {
+          if (!krs.bevilget_koereafstand_pr_vej) { modalError = `${prefix}Bevilget km pr. vej skal udfyldes`; return; }
+          if (!krs.koerselsgodtgoerelse_modtager_id) { modalError = `${prefix}Kørselsgodtgørelse modtager skal udfyldes`; return; }
+        }
+        if (isModalKoerselTaxaType(krs.befordringstype_id)) {
+          if (krs.koersel_til_institution === "" || krs.koersel_til_institution == null) {
+            modalError = `${prefix}Kørsel til institution skal udfyldes`; return;
+          }
+        }
+        if (isModalKoerselSkolerejsekort(krs.befordringstype_id)) {
+          if (krs.transporttid_i_bus === "" || krs.transporttid_i_bus == null) { modalError = `${prefix}Transporttid i bus skal udfyldes`; return; }
+          if (krs.skift_med_bus === "" || krs.skift_med_bus == null) { modalError = `${prefix}Antal skift skal udfyldes`; return; }
+        }
       }
-      if (modalKoerselDagIds.length === 0) { modalError = "Mindst én dag skal vælges"; return; }    
-      if (isModalKoerselEgenbefordring(modalKoersel.befordringstype_id) && !modalKoersel.bevilget_koereafstand_pr_vej) {
-        modalError = "Bevilget km pr. vej skal udfyldes";
-        return;
-      }
-      if (isModalKoerselSkolerejsekort(modalKoersel.befordringstype_id)) {
-        if (modalKoersel.transporttid_i_bus === "" || modalKoersel.transporttid_i_bus == null) { modalError = "Transporttid i bus skal udfyldes"; return; }
-        if (modalKoersel.skift_med_bus === "" || modalKoersel.skift_med_bus == null)           { modalError = "Antal skift skal udfyldes"; return; }
-      }
+      
       isCreatingKoerselInModal = true;
-      const payload = {
+      const isMidlertidig = newBevilling.ansoegningstype === "Midlertidig kørsel";
+      const bevPayload = {
         adresse_id:                  newBevilling.adresse_id,
         matrikel_id:                 (isMidlertidig && skoleType === 'ungdomsuddannelse') ? null : numberOrNull(newBevilling.matrikel_id),
         ungdomsuddannelse_id:        (isMidlertidig && skoleType === 'ungdomsuddannelse') ? numberOrNull(newBevilling.ungdomsuddannelse_id) : null,
         hjemmel_id:                  numberOrNull(newBevilling.hjemmel_id),
         afgoerelsesbrev_id:          numberOrNull(newBevilling.afgoerelsesbrev_id),
         revurderingsdato:            emptyToNull(newBevilling.revurderingsdato),
-        befordringsudvalg:           isMidlertidig ? null : emptyToNull(newBevilling.befordringsudvalg),
+        befordringsudvalg:           emptyToNull(newBevilling.befordringsudvalg),
         esdh_noegle:                 emptyToNull(newBevilling.esdh_noegle),
         sagsbehandler_id:            numberOrNull(newBevilling.sagsbehandler_id),
-        ppr_sagsbehandler_id:        isMidlertidig ? null : numberOrNull(newBevilling.ppr_sagsbehandler_id),
+        ppr_sagsbehandler_id:        numberOrNull(newBevilling.ppr_sagsbehandler_id),
         ansoegningsdato:             emptyToNull(newBevilling.ansoegningsdato),
         sagsbehandlingsdato:         emptyToNull(newBevilling.sagsbehandlingsdato),
         relation_til_barnet:         emptyToNull(newBevilling.relation_til_barnet),
         foerste_koersel_dato:        emptyToNull(newBevilling.foerste_koersel_dato),
         ansoegningstype:             emptyToNull(newBevilling.ansoegningstype),
-        afstandskriterie_dato:       isMidlertidig ? null : emptyToNull(newBevilling.afstandskriterie_dato),
-        afstandskriterie_klassetrin: isMidlertidig ? null : numberOrNull(newBevilling.afstandskriterie_klassetrin),
+        afstandskriterie_dato:       emptyToNull(newBevilling.afstandskriterie_dato),
+        afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
         begrundelse_fra_formular:    emptyToNull(newBevilling.begrundelse_fra_formular),
         hjaelpemiddel_ids:           newBevilling.hjaelpemiddel_ids ?? [],
       };
       try {
         const bevRes = await backendFetch(
           `/bevilling/create_bevilling/${cpr}?status_text=${encodeURIComponent("Kommende")}`,
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bevPayload) }
         );
         if (!bevRes.ok) {
           let message = "Kunne ikke oprette bevilling";
@@ -441,29 +520,42 @@
           return;
         }
         const { bevilling_id: newBevillingId } = await bevRes.json();
-        const krPayload = {
-          tidspunkt_id:                 numberOrNull(modalKoersel.tidspunkt_id),
-          befordringstype_id:           numberOrNull(modalKoersel.befordringstype_id),
-          bevilget_koereafstand_pr_vej: Number(modalKoersel.bevilget_koereafstand_pr_vej) || 0,
-          gyldig_fra:                   modalKoersel.gyldig_fra || null,
-          gyldig_til:                   modalKoersel.gyldig_til || null,
-          taxa_id:                      isModalKoerselTaxaType(modalKoersel.befordringstype_id) ? (modalKoersel.taxa_id || null) : null,
-          kommentar:                    modalKoersel.kommentar || "",
-          final:                        false,
-          tillaeg_ids:                  modalKoerselTillaegIds,
-          dag_ids:                      modalKoerselDagIds,
-          transporttid_i_bus:            isModalKoerselSkolerejsekort(modalKoersel.befordringstype_id) ? numberOrNull(modalKoersel.transporttid_i_bus) : null,
-          skift_med_bus:                 isModalKoerselSkolerejsekort(modalKoersel.befordringstype_id) ? numberOrNull(modalKoersel.skift_med_bus) : null,
-        };
-        const krRes = await backendFetch(
-          `/bevilling/create_koerselsraekke/${newBevillingId}`,
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(krPayload) }
-        );
-        if (!krRes.ok) {
-          let message = "Ukendt fejl";
-          try { const err = await krRes.json(); message = err?.detail?.message ?? err?.detail ?? message; } catch { /* keep fallback */ }
-          modalError = `Bevilling oprettet, men kørselsrækken fejlede: ${message}`;
-          return;
+
+        for (let i = 0; i < modalKoerselList.length; i++) {
+          const entry = modalKoerselList[i];
+          const krs = entry.koersel;
+          const prefix = modalKoerselList.length > 1 ? `Kørselsrække ${i + 1}: ` : "";
+          const isEgb = isModalKoerselEgenbefordring(krs.befordringstype_id);
+          const isTxa = isModalKoerselTaxaType(krs.befordringstype_id);
+          const isSRK = isModalKoerselSkolerejsekort(krs.befordringstype_id);
+          const krPayload = {
+            tidspunkt_id:                     numberOrNull(krs.tidspunkt_id),
+            befordringstype_id:               numberOrNull(krs.befordringstype_id),
+            bevilget_koereafstand_pr_vej:     isEgb ? (Number(krs.bevilget_koereafstand_pr_vej) || 0) : null,
+            gyldig_fra:                       krs.gyldig_fra || null,
+            gyldig_til:                       krs.gyldig_til || null,
+            rutetype_id:                      numberOrNull(krs.rutetype_id),
+            taxa_id:                          isTxa ? (krs.taxa_id || null) : null,
+            kommentar:                        krs.kommentar || "",
+            final:                            false,
+            tillaeg_ids:                      isTxa ? entry.tillaegIds : [],
+            dag_ids:                          entry.dagIds,
+            transporttid_i_bus:               isSRK ? numberOrNull(krs.transporttid_i_bus) : null,
+            skift_med_bus:                    isSRK ? numberOrNull(krs.skift_med_bus) : null,
+            koersel_til_institution:          isTxa ? (krs.koersel_til_institution === 'true' || krs.koersel_til_institution === true) : null,
+            max_minutter_i_transport:         isTxa ? numberOrNull(krs.max_minutter_i_transport) : null,
+            koerselsgodtgoerelse_modtager_id: isEgb ? numberOrNull(krs.koerselsgodtgoerelse_modtager_id) : null,
+          };
+          const krRes = await backendFetch(
+            `/bevilling/create_koerselsraekke/${newBevillingId}`,
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(krPayload) }
+          );
+          if (!krRes.ok) {
+            let message = "Ukendt fejl";
+            try { const err = await krRes.json(); message = err?.detail?.message ?? err?.detail ?? message; } catch { /* keep fallback */ }
+            modalError = `Bevilling oprettet, men ${prefix.toLowerCase().trim() || 'kørselsrækken'}fejlede: ${message}`;
+            return;
+          }
         }
         dispatch('created');
       } finally {
@@ -733,316 +825,277 @@
 
       {:else}
 
-      <!-- Step 2: Kørselsrække -->
-      <div class="p-8">
-        <div class="grid grid-cols-2 gap-5">
 
-          {#if isModalKoerselEgenbefordring(modalKoersel.befordringstype_id)}
-            <!-- Egenbefordring -->
-            <label class="text-sm font-medium text-gray-700">
-              Tidspunkt <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.tidspunkt_id}>
-                <option value="">Vælg</option>
-                {#each tidspunkter as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Kørselstype <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                bind:value={modalKoersel.befordringstype_id}
-                on:change={() => {
-                  calculateModalKoerselDistance(modalKoersel.befordringstype_id);
-                  if (!isModalKoerselTaxaType(modalKoersel.befordringstype_id)) modalKoerselTillaegIds = [];
-                }}
-              >
-                <option value="">Vælg</option>
-                {#each koerselstyper as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig fra <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_fra} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig til <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_til} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Bevilget km pr. vej <span class="text-red-500">*</span>
-              {#if isCalculatingModalKoerselDistance}
-                <span class="ml-1 text-blue-500 text-xs font-normal">beregner...</span>
+      <!-- Step 2: Kørselsrækker -->
+      <div class="p-6">
+
+        {#each modalKoerselList as entry, i}
+          {@const krs = entry.koersel}
+          {@const isEgb = isModalKoerselEgenbefordring(krs.befordringstype_id)}
+          {@const isTxa = isModalKoerselTaxaType(krs.befordringstype_id)}
+          {@const isSRK = isModalKoerselSkolerejsekort(krs.befordringstype_id)}
+
+          <div class="mb-4 {modalKoerselList.length > 1 ? 'border border-gray-200 rounded-lg p-4' : ''}">
+
+            {#if modalKoerselList.length > 1}
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Kørselsrække {i + 1}</span>
+                <button type="button"
+                  class="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                  title="Fjern kørselsrække"
+                  on:click={() => { modalKoerselList = modalKoerselList.filter((_, idx) => idx !== i); }}>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            {/if}
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-5 gap-y-4">
+
+              <!-- Kørselstype — always Row 1, col 1 -->
+              <label class="block">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselstype *</span>
+                <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  value={krs.befordringstype_id ?? ""}
+                  on:change={(e) => {
+                    const val = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value);
+                    modalKoerselList[i].koersel.befordringstype_id = val;
+                    if (!isModalKoerselTaxaType(val)) modalKoerselList[i].tillaegIds = [];
+                    modalKoerselList = modalKoerselList;
+                    calculateModalKoerselDistance(val, i);
+                  }}
+                >
+                  <option value="">Vælg</option>
+                  {#each availableModalKoerselstyper as opt}<option value={opt.id}>{opt.label}</option>{/each}
+                </select>
+              </label>
+
+              <!-- Row 1, shared: Rutetype | Tidspunkt | Dage -->
+              <label class="block">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
+                <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  value={krs.rutetype_id ?? ""}
+                  on:change={(e) => { modalKoerselList[i].koersel.rutetype_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
+                  <option value="">Vælg</option>
+                  {#each lookupOptions.rutetyper ?? [] as opt}<option value={opt.id}>{opt.label}</option>{/each}
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
+                <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  value={krs.tidspunkt_id ?? ""}
+                  on:change={(e) => { modalKoerselList[i].koersel.tidspunkt_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
+                  <option value="">Vælg</option>
+                  {#each tidspunkter as opt}<option value={opt.id}>{opt.label}</option>{/each}
+                </select>
+              </label>
+              <div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Dage *</span>
+                <div class="flex flex-wrap gap-1">
+                  {#each sortedDage as opt}
+                    <button type="button"
+                      class="px-2 py-1.5 text-xs rounded border transition-colors {entry.dagIds.includes(Number(opt.id)) ? 'bg-[#032A42] text-white border-[#032A42]' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}"
+                      on:click={() => {
+                        const id = Number(opt.id);
+                        const isSelected = entry.dagIds.includes(id);
+                        modalKoerselList[i].dagIds = isSelected ? entry.dagIds.filter((x: number) => x !== id) : [...entry.dagIds, id];
+                        modalKoerselList = modalKoerselList;
+                      }}>
+                      {DAG_SHORT[opt.label] ?? opt.label}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
+              {#if isEgb}
+                <!-- Egenbefordring: Row 2: Bevilget km | Kørselsgodtgørelse modtager | empty | empty -->
+                <label class="block md:col-start-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 flex items-center gap-1.5">
+                    Bevilget km pr. vej *
+                    {#if entry.calculatingDistance}<span class="text-blue-500 font-normal normal-case text-[10px]">beregner...</span>{/if}
+                  </span>
+                  <input type="number" step="0.1" class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0 {entry.calculatingDistance ? 'opacity-50' : ''}"
+                    disabled={entry.calculatingDistance}
+                    value={krs.bevilget_koereafstand_pr_vej ?? ""} on:change={(e) => { modalKoerselList[i].koersel.bevilget_koereafstand_pr_vej = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager *</span>
+                  <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.koerselsgodtgoerelse_modtager_id ?? ""}
+                    on:change={(e) => { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
+                    <option value="">Vælg</option>
+                    {#each parter as p}<option value={p.part_id}>{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+                  </select>
+                </label>
+                <div></div><div></div>
+                <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
+                <label class="block md:col-start-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <div></div><div></div>
+                <!-- Row 4: Kommentar -->
+                <label class="block md:col-start-1 md:col-span-4">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+
+              {:else if isTxa}
+                <!-- Taxa: Row 2: Tillæg | Kørsel til institution | Max min | Taxa-ID -->
+                <div class="md:col-start-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
+                  <div class="border border-gray-300 rounded p-2">
+                    <div class="mb-1.5 flex flex-wrap gap-1">
+                      {#each entry.tillaegIds as id}
+                        {@const opt = koerselstypeTillaeg.find((t: any) => Number(t.id) === id)}
+                        <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+                          {opt?.label ?? id}
+                          <button type="button" class="text-red-500 hover:text-red-700 font-bold"
+                            on:click={() => { modalKoerselList[i].tillaegIds = entry.tillaegIds.filter((x: number) => x !== id); modalKoerselList = modalKoerselList; }}>×</button>
+                        </span>
+                      {/each}
+                    </div>
+                    <select class="w-full border-0 border-t border-gray-200 pt-1 text-xs text-gray-600 focus:ring-0"
+                      value={entry.tillaegSelectValue}
+                      on:change={(e) => {
+                        const val = Number(e.currentTarget.value);
+                        if (val && !entry.tillaegIds.includes(val)) { modalKoerselList[i].tillaegIds = [...entry.tillaegIds, val]; }
+                        modalKoerselList[i].tillaegSelectValue = "";
+                        modalKoerselList = modalKoerselList;
+                      }}>
+                      <option value="">Tilføj tillæg</option>
+                      {#each koerselstypeTillaeg.filter((t: any) => !entry.tillaegIds.includes(Number(t.id))) as opt}
+                        <option value={String(opt.id)}>{opt.label}</option>
+                      {/each}
+                    </select>
+                  </div>
+                </div>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørsel til institution *</span>
+                  <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.koersel_til_institution != null && krs.koersel_til_institution !== "" ? String(krs.koersel_til_institution) : ""}
+                    on:change={(e) => { modalKoerselList[i].koersel.koersel_til_institution = e.currentTarget.value; modalKoerselList = modalKoerselList; }}>
+                    <option value="">Vælg</option>
+                    <option value="true">Ja</option>
+                    <option value="false">Nej</option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
+                  <input type="number" min="0" max="500" class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.max_minutter_i_transport ?? ""} on:change={(e) => { modalKoerselList[i].koersel.max_minutter_i_transport = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Taxa-ID</span>
+                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.taxa_id ?? ""} on:change={(e) => { modalKoerselList[i].koersel.taxa_id = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
+                <label class="block md:col-start-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <div></div><div></div>
+                <!-- Row 4: Kommentar -->
+                <label class="block md:col-start-1 md:col-span-4">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+
+              {:else if isSRK}
+                <!-- Skolerejsekort: Row 2: Transporttid i bus | Antal skift | empty | empty -->
+                <label class="block md:col-start-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Transporttid i bus (min.) *</span>
+                  <input type="number" min="0" max="500" class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.transporttid_i_bus ?? ""} on:change={(e) => { modalKoerselList[i].koersel.transporttid_i_bus = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Antal skift *</span>
+                  <input type="number" min="0" max="10" class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.skift_med_bus ?? ""} on:change={(e) => { modalKoerselList[i].koersel.skift_med_bus = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <div></div><div></div>
+                <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
+                <label class="block md:col-start-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <div></div><div></div>
+                <!-- Row 4: Kommentar -->
+                <label class="block md:col-start-1 md:col-span-4">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+
+              {:else}
+                <!-- Default (Skolebus, Gåbus, etc.): Row 2: Gyldig fra | Gyldig til | empty | empty -->
+                <label class="block md:col-start-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <label class="block">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
+                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
+                <div></div><div></div>
+                <!-- Row 3: Kommentar -->
+                <label class="block md:col-start-1 md:col-span-4">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
+                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                </label>
               {/if}
-              <input type="number" step="0.1"
-                class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm {isCalculatingModalKoerselDistance ? 'opacity-50' : ''}"
-                disabled={isCalculatingModalKoerselDistance}
-                bind:value={modalKoersel.bevilget_koereafstand_pr_vej} />
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Dage <span class="text-red-500">*</span>
-              <div class="mt-1.5 border border-gray-300 rounded p-3">
-                <div class="mb-2 flex flex-wrap gap-1.5">
-                  {#each modalKoerselDagIds as id}
-                    {@const opt = dage.find((d: any) => Number(d.id) === id)}
-                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                      {opt?.label ?? id}
-                      <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold"
-                        on:click={() => { modalKoerselDagIds = modalKoerselDagIds.filter(x => x !== id); }}>×</button>
-                    </span>
-                  {/each}
-                </div>
-                <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  bind:value={modalKoerselDagSelectValue}
-                  on:change={(e) => {
-                    const val = Number(e.currentTarget.value);
-                    if (val && !modalKoerselDagIds.includes(val)) modalKoerselDagIds = [...modalKoerselDagIds, val];
-                    modalKoerselDagSelectValue = "";
-                  }}>
-                  <option value="">Tilføj dag</option>
-                  {#each dage.filter((d: any) => !modalKoerselDagIds.includes(Number(d.id))) as opt}
-                    <option value={String(opt.id)}>{opt.label}</option>
-                  {/each}
-                </select>
-              </div>
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Kommentar
-              <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.kommentar} />
-            </label>
 
-          {:else if TAXA_TYPES.has(modalBefordringstypeLabel)}
-            <!-- TAXA -->
-            <label class="text-sm font-medium text-gray-700">
-              Tidspunkt <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.tidspunkt_id}>
-                <option value="">Vælg</option>
-                {#each tidspunkter as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Kørselstype <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                bind:value={modalKoersel.befordringstype_id}
-                on:change={() => {
-                  calculateModalKoerselDistance(modalKoersel.befordringstype_id);
-                  if (!isModalKoerselTaxaType(modalKoersel.befordringstype_id)) modalKoerselTillaegIds = [];
-                }}
-              >
-                <option value="">Vælg</option>
-                {#each koerselstyper as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig fra <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_fra} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig til <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_til} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Taxa-ID
-              <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.taxa_id} />
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Kørselstype tillæg
-              <div class="mt-1.5 border border-gray-300 rounded p-3">
-                <div class="mb-2 flex flex-wrap gap-1.5">
-                  {#each modalKoerselTillaegIds as id}
-                    {@const opt = koerselstypeTillaeg.find((t: any) => Number(t.id) === id)}
-                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                      {opt?.label ?? id}
-                      <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold"
-                        on:click={() => { modalKoerselTillaegIds = modalKoerselTillaegIds.filter(x => x !== id); }}>×</button>
-                    </span>
-                  {/each}
-                </div>
-                <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  bind:value={modalKoerselTillaegSelectValue}
-                  on:change={(e) => {
-                    const val = Number(e.currentTarget.value);
-                    if (val && !modalKoerselTillaegIds.includes(val)) modalKoerselTillaegIds = [...modalKoerselTillaegIds, val];
-                    modalKoerselTillaegSelectValue = "";
-                  }}>
-                  <option value="">Tilføj tillæg</option>
-                  {#each koerselstypeTillaeg.filter((t: any) => !modalKoerselTillaegIds.includes(Number(t.id))) as opt}
-                    <option value={String(opt.id)}>{opt.label}</option>
-                  {/each}
-                </select>
-              </div>
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Dage <span class="text-red-500">*</span>
-              <div class="mt-1.5 border border-gray-300 rounded p-3">
-                <div class="mb-2 flex flex-wrap gap-1.5">
-                  {#each modalKoerselDagIds as id}
-                    {@const opt = dage.find((d: any) => Number(d.id) === id)}
-                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                      {opt?.label ?? id}
-                      <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold"
-                        on:click={() => { modalKoerselDagIds = modalKoerselDagIds.filter(x => x !== id); }}>×</button>
-                    </span>
-                  {/each}
-                </div>
-                <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  bind:value={modalKoerselDagSelectValue}
-                  on:change={(e) => {
-                    const val = Number(e.currentTarget.value);
-                    if (val && !modalKoerselDagIds.includes(val)) modalKoerselDagIds = [...modalKoerselDagIds, val];
-                    modalKoerselDagSelectValue = "";
-                  }}>
-                  <option value="">Tilføj dag</option>
-                  {#each dage.filter((d: any) => !modalKoerselDagIds.includes(Number(d.id))) as opt}
-                    <option value={String(opt.id)}>{opt.label}</option>
-                  {/each}
-                </select>
-              </div>
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Kommentar
-              <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.kommentar} />
-            </label>
-
-          {:else if modalBefordringstypeLabel === 'skolerejsekort'}
-            <!-- Skolerejsekort -->
-            <label class="text-sm font-medium text-gray-700">
-              Tidspunkt <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.tidspunkt_id}>
-                <option value="">Vælg</option>
-                {#each tidspunkter as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Kørselstype <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                bind:value={modalKoersel.befordringstype_id}
-                on:change={() => {
-                  calculateModalKoerselDistance(modalKoersel.befordringstype_id);
-                  if (!isModalKoerselTaxaType(modalKoersel.befordringstype_id)) modalKoerselTillaegIds = [];
-                }}
-              >
-                <option value="">Vælg</option>
-                {#each koerselstyper as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig fra <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_fra} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig til <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_til} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Transporttid i bus (min.) <span class="text-red-500">*</span>
-              <input type="number" min="0" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.transporttid_i_bus} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Antal skift <span class="text-red-500">*</span>
-              <input type="number" min="0" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.skift_med_bus} />
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Dage <span class="text-red-500">*</span>
-              <div class="mt-1.5 border border-gray-300 rounded p-3">
-                <div class="mb-2 flex flex-wrap gap-1.5">
-                  {#each modalKoerselDagIds as id}
-                    {@const opt = dage.find((d: any) => Number(d.id) === id)}
-                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                      {opt?.label ?? id}
-                      <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold"
-                        on:click={() => { modalKoerselDagIds = modalKoerselDagIds.filter(x => x !== id); }}>×</button>
-                    </span>
-                  {/each}
-                </div>
-                <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  bind:value={modalKoerselDagSelectValue}
-                  on:change={(e) => {
-                    const val = Number(e.currentTarget.value);
-                    if (val && !modalKoerselDagIds.includes(val)) modalKoerselDagIds = [...modalKoerselDagIds, val];
-                    modalKoerselDagSelectValue = "";
-                  }}>
-                  <option value="">Tilføj dag</option>
-                  {#each dage.filter((d: any) => !modalKoerselDagIds.includes(Number(d.id))) as opt}
-                    <option value={String(opt.id)}>{opt.label}</option>
-                  {/each}
-                </select>
-              </div>            
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Kommentar
-              <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.kommentar} />
-            </label>
-
-          {:else}
-            <!-- Default (Skolebus, Gåbus, Cykelbus, etc.) -->
-            <label class="text-sm font-medium text-gray-700">
-              Tidspunkt <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.tidspunkt_id}>
-                <option value="">Vælg</option>
-                {#each tidspunkter as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Kørselstype <span class="text-red-500">*</span>
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                bind:value={modalKoersel.befordringstype_id}
-                on:change={() => {
-                  calculateModalKoerselDistance(modalKoersel.befordringstype_id);
-                  if (!isModalKoerselTaxaType(modalKoersel.befordringstype_id)) modalKoerselTillaegIds = [];
-                }}
-              >
-                <option value="">Vælg</option>
-                {#each koerselstyper as opt}<option value={opt.id}>{opt.label}</option>{/each}
-              </select>
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig fra <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_fra} />
-            </label>
-            <label class="text-sm font-medium text-gray-700">
-              Gyldig til <span class="text-red-500">*</span>
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.gyldig_til} />
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Dage <span class="text-red-500">*</span>
-              <div class="mt-1.5 border border-gray-300 rounded p-3">
-                <div class="mb-2 flex flex-wrap gap-1.5">
-                  {#each modalKoerselDagIds as id}
-                    {@const opt = dage.find((d: any) => Number(d.id) === id)}
-                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                      {opt?.label ?? id}
-                      <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold"
-                        on:click={() => { modalKoerselDagIds = modalKoerselDagIds.filter(x => x !== id); }}>×</button>
-                    </span>
-                  {/each}
-                </div>
-                <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  bind:value={modalKoerselDagSelectValue}
-                  on:change={(e) => {
-                    const val = Number(e.currentTarget.value);
-                    if (val && !modalKoerselDagIds.includes(val)) modalKoerselDagIds = [...modalKoerselDagIds, val];
-                    modalKoerselDagSelectValue = "";
-                  }}>
-                  <option value="">Tilføj dag</option>
-                  {#each dage.filter((d: any) => !modalKoerselDagIds.includes(Number(d.id))) as opt}
-                    <option value={String(opt.id)}>{opt.label}</option>
-                  {/each}
-                </select>
-              </div>
-            </label>
-            <label class="text-sm font-medium text-gray-700 col-span-2">
-              Kommentar
-              <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={modalKoersel.kommentar} />
-            </label>
-          {/if}
-
-          {#if modalKoerselDistanceError}
-            <div class="col-span-2 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded">
-              {modalKoerselDistanceError}
             </div>
-          {/if}
 
+            {#if entry.distanceError}
+              <div class="mt-2 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded">
+                {entry.distanceError}
+              </div>
+            {/if}
+
+          </div>
+        {/each}
+
+        <!-- Add entry buttons -->
+        <div class="flex gap-3 mt-2">
+          <button type="button"
+            class="text-sm font-medium text-sky-700 hover:underline"
+            on:click={() => { modalKoerselList = [...modalKoerselList, makeEmptyModalEntry()]; }}>
+            + Tilføj kørselsrække tom
+          </button>
+          <button type="button"
+            class="text-sm font-medium text-sky-700 hover:underline"
+            on:click={() => { modalKoerselList = [...modalKoerselList, makeModalEntryCopy(modalKoerselList[modalKoerselList.length - 1])]; }}>
+            + Tilføj kørselsrække fra kopi
+          </button>
+        </div>
+      
       </div>
-    </div>
 
     {/if}
 

@@ -1,12 +1,13 @@
 USE [Befordringssystemet]
 GO
 
-/****** Object:  View [befordring].[view_All_Active_Bevillinger]    Script Date: 02/09/2026 14:09:08 ******/
+/****** Object:  View [befordring].[view_All_Active_Bevillinger]    Script Date: 03/09/2026 09:03:54 ******/
 SET ANSI_NULLS ON
 GO
 
 SET QUOTED_IDENTIFIER ON
 GO
+
 
 
 
