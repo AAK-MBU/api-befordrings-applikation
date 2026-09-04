@@ -44,7 +44,15 @@
   }
 
   $: initial = (stamdata?.adresseringsnavn ?? "?").charAt(0).toUpperCase();
-  $: anyParentCannotKnowAddress = (parents ?? []).some((p: any) => p.maa_vide_barns_adresse === false);
+  // The warning names the specific parents, so the caseworker does not have to
+  // cross-reference the parter table to see who the restriction applies to.
+  $: parentsCannotKnowAddress = (parents ?? []).filter(
+    (parent: any) => parent.maa_vide_barns_adresse === false
+  );
+  $: anyParentCannotKnowAddress = parentsCannotKnowAddress.length > 0;
+  $: restrictedParentCprList = parentsCannotKnowAddress
+    .map((parent: any) => formatCpr(parent.cpr_foraelder))
+    .join(", ");
 
   $: anyPprRevurderet = (bevillinger as any[]).some((b) => b.revurderet_af_ppr);
   $: anyBrRevurderet  = (bevillinger as any[]).some((b) => b.revurderet_af_br);
@@ -646,7 +654,11 @@
   <!-- Parent address restriction warning -->
   {#if anyParentCannotKnowAddress}
     <div class="mb-4 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900">
-      <p class="mt-0.5 text-xs">En eller flere forældre/værger må <strong>ikke</strong> oplyses om barnets adresse.</p>
+      <p class="mt-0.5 text-xs">
+        {restrictedParentCprList} har fået frataget deres rettigheder til at se oplysninger om
+        {formatCpr(stamdata?.cpr)}, og I må derfor <strong>ikke</strong> på nogen måde videregive
+        oplysninger om barnet til forældrene.
+      </p>
     </div>
   {/if}
 
