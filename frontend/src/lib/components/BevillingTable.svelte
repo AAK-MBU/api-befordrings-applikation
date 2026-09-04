@@ -552,7 +552,7 @@
                 value={editableBevilling.status_id ?? ""}
                 on:change={(e) => updateField("status_id", numberOrNull(e.currentTarget.value))}
               >
-                <option value="">Auto (beregnet automatisk)</option>
+                <option value="">Status (beregnes automatisk)</option>
                 {#each manualStatuser as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
