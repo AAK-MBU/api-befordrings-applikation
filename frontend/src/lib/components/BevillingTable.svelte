@@ -8,7 +8,6 @@
     getStatusBadgeClass,
     formatDanishDate,
   } from "$lib/tableColumnConfig";
-  import { backendFetch } from "$lib/client/backendFetch";
   import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
   import {
     AFSTANDSKRITERIE_KLASSETRIN,
@@ -17,6 +16,8 @@
   } from "$lib/afstandskriterie";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
+  import { isEgenbefordring as typeIsEgenbefordring } from "$lib/koerselstype";
+  import { afstandFraKoordinater } from "$lib/client/afstand";
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
   const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
 
@@ -297,13 +298,11 @@
   // Egenbefordring auto-recalculation
   // -----------------------------
 
-  function isEgenbefordringType(typeId: number | null | undefined): boolean {
-    if (!typeId) return false;
-    const type = lookupOptions.koerselstyper?.find(
-      (t: any) => Number(t.id) === Number(typeId)
-    );
-    return type?.label?.toLowerCase() === 'egenbefordring';
-  }
+  // Was a local copy that compared against 'egenbefordring' without stripping
+  // whitespace, so it never matched the seeded label "Egen befordring" and this
+  // whole recalculation silently did nothing. Now shared with the two forms.
+  const isEgenbefordringType = (typeId: number | null | undefined) =>
+    typeIsEgenbefordring(lookupOptions.koerselstyper, typeId);
 
   function parseIds(raw: string | null | undefined): number[] {
     if (!raw) return [];
@@ -319,19 +318,11 @@
     const egenRows = koerselsraekker.filter(k => isEgenbefordringType(k.befordringstype_id));
     if (egenRows.length === 0) return;
 
-    // Get school coordinates
-    const schoolRes = await backendFetch(`/lookup/skolematrikel/${matrikel}/coordinates`);
-    if (!schoolRes.ok) return;
-    const { latitude: lat2, longitude: lon2 } = await schoolRes.json();
-
-    // Calculate distance once
-    const distParams = new URLSearchParams({
-      lat1: String(lat1), lon1: String(lon1),
-      lat2: String(lat2), lon2: String(lon2)
-    });
-    const distRes = await backendFetch(`/bevilling/calculate_driving_distance?${distParams}`);
-    if (!distRes.ok) return;
-    const { distance_km } = await distRes.json();
+    // The address is already geocoded by the caller, so this skips straight to
+    // the school lookup. Failures stay silent here on purpose: the bevilling
+    // itself saved fine, and this is a best-effort follow-up.
+    const { km: distance_km, error } = await afstandFraKoordinater(lat1, lon1, matrikel);
+    if (error !== null) return;
 
     // Update each egenbefordring row
     for (const koersel of egenRows) {
@@ -561,7 +552,7 @@
                 value={editableBevilling.status_id ?? ""}
                 on:change={(e) => updateField("status_id", numberOrNull(e.currentTarget.value))}
               >
-                <option value="">Auto (beregnet automatisk)</option>
+                <option value="">Status (beregnes automatisk)</option>
                 {#each manualStatuser as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}

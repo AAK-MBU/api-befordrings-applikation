@@ -9,11 +9,11 @@
   import BevillingTable from "$lib/components/BevillingTable.svelte";
   import ParterTable from "$lib/components/ParterTable.svelte";
   import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
+  import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
   import {
     getStatusBadgeClass,
     formatCpr,
   } from "$lib/tableColumnConfig";
-  import { firstInvalidDate } from "$lib/dates";
 
   export let data;
 
@@ -30,28 +30,7 @@
   // Page state
   // -----------------------------
 
-  let letterType = "";
-  let befordringsudvalgResultat = "";
-  let tidligereAfgoerelseDato = "";
-  let koerselStartdato = "";
-  let datoForSenesteBevilling = "";
-
-  let creatingLetter = false;
   let showCreateLetterModal = false;
-  let selectedLetterBevillingId = "";
-  let ophoersdato = "";
-
-  $: selectedLetterBevilling = bevillinger.find(
-    (bevilling: any) => String(bevilling.bevilling_id) === selectedLetterBevillingId
-  );
-
-  $: selectedLetterBevillingHasBefordringsudvalg =
-    selectedLetterBevilling?.befordringsudvalg !== null &&
-    selectedLetterBevilling?.befordringsudvalg !== undefined &&
-    selectedLetterBevilling?.befordringsudvalg !== "";
-
-  $: selectedLetterBevillingIsOphoert =
-    selectedLetterBevilling?.status_tekst == "Ophørt";
 
   let { stamdata, parents, parter, bevillinger, lookupOptions, aktiviteter } = data;
 
@@ -65,7 +44,15 @@
   }
 
   $: initial = (stamdata?.adresseringsnavn ?? "?").charAt(0).toUpperCase();
-  $: anyParentCannotKnowAddress = (parents ?? []).some((p: any) => p.maa_vide_barns_adresse === false);
+  // The warning names the specific parents, so the caseworker does not have to
+  // cross-reference the parter table to see who the restriction applies to.
+  $: parentsCannotKnowAddress = (parents ?? []).filter(
+    (parent: any) => parent.maa_vide_barns_adresse === false
+  );
+  $: anyParentCannotKnowAddress = parentsCannotKnowAddress.length > 0;
+  $: restrictedParentCprList = parentsCannotKnowAddress
+    .map((parent: any) => formatCpr(parent.cpr_foraelder))
+    .join(", ");
 
   $: anyPprRevurderet = (bevillinger as any[]).some((b) => b.revurderet_af_ppr);
   $: anyBrRevurderet  = (bevillinger as any[]).some((b) => b.revurderet_af_br);
@@ -367,142 +354,9 @@
   }
 
 
-  function resetCreateLetterForm() {
-    selectedLetterBevillingId = "";
-    letterType = "";
-    befordringsudvalgResultat = "";
-    tidligereAfgoerelseDato = "";
-    koerselStartdato = "";
-    datoForSenesteBevilling = "";
-  }
-
-
   // -----------------------------
   // Bevilling handlers
   // -----------------------------
-
-  async function handleCreateLetter() {
-    if (!selectedLetterBevillingId) {
-      alert("Vælg en bevilling");
-      return;
-    }
-
-    if (!letterType) {
-      alert("Vælg hvad brevet er i forbindelse med");
-      return;
-    }
-
-    if (selectedLetterBevillingHasBefordringsudvalg && !befordringsudvalgResultat) {
-      alert("Vælg resultat af befordringsudvalgsmøde");
-      return;
-    }
-
-    if (selectedLetterBevillingHasBefordringsudvalg && !tidligereAfgoerelseDato) {
-      alert("Angiv dato for tidligere afgørelse");
-      return;
-    }
-
-    if (selectedLetterBevillingIsOphoert && !ophoersdato) {
-      alert("Vælg ophørsdato");
-      return;
-    }
-
-    const invalidDate = firstInvalidDate(
-      {
-        koersel_startdato: koerselStartdato,
-        dato_for_seneste_bevilling: datoForSenesteBevilling,
-        dato_for_tidligere_afgoerelse: tidligereAfgoerelseDato,
-        ophoersdato,
-      },
-      [
-        "koersel_startdato",
-        "dato_for_seneste_bevilling",
-        "dato_for_tidligere_afgoerelse",
-        "ophoersdato",
-      ],
-    );
-
-    if (invalidDate) {
-      alert("Angiv en gyldig dato (åååå-mm-dd).");
-      return;
-    }
-
-    creatingLetter = true;
-
-    const payload = {
-      brev_i_forbindelse_med: letterType,
-
-      koersel_startdato: koerselStartdato || null,
-
-      dato_for_seneste_bevilling: datoForSenesteBevilling || null,
-
-      befordringsudvalg_resultat: selectedLetterBevillingHasBefordringsudvalg
-        ? befordringsudvalgResultat
-        : null,
-
-      dato_for_tidligere_afgoerelse: selectedLetterBevillingHasBefordringsudvalg
-        ? tidligereAfgoerelseDato
-        : null,
-
-      ophoersdato: selectedLetterBevillingIsOphoert
-        ? ophoersdato
-        : null
-    };
-
-    try {
-      const response = await backendFetch(
-        `/bevilling/create_letter/${stamdata.cpr}/${selectedLetterBevillingId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
-        }
-      );
-
-      if (!response.ok) {
-        let message = "Kunne ikke oprette brev";
-
-        try {
-          const errorData = await response.json();
-
-          message =
-            errorData?.detail?.message ??
-            errorData?.detail ??
-            message;
-        } catch {
-          // Keep fallback message
-        }
-
-        alert(message);
-        return;
-      }
-
-      const result = await response.json();
-
-      alert(`Brev er sat i kø. Reference: ${result.reference}`);
-
-      await backendFetch(`/aktivitet/${stamdata.cpr}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aktivitetstype: "Brev oprettet",
-          kommentar: `Bevilling ID: ${selectedLetterBevillingId}`,
-          relateret_bevilling_id: Number(selectedLetterBevillingId),
-          udfoert_af: null,
-        })
-      });
-
-      showCreateLetterModal = false;
-      resetCreateLetterForm();
-      await invalidateAll();
-
-    } finally {
-      creatingLetter = false;
-    }
-  }
-
 
   async function handleSaveBevilling(bevillingId: number, updates: any): Promise<string | null> {
     const { hjaelpemiddel_ids, ...bevillingUpdates } = updates;
@@ -778,7 +632,6 @@
     if (e.key !== 'Escape') return;
     if (openDropdown) { openDropdown = null; return; }
     if (showCreateBevillingModal) { showCreateBevillingModal = false; }
-    if (showCreateLetterModal) { showCreateLetterModal = false; resetCreateLetterForm(); }
   }}
   on:click={(e) => {
     if (openDropdown && !(e.target as Element)?.closest?.('.feed-filter-dropdown')) {
@@ -801,7 +654,11 @@
   <!-- Parent address restriction warning -->
   {#if anyParentCannotKnowAddress}
     <div class="mb-4 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900">
-      <p class="mt-0.5 text-xs">En eller flere forældre/værger må <strong>ikke</strong> oplyses om barnets adresse.</p>
+      <p class="mt-0.5 text-xs">
+        {restrictedParentCprList} har fået frataget deres rettigheder til at se oplysninger om
+        {formatCpr(stamdata?.cpr)}, og I må derfor <strong>ikke</strong> på nogen måde videregive
+        oplysninger om barnet til forældrene.
+      </p>
     </div>
   {/if}
 
@@ -1071,103 +928,13 @@
     {/if}
 
 
-    <!-- Create letter modal -->
-    {#if showCreateLetterModal}
-      <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        role="presentation"
-      >
-        <div
-          class="w-[560px] bg-white rounded-lg shadow-2xl"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Opret brev"
-          tabindex="-1"
-        >
-
-          <div class="px-8 py-5 border-b border-gray-200 rounded-t-lg" style="background-color: #6d28d9;">
-            <h2 class="text-lg font-bold text-white">Opret brev</h2>
-            <p class="mt-0.5 text-sm" style="color: rgba(255,255,255,0.7);">Vælg bevilling og brevtype</p>
-          </div>
-
-          <div class="p-8 space-y-5">
-            <label class="block text-sm font-medium text-gray-700">
-              Vælg bevilling
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={selectedLetterBevillingId}>
-                <option value="">Vælg bevilling</option>
-                {#each bevillinger ?? [] as bevilling}
-                  <option value={String(bevilling.bevilling_id)}>
-                    Bevilling #{bevilling.bevilling_id} – {bevilling.status_tekst ?? "Ukendt status"}
-                  </option>
-                {/each}
-              </select>
-            </label>
-
-            <label class="block text-sm font-medium text-gray-700">
-              Brevet er i forbindelse med en:
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={letterType}>
-                <option value="">Vælg</option>
-                <option value="ansøgning">Ansøgning</option>
-                <option value="revurdering">Revurdering</option>
-                <option value="midlertidig kørsel">Midlertidig kørsel</option>
-              </select>
-            </label>
-
-            <label class="block text-sm font-medium text-gray-700">
-              Startdato for kørsel
-              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={koerselStartdato} />
-            </label>
-
-            <label class="block text-sm font-medium text-gray-700">
-              Dato for seneste bevilling
-              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={datoForSenesteBevilling} />
-            </label>
-
-            {#if selectedLetterBevillingHasBefordringsudvalg}
-              <label class="block text-sm font-medium text-gray-700">
-                Resultat af befordringsudvalgsmøde
-                <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={befordringsudvalgResultat}>
-                  <option value="">Vælg</option>
-                  <option value="Befordringsudvalg: Afslag / fastholdelse">Befordringsudvalg: Afslag / fastholdelse</option>
-                  <option value="Befordringsudvalg: Ændring i bevilling">Befordringsudvalg: Ændring i bevilling</option>
-                </select>
-              </label>
-              <label class="block text-sm font-medium text-gray-700">
-                Dato for tidligere afgørelse
-                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={tidligereAfgoerelseDato} />
-              </label>
-            {/if}
-
-            {#if selectedLetterBevillingIsOphoert}
-              <label class="block text-sm font-medium text-gray-700">
-                Ophørsdato
-                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
-              </label>
-            {/if}
-          </div>
-
-          <div class="flex justify-end gap-3 border-t border-gray-200 px-8 py-5 bg-gray-50 rounded-b-lg">
-            <button
-              type="button"
-              class="px-5 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-white transition-colors"
-              on:click={() => { showCreateLetterModal = false; resetCreateLetterForm(); }}
-            >
-              Annullér
-            </button>
-            <button
-              type="button"
-              class="px-5 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={creatingLetter}
-              on:click={handleCreateLetter}
-            >
-              {creatingLetter ? "Opretter..." : "Opret brev"}
-            </button>
-          </div>
-
-        </div>
-      </div>
-    {/if}
+    <!-- Create letter modal (shared with the revurdering page) -->
+    <CreateLetterModal
+      bind:open={showCreateLetterModal}
+      cpr={stamdata.cpr}
+      bevillinger={bevillinger}
+      on:created={() => invalidateAll()}
+    />
 
 
     <BevillingTable
