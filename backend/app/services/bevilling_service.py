@@ -1516,6 +1516,11 @@ class BevillingService:
         # Nest the related koerselsraekker inside the main letter data object.
         # This makes the payload easier for the letter worker/template engine
         # to consume.
+        #
+        # NB: this is an explicit whitelist, not a pass-through. A column added
+        # to view_Letter_Koerselsraekker does NOT reach the letter until it is
+        # listed here too — it is read from the database and then dropped, with
+        # no error anywhere. Add both, or the RPA sees the field as missing.
         letter_data["koerselsraekker"] = [
             {
                 "koersel_id": row.get("koersel_id"),
@@ -1530,6 +1535,13 @@ class BevillingService:
                 "bevilget_koereafstand_pr_vej": row.get("bevilget_koereafstand_pr_vej"),
                 "transporttid_i_bus": row.get("transporttid_i_bus"),
                 "skift_med_bus": row.get("skift_med_bus"),
+                # Taxa-specific. koersel_til_institution arrives from the view
+                # already resolved to "Ja"/"Nej"/None — the letter engine gates
+                # the SFO block (blok 4) on it.
+                "koersel_til_institution": row.get("koersel_til_institution"),
+                "max_minutter_i_transport": row.get("max_minutter_i_transport"),
+                # Egenbefordring-specific: the recipient's name, not the id.
+                "koerselsgodtgoerelse_modtager": row.get("koerselsgodtgoerelse_modtager"),
             }
             for row in koersel_records
         ]
