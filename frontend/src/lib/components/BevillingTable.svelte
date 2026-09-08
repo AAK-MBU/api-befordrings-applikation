@@ -18,6 +18,7 @@
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
   import { isEgenbefordring as typeIsEgenbefordring } from "$lib/koerselstype";
   import { afstandFraKoordinater } from "$lib/client/afstand";
+  import { bevillingLabel, bevillingLabelWithId, bevillingSystemId } from "$lib/bevillingLabel";
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
   const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
 
@@ -304,6 +305,11 @@
   const isEgenbefordringType = (typeId: number | null | undefined) =>
     typeIsEgenbefordring(lookupOptions.koerselstyper, typeId);
 
+  // The confirmation dialogs only carry an id, but they should name the
+  // bevilling the way the rest of the page does.
+  const bevillingById = (id: number | null | undefined) =>
+    (bevillinger ?? []).find((b: any) => b.bevilling_id === id);
+
   function parseIds(raw: string | null | undefined): number[] {
     if (!raw) return [];
     return raw.split(',').map(Number).filter(n => !isNaN(n));
@@ -544,7 +550,9 @@
         <!-- Card header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div class="flex items-center gap-3">
-            <span class="font-mono text-xs bg-[#032A42] text-white rounded px-2 py-0.5">Bevilling #{bevilling.bevilling_id}</span>
+            <span class="font-mono text-xs bg-[#032A42] text-white rounded px-2 py-0.5">{bevillingLabel(bevilling)}</span>
+            <!-- System-ID, always visible so it can be copied into a bug report. -->
+            <span class="font-mono text-[11px] text-gray-400" title="System-ID — brug dette nummer ved fejlmelding">{bevillingSystemId(bevilling)}</span>
             <span class="text-gray-300 select-none">|</span>
             {#if isEditing}
               <select
@@ -1062,7 +1070,7 @@
           </div>
           <div>
             <h3 class="text-sm font-semibold text-gray-900">Slet bevilling</h3>
-            <p class="text-xs text-gray-500 mt-0.5">Bevilling #{confirmingDeleteBevillingId}</p>
+            <p class="text-xs text-gray-500 mt-0.5">{bevillingLabelWithId(bevillingById(confirmingDeleteBevillingId))}</p>
           </div>
         </div>
       </div>
@@ -1121,7 +1129,7 @@
             <h2 class="text-base font-semibold text-gray-900">
               {confirmingLock.final ? "Lås bevilling" : "Lås bevilling op"}
             </h2>
-            <p class="text-xs text-gray-500 mt-0.5">Bevilling #{confirmingLock.bevillingId}</p>
+            <p class="text-xs text-gray-500 mt-0.5">{bevillingLabelWithId(bevillingById(confirmingLock.bevillingId))}</p>
           </div>
         </div>
       </div>

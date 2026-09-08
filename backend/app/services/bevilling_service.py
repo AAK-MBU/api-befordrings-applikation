@@ -469,6 +469,47 @@ class BevillingService:
         return self._rows_to_dicts(result)
 
 
+    def _next_loebenummer(self, cpr: str) -> int:
+        """Return the next per-child bevilling number for `cpr`.
+
+        Must be called inside the same transaction as the insert it numbers.
+
+        The UPDLOCK, HOLDLOCK hint takes a key-range lock over this child's rows
+        for the rest of the transaction, so two bevillinger created for the same
+        child at the same moment cannot both read the same maximum. The range is
+        scoped to the one cpr_elev, so creating bevillinger for *different*
+        children never blocks — which is the normal case here, and the reason
+        this is not a table-level lock.
+
+        The unique index on (cpr_elev, loebenummer) is the backstop: if this
+        lock is ever bypassed the second insert fails loudly rather than
+        silently handing two bevillinger the same reference number.
+
+        Soft-deleted rows are counted. Their number stays reserved, so the gap
+        they leave remains visible and an undelete cannot collide.
+
+        Args:
+            cpr:
+                CPR of the student the bevilling belongs to.
+
+        Returns:
+            1 for a child's first bevilling, otherwise highest existing + 1.
+        """
+
+        highest = self.db.execute(
+            text(
+                """
+                SELECT MAX(loebenummer)
+                FROM   befordring.Bevilling WITH (UPDLOCK, HOLDLOCK)
+                WHERE  cpr_elev = :cpr
+                """
+            ),
+            {"cpr": cpr},
+        ).scalar()
+
+        return (highest or 0) + 1
+
+
     def create_bevilling(
         self,
         cpr: str,
@@ -535,6 +576,9 @@ class BevillingService:
                 cpr_elev=cpr,
                 status_id=self.get_status_id_by_text(status_text),
                 aktiv=True,
+                # Numbered inside this transaction so a concurrent create for
+                # the same child cannot claim the same number.
+                loebenummer=self._next_loebenummer(cpr),
                 created_by="system",
                 updated_by="system",
             )
@@ -561,6 +605,7 @@ class BevillingService:
 
             result = {
                 "bevilling_id": bevilling.bevilling_id,
+                "loebenummer": bevilling.loebenummer,
                 "status_text": status_result["status_text"],
                 "status_reason": status_result.get("status_reason"),
                 "rows_inserted": 1,
@@ -574,7 +619,10 @@ class BevillingService:
         self._log_event(
             cpr=cpr,
             aktivitetstype="Bevilling oprettet",
-            kommentar=f"Bevilling ID: {bevilling.bevilling_id} — Status: Ny",
+            kommentar=(
+                f"Bevilling {bevilling.loebenummer} "
+                f"(ID: {bevilling.bevilling_id}) — Status: Ny"
+            ),
             relateret_bevilling_id=bevilling.bevilling_id,
             udfoert_af=udfoert_af,
         )

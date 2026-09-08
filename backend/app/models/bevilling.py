@@ -26,6 +26,18 @@ class Bevilling(Base):
         nullable=False,
     )
 
+    # Display identifier: counts within the child (1, 2, 3) rather than across
+    # the whole table, so a caseworker is not left wondering where #2 to #12
+    # went. bevilling_id remains the real key — this is what the UI labels a
+    # bevilling with, nothing more.
+    #
+    # Assigned once by BevillingService._next_loebenummer and never reassigned:
+    # soft-deleted rows keep their number so the gap they leave stays visible,
+    # and every note that referenced a number keeps pointing at the same row.
+    # Unique per (cpr_elev, loebenummer) — see
+    # backend/db/migrations/008_add_bevilling_loebenummer.sql.
+    loebenummer: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     adresse_id: Mapped[str] = mapped_column(
         Unicode(36),
         ForeignKey(f"{DB_SCHEMA}.Adresse.adresse_id"),

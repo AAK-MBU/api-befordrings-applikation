@@ -16,6 +16,7 @@
       isTaxaType as typeIsTaxa,
     } from "$lib/koerselstype";
     import { afstandFraAdresse } from "$lib/client/afstand";
+    import { bevillingLabel } from "$lib/bevillingLabel";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
     export let cpr: string;
@@ -574,7 +575,7 @@
               }}
             >
               {#each existingBevillinger as bev}
-                <option value={bev.bevilling_id}>Bevilling #{bev.bevilling_id} — {bev.status_tekst ?? 'Ukendt status'}</option>
+                <option value={bev.bevilling_id}>{bevillingLabel(bev)} — {bev.status_tekst ?? 'Ukendt status'}</option>
               {/each}
             </select>
           </label>

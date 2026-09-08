@@ -12,6 +12,7 @@
 
   import { backendFetch } from "$lib/client/backendFetch";
   import { firstInvalidDate } from "$lib/dates";
+  import { bevillingLabel } from "$lib/bevillingLabel";
 
   export let open = false;
   export let cpr = "";
@@ -172,7 +173,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           aktivitetstype: "Brev oprettet",
-          kommentar: `Bevilling ID: ${bevillingId}`,
+          kommentar: `${bevillingLabel(selectedBevilling)} (ID: ${bevillingId})`,
           relateret_bevilling_id: bevillingId,
           udfoert_af: null,
         }),
@@ -217,7 +218,7 @@
             <option value="">Vælg bevilling</option>
             {#each bevillinger ?? [] as bevilling}
               <option value={String(bevilling.bevilling_id)}>
-                Bevilling #{bevilling.bevilling_id} – {bevilling.status_tekst ?? "Ukendt status"}
+                {bevillingLabel(bevilling)} – {bevilling.status_tekst ?? "Ukendt status"}
               </option>
             {/each}
           </select>

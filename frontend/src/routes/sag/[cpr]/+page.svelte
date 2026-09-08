@@ -10,6 +10,7 @@
   import ParterTable from "$lib/components/ParterTable.svelte";
   import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
   import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
+  import { bevillingLabel } from "$lib/bevillingLabel";
   import {
     getStatusBadgeClass,
     formatCpr,
@@ -33,6 +34,17 @@
   let showCreateLetterModal = false;
 
   let { stamdata, parents, parter, bevillinger, lookupOptions, aktiviteter } = data;
+
+  // The aktivitet feed persists only relateret_bevilling_id, so the løbenummer
+  // is looked up from the bevillinger already on the page.
+  //
+  // Built as a reactive map rather than a lookup function called from the
+  // template: Svelte derives a template expression's dependencies from the
+  // identifiers it can see, so a helper's read of `bevillinger` would not be
+  // one, and the badges would keep their first-render labels after a reload.
+  $: bevillingLabelById = new Map<number, string>(
+    (bevillinger ?? []).map((b: any) => [b.bevilling_id, bevillingLabel(b)])
+  );
 
   const initialHash = window.location.hash.slice(1);
   const validTabs = ["elev", "parter", "sagsforloeb"];
@@ -1175,7 +1187,7 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                     {getDisplayLabel(aktivitet.aktivitetstype ?? "")}
                   </span>
                   {#if aktivitet.relateret_bevilling_id}
-                    <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">Bevilling #{aktivitet.relateret_bevilling_id}</span>
+                    <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{bevillingLabelById.get(aktivitet.relateret_bevilling_id) ?? `Bevilling #${aktivitet.relateret_bevilling_id}`}</span>
                   {/if}
                 </div>
 
