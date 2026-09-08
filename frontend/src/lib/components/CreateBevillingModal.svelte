@@ -582,10 +582,10 @@
           {/if}
 
           <label class="text-sm font-medium text-gray-700 col-span-2">
-            Ansøgningstype <span class="text-red-500">*</span>
+            Kørsel <span class="text-red-500">*</span>
             <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={onAnsoegningstypeChange}>
-              <option value="">Vælg ansøgningstype</option>
-              <option value="Kørsel">Kørsel</option>
+              <option value="">Vælg</option>
+              <option value="Fast kørsel">Fast kørsel</option>
               <option value="Midlertidig kørsel">Midlertidig kørsel</option>
             </select>
           </label>

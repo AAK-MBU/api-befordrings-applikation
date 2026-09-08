@@ -686,7 +686,7 @@
 
           <!-- ANSØGNINGSTYPE -->
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Ansøgningstype</p>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Kørsel</p>
             <p class="text-sm text-gray-800">{bevilling.ansoegningstype ?? "—"}</p>
           </div>
 

@@ -533,7 +533,7 @@ VALUES
     @hjemmel_1, @afgoerelsesbrev_6, '2027-06-30', '2027-06-20',
     'ESDH-TEST-001', @sagsbehandler_1, @ppr_1,
     '2026-01-01', NULL, 'Forældremyndighed',
-    '2026-02-01', 'Kørsel',
+    '2026-02-01', 'Fast kørsel',
     '2027-06-30', 3,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
@@ -555,7 +555,7 @@ VALUES
     @hjemmel_2, @afgoerelsesbrev_8, '2027-06-30', '2027-06-20',
     'ESDH-TEST-002', @sagsbehandler_2, @ppr_2,
     '2026-02-01', NULL, 'Forældremyndighed',
-    '2026-03-01', 'Kørsel',
+    '2026-03-01', 'Fast kørsel',
     '2027-06-30', 3,
     'Farlig trafikvej', 'test_seed', 'test_seed', 1
 );
@@ -577,7 +577,7 @@ VALUES
     @hjemmel_3, @afgoerelsesbrev_7, '2026-05-30', '2026-05-15',
     'ESDH-TEST-003', @sagsbehandler_1, @ppr_1,
     '2025-06-01', NULL, 'Forældremyndighed',
-    '2025-08-01', 'Kørsel',
+    '2025-08-01', 'Fast kørsel',
     '2026-06-30', 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -599,7 +599,7 @@ VALUES
     @hjemmel_4, @afgoerelsesbrev_4, '2026-06-30', '2026-06-15',
     'ESDH-TEST-004', @sagsbehandler_2, @ppr_2,
     '2025-12-01', NULL, 'Værge',
-    '2026-01-01', 'Kørsel',
+    '2026-01-01', 'Fast kørsel',
     '2026-06-30', 9,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -621,7 +621,7 @@ VALUES
     NULL, NULL, NULL, NULL,
     'ESDH-TEST-005', NULL, NULL,
     '2026-05-10', NULL, 'Forældremyndighed',
-    '2026-08-01', 'Kørsel',
+    '2026-08-01', 'Fast kørsel',
     NULL, NULL,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -663,7 +663,7 @@ VALUES
     @hjemmel_1, NULL, '2027-06-30', NULL,
     'ESDH-TEST-007', @sagsbehandler_1, @ppr_1,
     '2026-05-01', NULL, 'Mor',
-    '2026-08-01', 'Kørsel',
+    '2026-08-01', 'Fast kørsel',
     '2027-06-30', 10,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -684,7 +684,7 @@ VALUES
     @hjemmel_1, @afgoerelsesbrev_2, NULL, NULL,
     'ESDH-TEST-008', @sagsbehandler_2, @ppr_1,
     '2025-11-01', NULL, 'Far',
-    NULL, 'Kørsel',
+    NULL, 'Fast kørsel',
     NULL, 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -705,7 +705,7 @@ VALUES
     @hjemmel_1, @afgoerelsesbrev_6, '2027-06-30', NULL,
     'ESDH-TEST-009', @sagsbehandler_1, @ppr_2,
     '2026-04-15', NULL, 'Mor',
-    '2026-08-10', 'Kørsel',
+    '2026-08-10', 'Fast kørsel',
     '2027-06-30', 3,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -727,7 +727,7 @@ VALUES
     @hjemmel_2, @afgoerelsesbrev_8, '2025-06-30', '2025-06-10',
     'ESDH-TEST-010', @sagsbehandler_2, @ppr_1,
     '2024-05-01', NULL, 'Far',
-    '2024-08-01', 'Kørsel',
+    '2024-08-01', 'Fast kørsel',
     '2025-06-30', 7,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
@@ -749,7 +749,7 @@ VALUES
     @hjemmel_2, NULL, NULL, NULL,
     'ESDH-TEST-011', @sagsbehandler_1, NULL,
     '2026-04-01', NULL, 'Mor',
-    '2026-05-01', 'Kørsel',
+    '2026-05-01', 'Fast kørsel',
     NULL, 10,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
@@ -770,7 +770,7 @@ VALUES
     @hjemmel_1, @afgoerelsesbrev_6, '2025-06-30', NULL,
     'ESDH-TEST-012', @sagsbehandler_2, @ppr_2,
     '2023-08-01', NULL, 'Far',
-    '2023-08-15', 'Kørsel',
+    '2023-08-15', 'Fast kørsel',
     '2025-06-30', 7,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -814,7 +814,7 @@ VALUES
     @hjemmel_1, @afgoerelsesbrev_6, '2026-05-31', '2026-05-20',
     'ESDH-TEST-014', @sagsbehandler_2, @ppr_1,
     '2025-03-01', NULL, 'Far',
-    '2025-04-01', 'Kørsel',
+    '2025-04-01', 'Fast kørsel',
     '2026-06-30', 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
