@@ -764,6 +764,9 @@ class BevillingService:
             "revurderet_af_br": bevilling.revurderet_af_br,
         }
 
+        ophoert_status_id = self.get_status_id_by_text("Ophørt")
+        was_ophoert = bevilling.status_id == ophoert_status_id
+
         try:
             for field_name, value in bevilling_data.items():
                 setattr(bevilling, field_name, value)
@@ -772,6 +775,27 @@ class BevillingService:
                 # Setting to "Ny" before the SP runs removes Afslag/Ophørt
                 # protection so the SP can freely recalculate the correct status.
                 bevilling.status_id = self.get_status_id_by_text("Ny")
+
+            # Ending a bevilling is a case-processing act: it is handled today,
+            # and there is nothing left to reassess.
+            #
+            # Deliberately a TRANSITION, not "status is Ophørt". Firing on every
+            # save of an already-ended bevilling would overwrite the real
+            # processing date with today's every time someone corrected a typo.
+            #
+            # Only revurderingsdato is cleared here. The `revurdering` flag is
+            # owned by usp_recalculate_bevilling_status, which computes
+            # needs_revurdering = 0 for any bevilling whose status is Ophørt —
+            # the recalculation below therefore clears the flag on its own, and
+            # writing it here would just be overwritten.
+            ophoert_transition = (
+                not was_ophoert and bevilling.status_id == ophoert_status_id
+            )
+
+            if ophoert_transition:
+                cleared_revurderingsdato = bevilling.revurderingsdato
+                bevilling.sagsbehandlingsdato = date.today()
+                bevilling.revurderingsdato = None
 
             bevilling.updated_by = "frontend"
 
@@ -797,6 +821,27 @@ class BevillingService:
         self._log_bevilling_update_events(
             cpr, bevilling_id, bevilling_data, old_values, status_result, udfoert_af
         )
+
+        # Logged explicitly rather than left to _log_bevilling_update_events:
+        # that only fires when the status SP reports a changed row, and setting
+        # the status to Ophørt by hand can leave the SP with nothing to change.
+        # Clearing revurderingsdato discards a date nobody can recover, so it
+        # should be visible in the sagsforløb either way.
+        if ophoert_transition:
+            self._log_event(
+                cpr,
+                "Bevilling sat til Ophørt",
+                kommentar=(
+                    "Sagsbehandlingsdato sat til i dag"
+                    + (
+                        f" — revurderingsdato ({cleared_revurderingsdato}) blev fjernet"
+                        if cleared_revurderingsdato
+                        else ""
+                    )
+                ),
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
 
         return result
 
