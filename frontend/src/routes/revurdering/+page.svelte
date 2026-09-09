@@ -6,7 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
-    import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus } from "$lib/lookupFilters";
+    import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
 
     export let data;
 
@@ -447,6 +447,34 @@
     }
 
     function cancelEditFields() { editingBevillingFields = null; }
+
+    const labelFor = (options: any[] | undefined, id: any): string | null =>
+      id === null || id === undefined || id === ""
+        ? null
+        : (options ?? []).find((o: any) => Number(o.id) === Number(id))?.label ?? null;
+
+    // Changing hjemmel narrows the valid afgørelsesbreve, so a letter chosen
+    // under the previous hjemmel must not silently survive. Same rule as the
+    // bevilling card; this form has no status select, so the bevilling's saved
+    // status is what the status filter uses.
+    function changeHjemmel(bev: any, rawValue: string) {
+      const hjemmelId = rawValue ? Number(rawValue) : null;
+      const skoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole';
+
+      const gyldige = filterAfgoerelsesbreveByStatus(
+        filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, skoleType, labelFor(hjemler, hjemmelId)),
+        bev.status_tekst,
+        null,
+      );
+
+      const valgt = labelFor(afgoerelsesbreve, editFields.afgoerelsesbrev_id);
+
+      editFields = {
+        ...editFields,
+        hjemmel_id: hjemmelId,
+        afgoerelsesbrev_id: valgt && !containsLabel(gyldige, valgt) ? null : editFields.afgoerelsesbrev_id,
+      };
+    }
 
     async function saveEditFields(bevillingId: number) {
       const res = await backendFetch(`/bevilling/${bevillingId}`, {
@@ -927,7 +955,7 @@
                           {@const editSkoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
                           <select class="w-full border border-gray-300 rounded pl-1.5 pr-6 py-0.5 text-xs focus:border-blue-400 focus:ring-0 bg-white"
                             value={editFields.hjemmel_id ?? ""}
-                            on:change={(e) => editFields = { ...editFields, hjemmel_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}>
+                            on:change={(e) => changeHjemmel(bev, e.currentTarget.value)}>
                             <option value="">—</option>
                             {#each filterHjemler(hjemler, bev.ansoegningstype, editSkoleType) as opt}
                               <option value={opt.id}>{opt.label}</option>
@@ -948,7 +976,7 @@
                             <option value="">—</option>
                             <!-- This form has no status select, so the bevilling's saved status decides. -->
                             {#each filterAfgoerelsesbreveByStatus(
-                              filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType),
+                              filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType, labelFor(hjemler, editFields.hjemmel_id)),
                               bev.status_tekst,
                               afgoerelsesbreve.find((o: any) => Number(o.id) === Number(editFields.afgoerelsesbrev_id))?.label ?? null,
                             ) as opt}

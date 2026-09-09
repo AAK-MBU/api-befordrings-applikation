@@ -8,7 +8,7 @@
     getStatusBadgeClass,
     formatDanishDate,
   } from "$lib/tableColumnConfig";
-  import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, statusKategori, isMidlertidigKoersel } from "$lib/lookupFilters";
+  import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel, isMidlertidigKoersel } from "$lib/lookupFilters";
   import {
     AFSTANDSKRITERIE_KLASSETRIN,
     beregnAfstandskriterieDato,
@@ -368,32 +368,55 @@
     )?.label ?? null;
 
   // The afgørelsesbrev currently CHOSEN in the form — not the saved one. This
-  // is what the status filter keeps visible, so a mismatched letter stays in
-  // the list only while it is actually selected. Once changeStatus clears the
-  // field, the stale option disappears with it.
-  $: editAfgoerelsesbrevLabel =
-    (lookupOptions.afgoerelsesbreve ?? []).find(
-      (brev: any) => Number(brev.id) === Number(editableBevilling?.afgoerelsesbrev_id)
-    )?.label ?? null;
+  // is what the status/hjemmel filter keeps visible, so a mismatched letter
+  // stays in the list only while it is actually selected.
+  $: editAfgoerelsesbrevLabel = labelFor(lookupOptions.afgoerelsesbreve, editableBevilling?.afgoerelsesbrev_id);
 
-  // Changing the status changes which afgørelsesbreve are valid, so a letter
-  // picked under the previous status must not silently survive: it would be
-  // saved as an afslag letter on a bevilling that is no longer an afslag.
-  // Cleared only when the CATEGORY changes, so adding a second manual status in
-  // the same category later would not wipe the field for nothing.
-  function changeStatus(rawValue: string) {
-    const nyStatusId = numberOrNull(rawValue);
+  $: editHjemmelLabel = labelFor(lookupOptions.hjemler, editableBevilling?.hjemmel_id);
 
-    const nyStatusLabel =
-      (lookupOptions.statuser ?? []).find(
-        (status: any) => Number(status.id) === Number(nyStatusId)
-      )?.label ?? null;
+  function labelFor(options: any[] | undefined, id: any): string | null {
+    if (id === null || id === undefined || id === "") return null;
 
-    if (statusKategori(nyStatusLabel) !== statusKategori(editStatusLabel)) {
-      updateField("afgoerelsesbrev_id", null);
+    return (options ?? []).find((option: any) => Number(option.id) === Number(id))?.label ?? null;
+  }
+
+  // The valid afgørelsesbreve for a given form state. Kept as a function of an
+  // explicit state object so the change handler below can ask "what would be
+  // valid AFTER this edit?" before committing it.
+  function gyldigeAfgoerelsesbreve(state: any): { id: any; label: string }[] {
+    const skoleType = state.ungdomsuddannelse_id && !state.matrikel_id
+      ? "ungdomsuddannelse"
+      : "folkeskole";
+
+    return filterAfgoerelsesbreveByStatus(
+      filterAfgoerelsesbreve(
+        lookupOptions.afgoerelsesbreve ?? [],
+        state.ansoegningstype,
+        skoleType,
+        labelFor(lookupOptions.hjemler, state.hjemmel_id),
+      ),
+      labelFor(lookupOptions.statuser, state.status_id),
+      null,
+    );
+  }
+
+  // Status and hjemmel both narrow which afgørelsesbreve are valid, so a letter
+  // picked before the change must not silently survive it — it would be saved
+  // as, say, an afslag letter on a bevilling that is no longer an afslag.
+  //
+  // Rather than special-casing which field changed, recompute the valid list
+  // for the state the edit produces and drop the choice when it no longer
+  // belongs. One rule, and it keeps working if a third field starts narrowing
+  // the list later.
+  function updateNarrowingField(key: string, value: any) {
+    const next = { ...editableBevilling, [key]: value };
+    const valgt = labelFor(lookupOptions.afgoerelsesbreve, next.afgoerelsesbrev_id);
+
+    if (valgt && !containsLabel(gyldigeAfgoerelsesbreve(next), valgt)) {
+      next.afgoerelsesbrev_id = null;
     }
 
-    updateField("status_id", nyStatusId);
+    editableBevilling = next;
   }
 
   function startEdit(bevilling: any) {
@@ -597,7 +620,7 @@
               <select
                 class="border border-gray-300 px-2 py-1 pr-6 text-sm rounded focus:border-blue-400 focus:ring-0"
                 value={editableBevilling.status_id ?? ""}
-                on:change={(e) => changeStatus(e.currentTarget.value)}
+                on:change={(e) => updateNarrowingField("status_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Status (beregnes automatisk)</option>
                 {#each manualStatuser as option}
@@ -964,7 +987,7 @@
               <select
                 class={largeSelectClass}
                 value={editableBevilling.hjemmel_id ?? ""}
-                on:change={(e) => updateField("hjemmel_id", numberOrNull(e.currentTarget.value))}
+                on:change={(e) => updateNarrowingField("hjemmel_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
                 {#each filterHjemler(lookupOptions.hjemler ?? [], bevilling.ansoegningstype, editSkoleType) as option}
@@ -988,7 +1011,7 @@
               >
                 <option value="">Vælg</option>
                 {#each filterAfgoerelsesbreveByStatus(
-                  filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType),
+                  filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType, editHjemmelLabel),
                   editStatusLabel,
                   editAfgoerelsesbrevLabel,
                 ) as option}

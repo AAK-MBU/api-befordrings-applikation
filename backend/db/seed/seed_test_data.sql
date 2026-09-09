@@ -187,9 +187,10 @@ VALUES
     ('§ 26, stk. 1 afstand',               '', 1),
     ('§ 26, stk. 2 sygdom',                '', 1),
     ('§ 26, stk. 1 og 2',                  '', 1),
+    ('§ 33, stk. 3 (ungdomsskolen)',	   '', 1),
     ('§ 36, stk. 3 frit skolevalg',		   '', 1),
     ('§ 36, stk. 4 retten til at forblive','', 1),
-    ('§ 9,  stk. 4 UngiAarhus',             '', 1),
+    ('§ 9,  stk. 4 UngiAarhus',            '', 1),
     ('§ 10 (brækket ben)',				   '', 1);
 
 

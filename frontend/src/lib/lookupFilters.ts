@@ -19,6 +19,18 @@ function normalize(text: string): string {
   return String(text ?? "").replace(/\s+/g, " ").trim();
 }
 
+// Looser form used to match hjemmel labels against the keys below.
+//
+// The keys are written with the parenthetical descriptor the paragraphs are
+// usually quoted with — "§ 26, stk. 1 (afstand)" — but the Hjemmel lookup table
+// stores them without brackets: "§ 26, stk. 1 afstand". Matching on the exact
+// text meant five of the six mappings never fired, and the dropdown silently
+// showed everything. Dropping brackets and case makes both spellings meet.
+function canonicalLabel(text: string | null | undefined): string {
+  return normalize(String(text ?? "").replace(/[()]/g, ""))
+    .toLowerCase();
+}
+
 // Allowed afgørelsesbrev texts per selected hjemmel.
 const HJEMMEL_AFGOERELSESBREVE: Record<string, string[]> = {
   "§ 26, stk. 1 (afstand)": [
@@ -200,6 +212,19 @@ export function statusKategori(
  * which would look like the saved afgørelsesbrev had been erased — filtering
  * must never hide data that is already stored.
  */
+/**
+ * True when `label` is among the options — used by the edit forms to decide
+ * whether a chosen afgørelsesbrev survives a change of status or hjemmel.
+ */
+export function containsLabel(
+  options: LookupOption[],
+  label: string | null | undefined
+): boolean {
+  if (!label) return false;
+  const target = canonicalLabel(label);
+  return options.some((option) => canonicalLabel(option.label) === target);
+}
+
 export function filterAfgoerelsesbreveByStatus(
   all: LookupOption[] | undefined,
   statusLabel: string | null | undefined,
@@ -226,11 +251,16 @@ export function filterAfgoerelsesbreve(
   let filtered = applyRule(all, key ? AFGOERELSESBREV_ALLOW[key] : undefined, MIDLERTIDIG_ONLY_AFGOERELSESBREVE);
 
   if (selectedHjemmelLabel) {
-    const normalizedHjemmel = normalize(selectedHjemmelLabel);
-    const mappingKey = Object.keys(HJEMMEL_AFGOERELSESBREVE).find(k => normalize(k) === normalizedHjemmel);
+    const canonicalHjemmel = canonicalLabel(selectedHjemmelLabel);
+    const mappingKey = Object.keys(HJEMMEL_AFGOERELSESBREVE).find(
+      (key) => canonicalLabel(key) === canonicalHjemmel
+    );
+
+    // A hjemmel with no mapping (e.g. "§ 10 (brækket ben)", which the
+    // midlertidig allow-list already covers) restricts nothing.
     if (mappingKey) {
-      const allowed = new Set(HJEMMEL_AFGOERELSESBREVE[mappingKey].map(normalize));
-      filtered = filtered.filter(opt => allowed.has(normalize(opt.label)));
+      const allowed = new Set(HJEMMEL_AFGOERELSESBREVE[mappingKey].map(canonicalLabel));
+      filtered = filtered.filter((opt) => allowed.has(canonicalLabel(opt.label)));
     }
   }
 
