@@ -6,7 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
-    import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
+    import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus } from "$lib/lookupFilters";
 
     export let data;
 
@@ -946,7 +946,12 @@
                             value={editFields.afgoerelsesbrev_id ?? ""}
                             on:change={(e) => editFields = { ...editFields, afgoerelsesbrev_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}>
                             <option value="">—</option>
-                            {#each filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType) as opt}
+                            <!-- This form has no status select, so the bevilling's saved status decides. -->
+                            {#each filterAfgoerelsesbreveByStatus(
+                              filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType),
+                              bev.status_tekst,
+                              bev.afgoerelsesbrev_tekst,
+                            ) as opt}
                               <option value={opt.id}>{opt.label}</option>
                             {/each}
                           </select>

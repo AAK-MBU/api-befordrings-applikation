@@ -8,7 +8,7 @@
     getStatusBadgeClass,
     formatDanishDate,
   } from "$lib/tableColumnConfig";
-  import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+  import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, isMidlertidigKoersel } from "$lib/lookupFilters";
   import {
     AFSTANDSKRITERIE_KLASSETRIN,
     beregnAfstandskriterieDato,
@@ -356,6 +356,16 @@
   $: manualStatuser = (lookupOptions.statuser ?? []).filter(
     (s: any) => manualStatusLabels.includes(s.label)
   );
+
+  // The status currently chosen in the edit form — null while "beregnes
+  // automatisk" is selected, which classifies as the "bevilling" category.
+  // Derived in the script rather than looked up from the template: a template
+  // expression only depends on the identifiers it names, so a helper reading
+  // lookupOptions would not re-run when the status changes.
+  $: editStatusLabel =
+    (lookupOptions.statuser ?? []).find(
+      (status: any) => Number(status.id) === Number(editableBevilling?.status_id)
+    )?.label ?? null;
 
   function startEdit(bevilling: any) {
     // A locked bevilling is not read-only, but editing it should be a decision
@@ -948,7 +958,11 @@
                 on:change={(e) => updateField("afgoerelsesbrev_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType) as option}
+                {#each filterAfgoerelsesbreveByStatus(
+                  filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType),
+                  editStatusLabel,
+                  bevilling.afgoerelsesbrev_tekst,
+                ) as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>
