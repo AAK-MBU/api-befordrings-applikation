@@ -950,7 +950,7 @@
                             {#each filterAfgoerelsesbreveByStatus(
                               filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType),
                               bev.status_tekst,
-                              bev.afgoerelsesbrev_tekst,
+                              afgoerelsesbreve.find((o: any) => Number(o.id) === Number(editFields.afgoerelsesbrev_id))?.label ?? null,
                             ) as opt}
                               <option value={opt.id}>{opt.label}</option>
                             {/each}
