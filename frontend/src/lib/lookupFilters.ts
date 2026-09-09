@@ -141,8 +141,8 @@ export type AfgoerelseKategori = "afslag" | "ophoer" | "bevilling";
 
 // Keyword matching, not "starts with". Five rejection letters do not begin with
 // "Afslag:" — the three "Påtænkt afslag: …" and the two "Midlertidig kørsel
-// afslag: …" — so a prefix rule would hide real options. æ/ø/å are all folded,
-// so "ophør"/"ophoert" match each other and "påtænkt" reaches "paataenkt".
+// afslag: …" — so a prefix rule would hide real options. The Danish letters are
+// folded so "ophør" and "ophoert" match each other.
 function normalizeKeyword(label: string | null | undefined): string {
   return String(label ?? "")
     .toLowerCase()
@@ -154,34 +154,26 @@ function normalizeKeyword(label: string | null | undefined): string {
 }
 
 /**
- * The statuses an afgørelsesbrev may be selected under.
+ * The status an afgørelsesbrev belongs with.
  *
- * A set rather than a single category, because "Påtænkt" letters are sent
- * BEFORE the decision is final: a påtænkt afslag goes out while the bevilling
- * still has its calculated status, and the status is only set to Afslag once
- * the decision is made. Such a letter is therefore valid in both places.
+ * "Påtænkt" letters follow their own keyword: a påtænkt ophør belongs with
+ * Ophørt and a påtænkt afslag with Afslag, so each is offered only where it is
+ * relevant.
  *
- * Deriving the set from the text (rather than listing all 18 rows) means a new
+ * Deriving this from the text (rather than listing all 18 rows) means a new
  * afgørelsesbrev added to the lookup table is classified automatically.
  */
-export function afgoerelsesbrevKategorier(
+export function afgoerelsesbrevKategori(
   label: string | null | undefined
-): Set<AfgoerelseKategori> {
+): AfgoerelseKategori {
   const text = normalizeKeyword(label);
 
   // Checked before "afslag" so precedence is explicit, even though no current
   // text contains both.
-  const erOphoer = text.includes("ophoer");
-  const erAfslag = text.includes("afslag");
-  const erPaataenkt = text.includes("paataenkt");
+  if (text.includes("ophoer")) return "ophoer";
+  if (text.includes("afslag")) return "afslag";
 
-  if (!erOphoer && !erAfslag) return new Set<AfgoerelseKategori>(["bevilling"]);
-
-  const endelig: AfgoerelseKategori = erOphoer ? "ophoer" : "afslag";
-
-  return erPaataenkt
-    ? new Set<AfgoerelseKategori>([endelig, "bevilling"])
-    : new Set<AfgoerelseKategori>([endelig]);
+  return "bevilling";
 }
 
 /** The category a bevilling's status belongs to. */
@@ -199,10 +191,9 @@ export function statusKategori(
 /**
  * Narrow afgørelsesbreve to those that belong with the chosen status.
  *
- * One rule for every status: the letter's category set must contain the
- * status's category. The "show everything except afslag/ophør on a calculated
- * status" case is not a separate branch — those statuses simply classify as
- * "bevilling".
+ * One rule for every status: the letter's category must equal the status's.
+ * The "show everything except afslag/ophør on a calculated status" case is not
+ * a separate branch — those statuses simply classify as "bevilling".
  *
  * `currentLabel` is always kept in the list even when it does not match. A
  * <select> whose bound value is absent from its options silently renders blank,
@@ -219,7 +210,7 @@ export function filterAfgoerelsesbreveByStatus(
 
   return (all ?? []).filter(
     (option) =>
-      afgoerelsesbrevKategorier(option.label).has(kategori) ||
+      afgoerelsesbrevKategori(option.label) === kategori ||
       (current !== null && normalize(option.label) === current)
   );
 }
