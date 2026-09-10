@@ -30,7 +30,7 @@
     { href: '/', label: 'Overblik' },
     { href: '/nye-ansoegninger', label: 'Nye ansøgninger' },
     { href: '/revurdering', label: 'Revurdering' },
-    { href: '/rapporter', label: 'Rapporter' },
+    { href: '/links', label: 'Links' },
   ];
 
   const currentPath = $derived($page.url.pathname);

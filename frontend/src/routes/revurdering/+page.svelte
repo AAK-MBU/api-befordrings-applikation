@@ -4,8 +4,9 @@
     import { formatDanishDate, getStatusBadgeClass, formatCpr, getBefordringstypeBadgeClass } from "$lib/tableColumnConfig";
     import BevillingTable from "$lib/components/BevillingTable.svelte";
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
+    import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
-    import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
+    import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
 
     export let data;
 
@@ -421,68 +422,10 @@
 
     let showCreateLetterModal = false;
     let letterModalCpr = "";
-    let letterType = "";
-    let befordringsudvalgResultat = "";
-    let selectedLetterBevillingId = "";
-    let ophoersdato = "";
-    let creatingLetter = false;
-
-    $: selectedLetterBevilling = selectedLetterBevillingId
-      ? (bevillingerByCpr[letterModalCpr] ?? []).find((b: any) => String(b.bevilling_id) === selectedLetterBevillingId)
-      : null;
-    $: selectedLetterBevillingHasBefordringsudvalg = !!(selectedLetterBevilling?.befordringsudvalg);
-    $: selectedLetterBevillingIsOphoert = selectedLetterBevilling?.status_tekst === "Ophørt";
 
     function openCreateLetterModal(cpr: string) {
       letterModalCpr = cpr;
-      letterType = "";
-      befordringsudvalgResultat = "";
-      selectedLetterBevillingId = "";
-      ophoersdato = "";
       showCreateLetterModal = true;
-    }
-
-    async function handleCreateLetter() {
-      if (!selectedLetterBevillingId) { alert("Vælg en bevilling"); return; }
-      if (!letterType) { alert("Vælg hvad brevet er i forbindelse med"); return; }
-      if (selectedLetterBevillingHasBefordringsudvalg && !befordringsudvalgResultat) { alert("Vælg resultat af befordringsudvalgsmøde"); return; }
-      if (selectedLetterBevillingIsOphoert && !ophoersdato) { alert("Vælg ophørsdato"); return; }
-
-      creatingLetter = true;
-      try {
-        const payload = {
-          brev_i_forbindelse_med: letterType,
-          befordringsudvalg_resultat: selectedLetterBevillingHasBefordringsudvalg ? befordringsudvalgResultat : null,
-          ophoersdato: selectedLetterBevillingIsOphoert ? ophoersdato : null,
-        };
-        const res = await backendFetch(
-          `/bevilling/create_letter/${letterModalCpr}/${selectedLetterBevillingId}`,
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
-        );
-        if (!res.ok) {
-          let message = "Kunne ikke oprette brev";
-          try { const err = await res.json(); message = err?.detail?.message ?? err?.detail ?? message; } catch { /* keep fallback */ }
-          alert(message);
-          return;
-        }
-        const result = await res.json();
-        alert(`Brev er sat i kø. Reference: ${result.reference}`);
-        await backendFetch(`/aktivitet/${letterModalCpr}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            aktivitetstype: "Brev oprettet",
-            kommentar: `Bevilling ID: ${selectedLetterBevillingId}`,
-            relateret_bevilling_id: Number(selectedLetterBevillingId),
-            udfoert_af: null,
-          }),
-        });
-        showCreateLetterModal = false;
-        await loadAktiviteter(letterModalCpr);
-        await invalidateAll();
-      } finally {
-        creatingLetter = false;
-      }
     }
 
     let editingBevillingFields: number | null = null;
@@ -505,6 +448,34 @@
 
     function cancelEditFields() { editingBevillingFields = null; }
 
+    const labelFor = (options: any[] | undefined, id: any): string | null =>
+      id === null || id === undefined || id === ""
+        ? null
+        : (options ?? []).find((o: any) => Number(o.id) === Number(id))?.label ?? null;
+
+    // Changing hjemmel narrows the valid afgørelsesbreve, so a letter chosen
+    // under the previous hjemmel must not silently survive. Same rule as the
+    // bevilling card; this form has no status select, so the bevilling's saved
+    // status is what the status filter uses.
+    function changeHjemmel(bev: any, rawValue: string) {
+      const hjemmelId = rawValue ? Number(rawValue) : null;
+      const skoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole';
+
+      const gyldige = filterAfgoerelsesbreveByStatus(
+        filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, skoleType, labelFor(hjemler, hjemmelId)),
+        bev.status_tekst,
+        null,
+      );
+
+      const valgt = labelFor(afgoerelsesbreve, editFields.afgoerelsesbrev_id);
+
+      editFields = {
+        ...editFields,
+        hjemmel_id: hjemmelId,
+        afgoerelsesbrev_id: valgt && !containsLabel(gyldige, valgt) ? null : editFields.afgoerelsesbrev_id,
+      };
+    }
+
     async function saveEditFields(bevillingId: number) {
       const res = await backendFetch(`/bevilling/${bevillingId}`, {
         method: "PUT",
@@ -526,7 +497,6 @@
 <svelte:window on:keydown={(e) => {
   if (e.key !== 'Escape') return;
   if (showCreateBevillingModal) { showCreateBevillingModal = false; }
-  if (showCreateLetterModal) { showCreateLetterModal = false; }
   if (showCommentModal) { showCommentModal = false; }
   if (pprConfirmFor) { pprConfirmFor = null; }
   if (brConfirmFor) { brConfirmFor = null; }
@@ -601,71 +571,13 @@
 {/if}
 
 
-{#if showCreateLetterModal}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="presentation">
-    <div class="w-[560px] bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
-
-      <div class="px-8 py-5 border-b border-gray-200 rounded-t-lg" style="background-color: #6d28d9;">
-        <h2 class="text-lg font-bold text-white">Opret brev</h2>
-        <p class="mt-0.5 text-sm" style="color: rgba(255,255,255,0.7);">Vælg bevilling og brevtype</p>
-      </div>
-
-      <div class="p-8 space-y-5">
-        <label class="block text-sm font-medium text-gray-700">
-          Vælg bevilling
-          <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={selectedLetterBevillingId}>
-            <option value="">Vælg bevilling</option>
-            {#each bevillingerByCpr[letterModalCpr] ?? [] as bevilling}
-              <option value={String(bevilling.bevilling_id)}>
-                Bevilling #{bevilling.bevilling_id} – {bevilling.status_tekst ?? "Ukendt status"}
-              </option>
-            {/each}
-          </select>
-        </label>
-
-        <label class="block text-sm font-medium text-gray-700">
-          Brevet er i forbindelse med en:
-          <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={letterType}>
-            <option value="">Vælg</option>
-            <option value="ansøgning">Ansøgning</option>
-            <option value="revurdering">Revurdering</option>
-            <option value="midlertidig kørsel">Midlertidig kørsel</option>
-          </select>
-        </label>
-
-        {#if selectedLetterBevillingHasBefordringsudvalg}
-          <label class="block text-sm font-medium text-gray-700">
-            Resultat af befordringsudvalgsmøde
-            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={befordringsudvalgResultat}>
-              <option value="">Vælg</option>
-              <option value="Befordringsudvalg: Afslag / fastholdelse">Befordringsudvalg: Afslag / fastholdelse</option>
-              <option value="Befordringsudvalg: Ændring i bevilling">Befordringsudvalg: Ændring i bevilling</option>
-            </select>
-          </label>
-        {/if}
-
-        {#if selectedLetterBevillingIsOphoert}
-          <label class="block text-sm font-medium text-gray-700">
-            Ophørsdato
-            <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
-          </label>
-        {/if}
-      </div>
-
-      <div class="flex justify-end gap-3 border-t border-gray-200 px-8 py-5 bg-gray-50 rounded-b-lg">
-        <button type="button" class="px-5 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-          on:click={() => { showCreateLetterModal = false; }}>Annullér</button>
-        <button type="button" disabled={creatingLetter}
-          class="px-5 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors disabled:opacity-50"
-          on:click={handleCreateLetter}>
-          {creatingLetter ? "Opretter..." : "Opret brev"}
-        </button>
-      </div>
-
-    </div>
-  </div>
-{/if}
-
+<!-- Create letter modal (shared with the student page) -->
+<CreateLetterModal
+  bind:open={showCreateLetterModal}
+  cpr={letterModalCpr}
+  bevillinger={bevillingerByCpr[letterModalCpr] ?? []}
+  on:created={async (e) => { await loadAktiviteter(e.detail.cpr); await invalidateAll(); }}
+/>
 
 {#if showCommentModal}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="presentation">
@@ -1043,7 +955,7 @@
                           {@const editSkoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
                           <select class="w-full border border-gray-300 rounded pl-1.5 pr-6 py-0.5 text-xs focus:border-blue-400 focus:ring-0 bg-white"
                             value={editFields.hjemmel_id ?? ""}
-                            on:change={(e) => editFields = { ...editFields, hjemmel_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}>
+                            on:change={(e) => changeHjemmel(bev, e.currentTarget.value)}>
                             <option value="">—</option>
                             {#each filterHjemler(hjemler, bev.ansoegningstype, editSkoleType) as opt}
                               <option value={opt.id}>{opt.label}</option>
@@ -1062,7 +974,12 @@
                             value={editFields.afgoerelsesbrev_id ?? ""}
                             on:change={(e) => editFields = { ...editFields, afgoerelsesbrev_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}>
                             <option value="">—</option>
-                            {#each filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType) as opt}
+                            <!-- This form has no status select, so the bevilling's saved status decides. -->
+                            {#each filterAfgoerelsesbreveByStatus(
+                              filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType, labelFor(hjemler, editFields.hjemmel_id)),
+                              bev.status_tekst,
+                              afgoerelsesbreve.find((o: any) => Number(o.id) === Number(editFields.afgoerelsesbrev_id))?.label ?? null,
+                            ) as opt}
                               <option value={opt.id}>{opt.label}</option>
                             {/each}
                           </select>

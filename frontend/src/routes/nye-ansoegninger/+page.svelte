@@ -178,7 +178,7 @@
     },
     {
       key: "ansoegningstype",
-      label: "Ansøgningstype"
+      label: "Kørsel"
     },
     {
       key: "sagsbehandler_id",

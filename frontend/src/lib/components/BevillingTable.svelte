@@ -8,8 +8,7 @@
     getStatusBadgeClass,
     formatDanishDate,
   } from "$lib/tableColumnConfig";
-  import { backendFetch } from "$lib/client/backendFetch";
-  import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+  import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel, isMidlertidigKoersel } from "$lib/lookupFilters";
   import {
     AFSTANDSKRITERIE_KLASSETRIN,
     beregnAfstandskriterieDato,
@@ -17,6 +16,9 @@
   } from "$lib/afstandskriterie";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
+  import { isEgenbefordring as typeIsEgenbefordring } from "$lib/koerselstype";
+  import { afstandFraKoordinater } from "$lib/client/afstand";
+  import { bevillingLabel, bevillingLabelWithId, bevillingSystemId } from "$lib/bevillingLabel";
   const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
   const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
 
@@ -297,13 +299,16 @@
   // Egenbefordring auto-recalculation
   // -----------------------------
 
-  function isEgenbefordringType(typeId: number | null | undefined): boolean {
-    if (!typeId) return false;
-    const type = lookupOptions.koerselstyper?.find(
-      (t: any) => Number(t.id) === Number(typeId)
-    );
-    return type?.label?.toLowerCase() === 'egenbefordring';
-  }
+  // Was a local copy that compared against 'egenbefordring' without stripping
+  // whitespace, so it never matched the seeded label "Egen befordring" and this
+  // whole recalculation silently did nothing. Now shared with the two forms.
+  const isEgenbefordringType = (typeId: number | null | undefined) =>
+    typeIsEgenbefordring(lookupOptions.koerselstyper, typeId);
+
+  // The confirmation dialogs only carry an id, but they should name the
+  // bevilling the way the rest of the page does.
+  const bevillingById = (id: number | null | undefined) =>
+    (bevillinger ?? []).find((b: any) => b.bevilling_id === id);
 
   function parseIds(raw: string | null | undefined): number[] {
     if (!raw) return [];
@@ -319,19 +324,11 @@
     const egenRows = koerselsraekker.filter(k => isEgenbefordringType(k.befordringstype_id));
     if (egenRows.length === 0) return;
 
-    // Get school coordinates
-    const schoolRes = await backendFetch(`/lookup/skolematrikel/${matrikel}/coordinates`);
-    if (!schoolRes.ok) return;
-    const { latitude: lat2, longitude: lon2 } = await schoolRes.json();
-
-    // Calculate distance once
-    const distParams = new URLSearchParams({
-      lat1: String(lat1), lon1: String(lon1),
-      lat2: String(lat2), lon2: String(lon2)
-    });
-    const distRes = await backendFetch(`/bevilling/calculate_driving_distance?${distParams}`);
-    if (!distRes.ok) return;
-    const { distance_km } = await distRes.json();
+    // The address is already geocoded by the caller, so this skips straight to
+    // the school lookup. Failures stay silent here on purpose: the bevilling
+    // itself saved fine, and this is a best-effort follow-up.
+    const { km: distance_km, error } = await afstandFraKoordinater(lat1, lon1, matrikel);
+    if (error !== null) return;
 
     // Update each egenbefordring row
     for (const koersel of egenRows) {
@@ -359,6 +356,70 @@
   $: manualStatuser = (lookupOptions.statuser ?? []).filter(
     (s: any) => manualStatusLabels.includes(s.label)
   );
+
+  // The status currently chosen in the edit form — null while "beregnes
+  // automatisk" is selected, which classifies as the "bevilling" category.
+  // Derived in the script rather than looked up from the template: a template
+  // expression only depends on the identifiers it names, so a helper reading
+  // lookupOptions would not re-run when the status changes.
+  $: editStatusLabel =
+    (lookupOptions.statuser ?? []).find(
+      (status: any) => Number(status.id) === Number(editableBevilling?.status_id)
+    )?.label ?? null;
+
+  // The afgørelsesbrev currently CHOSEN in the form — not the saved one. This
+  // is what the status/hjemmel filter keeps visible, so a mismatched letter
+  // stays in the list only while it is actually selected.
+  $: editAfgoerelsesbrevLabel = labelFor(lookupOptions.afgoerelsesbreve, editableBevilling?.afgoerelsesbrev_id);
+
+  $: editHjemmelLabel = labelFor(lookupOptions.hjemler, editableBevilling?.hjemmel_id);
+
+  function labelFor(options: any[] | undefined, id: any): string | null {
+    if (id === null || id === undefined || id === "") return null;
+
+    return (options ?? []).find((option: any) => Number(option.id) === Number(id))?.label ?? null;
+  }
+
+  // The valid afgørelsesbreve for a given form state. Kept as a function of an
+  // explicit state object so the change handler below can ask "what would be
+  // valid AFTER this edit?" before committing it.
+  const skoleTypeFor = (state: any) =>
+    state.ungdomsuddannelse_id && !state.matrikel_id ? "ungdomsuddannelse" : "folkeskole";
+
+  function gyldigeAfgoerelsesbreve(state: any): { id: any; label: string }[] {
+    return filterAfgoerelsesbreveByStatus(
+      filterAfgoerelsesbreve(
+        lookupOptions.afgoerelsesbreve ?? [],
+        state.ansoegningstype,
+        skoleTypeFor(state),
+        labelFor(lookupOptions.hjemler, state.hjemmel_id),
+      ),
+      labelFor(lookupOptions.statuser, state.status_id),
+      null,
+    );
+  }
+
+  // Status and hjemmel both narrow which afgørelsesbreve are valid, so a letter
+  // picked before the change must not silently survive it.
+  //
+  // Hjemmel itself is deliberately NOT narrowed by status: it records the legal
+  // basis the bevilling was granted on, and that fact does not change when the
+  // bevilling is later ended or rejected. A caseworker keeps the original
+  // paragraph and changes only the status and the letter.
+  //
+  // Rather than special-casing which field changed, recompute the valid list
+  // for the state the edit produces and drop the choice when it no longer
+  // belongs.
+  function updateNarrowingField(key: string, value: any) {
+    const next = { ...editableBevilling, [key]: value };
+    const valgt = labelFor(lookupOptions.afgoerelsesbreve, next.afgoerelsesbrev_id);
+
+    if (valgt && !containsLabel(gyldigeAfgoerelsesbreve(next), valgt)) {
+      next.afgoerelsesbrev_id = null;
+    }
+
+    editableBevilling = next;
+  }
 
   function startEdit(bevilling: any) {
     // A locked bevilling is not read-only, but editing it should be a decision
@@ -553,15 +614,17 @@
         <!-- Card header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div class="flex items-center gap-3">
-            <span class="font-mono text-xs bg-[#032A42] text-white rounded px-2 py-0.5">Bevilling #{bevilling.bevilling_id}</span>
+            <span class="font-mono text-xs bg-[#032A42] text-white rounded px-2 py-0.5">{bevillingLabel(bevilling)}</span>
+            <!-- System-ID, always visible so it can be copied into a bug report. -->
+            <span class="font-mono text-[11px] text-gray-400" title="System-ID — brug dette nummer ved fejlmelding">{bevillingSystemId(bevilling)}</span>
             <span class="text-gray-300 select-none">|</span>
             {#if isEditing}
               <select
                 class="border border-gray-300 px-2 py-1 pr-6 text-sm rounded focus:border-blue-400 focus:ring-0"
                 value={editableBevilling.status_id ?? ""}
-                on:change={(e) => updateField("status_id", numberOrNull(e.currentTarget.value))}
+                on:change={(e) => updateNarrowingField("status_id", numberOrNull(e.currentTarget.value))}
               >
-                <option value="">Auto (beregnet automatisk)</option>
+                <option value="">Status (beregnes automatisk)</option>
                 {#each manualStatuser as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
@@ -687,7 +750,7 @@
 
           <!-- ANSØGNINGSTYPE -->
           <div>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Ansøgningstype</p>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Kørsel</p>
             <p class="text-sm text-gray-800">{bevilling.ansoegningstype ?? "—"}</p>
           </div>
 
@@ -926,7 +989,7 @@
               <select
                 class={largeSelectClass}
                 value={editableBevilling.hjemmel_id ?? ""}
-                on:change={(e) => updateField("hjemmel_id", numberOrNull(e.currentTarget.value))}
+                on:change={(e) => updateNarrowingField("hjemmel_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
                 {#each filterHjemler(lookupOptions.hjemler ?? [], bevilling.ansoegningstype, editSkoleType) as option}
@@ -949,7 +1012,11 @@
                 on:change={(e) => updateField("afgoerelsesbrev_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType) as option}
+                {#each filterAfgoerelsesbreveByStatus(
+                  filterAfgoerelsesbreve(lookupOptions.afgoerelsesbreve ?? [], bevilling.ansoegningstype, editSkoleType, editHjemmelLabel),
+                  editStatusLabel,
+                  editAfgoerelsesbrevLabel,
+                ) as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>
@@ -1071,7 +1138,7 @@
           </div>
           <div>
             <h3 class="text-sm font-semibold text-gray-900">Slet bevilling</h3>
-            <p class="text-xs text-gray-500 mt-0.5">Bevilling #{confirmingDeleteBevillingId}</p>
+            <p class="text-xs text-gray-500 mt-0.5">{bevillingLabelWithId(bevillingById(confirmingDeleteBevillingId))}</p>
           </div>
         </div>
       </div>
@@ -1130,7 +1197,7 @@
             <h2 class="text-base font-semibold text-gray-900">
               {confirmingLock.final ? "Lås bevilling" : "Lås bevilling op"}
             </h2>
-            <p class="text-xs text-gray-500 mt-0.5">Bevilling #{confirmingLock.bevillingId}</p>
+            <p class="text-xs text-gray-500 mt-0.5">{bevillingLabelWithId(bevillingById(confirmingLock.bevillingId))}</p>
           </div>
         </div>
       </div>

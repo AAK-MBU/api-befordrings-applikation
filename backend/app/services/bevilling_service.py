@@ -469,6 +469,47 @@ class BevillingService:
         return self._rows_to_dicts(result)
 
 
+    def _next_loebenummer(self, cpr: str) -> int:
+        """Return the next per-child bevilling number for `cpr`.
+
+        Must be called inside the same transaction as the insert it numbers.
+
+        The UPDLOCK, HOLDLOCK hint takes a key-range lock over this child's rows
+        for the rest of the transaction, so two bevillinger created for the same
+        child at the same moment cannot both read the same maximum. The range is
+        scoped to the one cpr_elev, so creating bevillinger for *different*
+        children never blocks — which is the normal case here, and the reason
+        this is not a table-level lock.
+
+        The unique index on (cpr_elev, loebenummer) is the backstop: if this
+        lock is ever bypassed the second insert fails loudly rather than
+        silently handing two bevillinger the same reference number.
+
+        Soft-deleted rows are counted. Their number stays reserved, so the gap
+        they leave remains visible and an undelete cannot collide.
+
+        Args:
+            cpr:
+                CPR of the student the bevilling belongs to.
+
+        Returns:
+            1 for a child's first bevilling, otherwise highest existing + 1.
+        """
+
+        highest = self.db.execute(
+            text(
+                """
+                SELECT MAX(loebenummer)
+                FROM   befordring.Bevilling WITH (UPDLOCK, HOLDLOCK)
+                WHERE  cpr_elev = :cpr
+                """
+            ),
+            {"cpr": cpr},
+        ).scalar()
+
+        return (highest or 0) + 1
+
+
     def create_bevilling(
         self,
         cpr: str,
@@ -535,6 +576,9 @@ class BevillingService:
                 cpr_elev=cpr,
                 status_id=self.get_status_id_by_text(status_text),
                 aktiv=True,
+                # Numbered inside this transaction so a concurrent create for
+                # the same child cannot claim the same number.
+                loebenummer=self._next_loebenummer(cpr),
                 created_by="system",
                 updated_by="system",
             )
@@ -561,6 +605,7 @@ class BevillingService:
 
             result = {
                 "bevilling_id": bevilling.bevilling_id,
+                "loebenummer": bevilling.loebenummer,
                 "status_text": status_result["status_text"],
                 "status_reason": status_result.get("status_reason"),
                 "rows_inserted": 1,
@@ -574,7 +619,10 @@ class BevillingService:
         self._log_event(
             cpr=cpr,
             aktivitetstype="Bevilling oprettet",
-            kommentar=f"Bevilling ID: {bevilling.bevilling_id} — Status: Ny",
+            kommentar=(
+                f"Bevilling {bevilling.loebenummer} "
+                f"(ID: {bevilling.bevilling_id}) — Status: Ny"
+            ),
             relateret_bevilling_id=bevilling.bevilling_id,
             udfoert_af=udfoert_af,
         )
@@ -716,6 +764,9 @@ class BevillingService:
             "revurderet_af_br": bevilling.revurderet_af_br,
         }
 
+        ophoert_status_id = self.get_status_id_by_text("Ophørt")
+        was_ophoert = bevilling.status_id == ophoert_status_id
+
         try:
             for field_name, value in bevilling_data.items():
                 setattr(bevilling, field_name, value)
@@ -724,6 +775,27 @@ class BevillingService:
                 # Setting to "Ny" before the SP runs removes Afslag/Ophørt
                 # protection so the SP can freely recalculate the correct status.
                 bevilling.status_id = self.get_status_id_by_text("Ny")
+
+            # Ending a bevilling is a case-processing act: it is handled today,
+            # and there is nothing left to reassess.
+            #
+            # Deliberately a TRANSITION, not "status is Ophørt". Firing on every
+            # save of an already-ended bevilling would overwrite the real
+            # processing date with today's every time someone corrected a typo.
+            #
+            # Only revurderingsdato is cleared here. The `revurdering` flag is
+            # owned by usp_recalculate_bevilling_status, which computes
+            # needs_revurdering = 0 for any bevilling whose status is Ophørt —
+            # the recalculation below therefore clears the flag on its own, and
+            # writing it here would just be overwritten.
+            ophoert_transition = (
+                not was_ophoert and bevilling.status_id == ophoert_status_id
+            )
+
+            if ophoert_transition:
+                cleared_revurderingsdato = bevilling.revurderingsdato
+                bevilling.sagsbehandlingsdato = date.today()
+                bevilling.revurderingsdato = None
 
             bevilling.updated_by = "frontend"
 
@@ -749,6 +821,27 @@ class BevillingService:
         self._log_bevilling_update_events(
             cpr, bevilling_id, bevilling_data, old_values, status_result, udfoert_af
         )
+
+        # Logged explicitly rather than left to _log_bevilling_update_events:
+        # that only fires when the status SP reports a changed row, and setting
+        # the status to Ophørt by hand can leave the SP with nothing to change.
+        # Clearing revurderingsdato discards a date nobody can recover, so it
+        # should be visible in the sagsforløb either way.
+        if ophoert_transition:
+            self._log_event(
+                cpr,
+                "Bevilling sat til Ophørt",
+                kommentar=(
+                    "Sagsbehandlingsdato sat til i dag"
+                    + (
+                        f" — revurderingsdato ({cleared_revurderingsdato}) blev fjernet"
+                        if cleared_revurderingsdato
+                        else ""
+                    )
+                ),
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
 
         return result
 
@@ -1423,6 +1516,11 @@ class BevillingService:
         # Nest the related koerselsraekker inside the main letter data object.
         # This makes the payload easier for the letter worker/template engine
         # to consume.
+        #
+        # NB: this is an explicit whitelist, not a pass-through. A column added
+        # to view_Letter_Koerselsraekker does NOT reach the letter until it is
+        # listed here too — it is read from the database and then dropped, with
+        # no error anywhere. Add both, or the RPA sees the field as missing.
         letter_data["koerselsraekker"] = [
             {
                 "koersel_id": row.get("koersel_id"),
@@ -1437,6 +1535,13 @@ class BevillingService:
                 "bevilget_koereafstand_pr_vej": row.get("bevilget_koereafstand_pr_vej"),
                 "transporttid_i_bus": row.get("transporttid_i_bus"),
                 "skift_med_bus": row.get("skift_med_bus"),
+                # Taxa-specific. koersel_til_institution arrives from the view
+                # already resolved to "Ja"/"Nej"/None — the letter engine gates
+                # the SFO block (blok 4) on it.
+                "koersel_til_institution": row.get("koersel_til_institution"),
+                "max_minutter_i_transport": row.get("max_minutter_i_transport"),
+                # Egenbefordring-specific: the recipient's name, not the id.
+                "koerselsgodtgoerelse_modtager": row.get("koerselsgodtgoerelse_modtager"),
             }
             for row in koersel_records
         ]
