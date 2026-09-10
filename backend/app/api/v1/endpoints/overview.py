@@ -15,8 +15,14 @@ def get_alle_bevillinger(db: DbSession):
 
 
 @router.get("/search")
-def search_bevillinger(db: DbSession, q: str = Query(default="", min_length=0)):
-    return OverviewService(db=db).search_bevillinger(q)
+def search_elever(db: DbSession, q: str = Query(default="", min_length=0)):
+    """Global search box: find a student by CPR or name.
+
+    Not gated by RequireEdit — anyone with access to the system may look a
+    student up; only writing is restricted.
+    """
+
+    return OverviewService(db=db).search_elever(q)
 
 
 @router.get("/aktive_bevillinger")
