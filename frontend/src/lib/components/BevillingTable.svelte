@@ -383,16 +383,15 @@
   // The valid afgørelsesbreve for a given form state. Kept as a function of an
   // explicit state object so the change handler below can ask "what would be
   // valid AFTER this edit?" before committing it.
-  function gyldigeAfgoerelsesbreve(state: any): { id: any; label: string }[] {
-    const skoleType = state.ungdomsuddannelse_id && !state.matrikel_id
-      ? "ungdomsuddannelse"
-      : "folkeskole";
+  const skoleTypeFor = (state: any) =>
+    state.ungdomsuddannelse_id && !state.matrikel_id ? "ungdomsuddannelse" : "folkeskole";
 
+  function gyldigeAfgoerelsesbreve(state: any): { id: any; label: string }[] {
     return filterAfgoerelsesbreveByStatus(
       filterAfgoerelsesbreve(
         lookupOptions.afgoerelsesbreve ?? [],
         state.ansoegningstype,
-        skoleType,
+        skoleTypeFor(state),
         labelFor(lookupOptions.hjemler, state.hjemmel_id),
       ),
       labelFor(lookupOptions.statuser, state.status_id),
@@ -401,13 +400,16 @@
   }
 
   // Status and hjemmel both narrow which afgørelsesbreve are valid, so a letter
-  // picked before the change must not silently survive it — it would be saved
-  // as, say, an afslag letter on a bevilling that is no longer an afslag.
+  // picked before the change must not silently survive it.
+  //
+  // Hjemmel itself is deliberately NOT narrowed by status: it records the legal
+  // basis the bevilling was granted on, and that fact does not change when the
+  // bevilling is later ended or rejected. A caseworker keeps the original
+  // paragraph and changes only the status and the letter.
   //
   // Rather than special-casing which field changed, recompute the valid list
   // for the state the edit produces and drop the choice when it no longer
-  // belongs. One rule, and it keeps working if a third field starts narrowing
-  // the list later.
+  // belongs.
   function updateNarrowingField(key: string, value: any) {
     const next = { ...editableBevilling, [key]: value };
     const valgt = labelFor(lookupOptions.afgoerelsesbreve, next.afgoerelsesbrev_id);

@@ -260,7 +260,18 @@ export function filterAfgoerelsesbreve(
     // midlertidig allow-list already covers) restricts nothing.
     if (mappingKey) {
       const allowed = new Set(HJEMMEL_AFGOERELSESBREVE[mappingKey].map(canonicalLabel));
-      filtered = filtered.filter((opt) => allowed.has(canonicalLabel(opt.label)));
+
+      // Ophør letters are exempt. The mapping pairs a legal basis with the
+      // letters that DECIDE an application under it; ending a bevilling is not
+      // a new legal basis. A bevilling granted under "§ 26, stk. 1 afstand"
+      // keeps that hjemmel when it ends — the caseworker cannot rewrite what it
+      // was granted on — so without this the ophør letter is unreachable for
+      // six of the seven hjemler.
+      filtered = filtered.filter(
+        (opt) =>
+          allowed.has(canonicalLabel(opt.label)) ||
+          afgoerelsesbrevKategori(opt.label) === "ophoer"
+      );
     }
   }
 
