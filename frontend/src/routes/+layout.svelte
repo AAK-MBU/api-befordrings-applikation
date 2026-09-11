@@ -12,15 +12,18 @@
 
   let nyeCount = $state(0);
   let revCount = $state(0);
+  let genbehandlingCount = $state(0);
 
   onMount(async () => {
     try {
-      const [nyeRes, revRes] = await Promise.all([
+      const [nyeRes, revRes, genRes] = await Promise.all([
         backendFetch('/overview/new_applications'),
         backendFetch('/overview/revurderinger'),
+        backendFetch('/overview/genbehandlinger'),
       ]);
       if (nyeRes.ok) nyeCount = (await nyeRes.json()).length;
       if (revRes.ok) revCount = (await revRes.json()).length;
+      if (genRes.ok) genbehandlingCount = (await genRes.json()).length;
     } catch {
       // non-critical — badges just won't show
     }
@@ -30,6 +33,7 @@
     { href: '/', label: 'Overblik' },
     { href: '/nye-ansoegninger', label: 'Nye ansøgninger' },
     { href: '/revurdering', label: 'Revurdering' },
+    { href: '/genbehandling', label: 'Genbehandling' },
     { href: '/links', label: 'Links' },
   ];
 
@@ -178,7 +182,7 @@
     <ul class="flex flex-wrap">
       {#each tabs as tab}
         {@const active = isActive(tab)}
-        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : 0}
+        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : tab.href === '/genbehandling' ? genbehandlingCount : 0}
         <li>
           <a
             href={tab.href}

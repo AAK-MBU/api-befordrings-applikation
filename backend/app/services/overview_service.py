@@ -366,6 +366,66 @@ class OverviewService:
         return bevillinger
 
 
+    def get_genbehandlinger(self):
+        """Get bevillinger flagged for genbehandling, with nested koerselsraekker.
+
+        Returns:
+            List of bevilling dicts, each with a 'koerselsraekker' key containing
+            a list of that bevilling's koersel rows.
+        """
+
+        bev_sql = text("""
+            SELECT
+                *
+            FROM
+                [befordring].[view_Genbehandling]
+            ORDER BY
+                bevilling_id ASC
+        """)
+
+        bevillinger = self._rows_to_dicts(self.db.execute(bev_sql))
+
+        if not bevillinger:
+            return []
+
+        koersel_sql = text("""
+            SELECT
+                vbk.*,
+                k.final,
+                bt.befordringstype_tekst
+            FROM
+                [befordring].[view_Bevilling_Koerselsraekker] vbk
+            INNER JOIN
+                [befordring].[Koersel] k
+                ON k.koersel_id = vbk.koersel_id
+                AND k.aktiv = 1
+            INNER JOIN
+                [befordring].[Bevilling] b
+                ON b.bevilling_id = vbk.bevilling_id
+                AND b.aktiv = 1
+            LEFT JOIN
+                [befordring].[Befordringstype] bt
+                ON bt.befordringstype_id = k.befordringstype_id
+            WHERE
+                b.genbehandling = 1
+            ORDER BY
+                vbk.bevilling_id,
+                vbk.gyldig_til DESC
+        """)
+
+        koersler = self._rows_to_dicts(self.db.execute(koersel_sql))
+
+        koersel_map: dict = {}
+        for k in koersler:
+            bid = k["bevilling_id"]
+            koersel_map.setdefault(bid, []).append(k)
+
+        for b in bevillinger:
+            b["koerselsraekker"] = koersel_map.get(b.get("bevilling_id"), [])
+
+        return bevillinger
+
+
     def get_new_applications(self):
         """Get new applications overview data.
 
