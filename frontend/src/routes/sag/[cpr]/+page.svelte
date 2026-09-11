@@ -33,7 +33,7 @@
 
   let showCreateLetterModal = false;
 
-  let { stamdata, parents, parter, bevillinger, lookupOptions, aktiviteter } = data;
+  let { stamdata, parents, parter, recipients, bevillinger, lookupOptions, aktiviteter } = data;
 
   // The aktivitet feed persists only relateret_bevilling_id, so the løbenummer
   // is looked up from the bevillinger already on the page.
@@ -109,6 +109,7 @@
     stamdata = data.stamdata;
     parents = data.parents;
     parter = data.parter;
+    recipients = data.recipients;
     bevillinger = data.bevillinger;
     lookupOptions = data.lookupOptions;
     aktiviteter = data.aktiviteter;
@@ -932,7 +933,7 @@
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
         elevklassetrin={stamdata?.elevklassetrin ?? null}
-        {parter}
+        parter={recipients}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}
         on:cancel={() => { showCreateBevillingModal = false; }}
@@ -956,7 +957,7 @@
       onSaveKoerselsraekke={handleSaveKoerselsraekke}
       onCreateKoerselsraekke={handleCreateKoerselsraekke}
       onFinalizeKoerselsraekke={handleFinalizeKoerselsraekke}
-      {parter}
+      parter={recipients}
       onSetBevillingLock={handleSetBevillingLock}
       onDeleteBevilling={handleDeleteBevilling}
       onDeleteKoerselsraekke={handleDeleteKoerselsraekke}

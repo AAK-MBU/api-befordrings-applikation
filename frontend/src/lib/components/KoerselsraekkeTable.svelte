@@ -285,6 +285,7 @@
       koersel_til_institution: "",
       max_minutter_i_transport: "",
       koerselsgodtgoerelse_modtager_id: "",
+      koerselsgodtgoerelse_modtager_cpr: "",
       final: false
     };
   }
@@ -374,6 +375,7 @@
       koersel_til_institution: isTaxaType(editableKoerselsraekke.befordringstype_id) ? boolOrNull(editableKoerselsraekke.koersel_til_institution) : null,
       max_minutter_i_transport: isTaxaType(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.max_minutter_i_transport) : null,
       koerselsgodtgoerelse_modtager_id: isEgenbefordring(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
+      koerselsgodtgoerelse_modtager_cpr: isEgenbefordring(editableKoerselsraekke.befordringstype_id) ? (editableKoerselsraekke.koerselsgodtgoerelse_modtager_cpr || null) : null,
 
       tillaeg_ids: isKoerselType(editableKoerselsraekke.befordringstype_id) ? selectedTillaegIds : [],
       dag_ids: selectedDagIds
@@ -416,6 +418,7 @@
         koersel_til_institution: source.koersel_til_institution != null ? String(source.koersel_til_institution) : "",
         max_minutter_i_transport: source.max_minutter_i_transport != null ? String(source.max_minutter_i_transport) : "",
         koerselsgodtgoerelse_modtager_id: source.koerselsgodtgoerelse_modtager_id ?? "",
+        koerselsgodtgoerelse_modtager_cpr: source.koerselsgodtgoerelse_modtager_cpr ?? "",
         final: false,
       };
       newSelectedTillaegIds = parseIds(source.tillaeg_ids);
@@ -461,7 +464,7 @@
 
     if (isEgenbefordring(befordringstypeId)) {
       if (isBlank(values.bevilget_koereafstand_pr_vej)) return "Bevilget km pr. vej skal udfyldes";
-      if (isBlank(values.koerselsgodtgoerelse_modtager_id)) return "Kørselsgodtgørelse modtager skal udfyldes";
+      if (isBlank(values.koerselsgodtgoerelse_modtager_id) && isBlank(values.koerselsgodtgoerelse_modtager_cpr)) return "Kørselsgodtgørelse modtager skal udfyldes";
     }
 
     if (isTaxaType(befordringstypeId)) {
@@ -520,6 +523,7 @@
       koersel_til_institution: isTaxaType(newKoerselsraekke.befordringstype_id) ? boolOrNull(newKoerselsraekke.koersel_til_institution) : null,
       max_minutter_i_transport: isTaxaType(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.max_minutter_i_transport) : null,
       koerselsgodtgoerelse_modtager_id: isEgenbefordring(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
+      koerselsgodtgoerelse_modtager_cpr: isEgenbefordring(newKoerselsraekke.befordringstype_id) ? (newKoerselsraekke.koerselsgodtgoerelse_modtager_cpr || null) : null,
 
       tillaeg_ids: isKoerselType(newKoerselsraekke.befordringstype_id) ? newSelectedTillaegIds : [],
       dag_ids: newSelectedDagIds
@@ -620,9 +624,28 @@
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager *</span>
-            <select class={selectClass} value={newKoerselsraekke.koerselsgodtgoerelse_modtager_id ?? ""} on:change={(e) => updateNewField("koerselsgodtgoerelse_modtager_id", numberOrNull(e.currentTarget.value))}>
+            <select class={selectClass}
+              value={newKoerselsraekke.koerselsgodtgoerelse_modtager_id ? `p:${newKoerselsraekke.koerselsgodtgoerelse_modtager_id}` : newKoerselsraekke.koerselsgodtgoerelse_modtager_cpr ? `f:${newKoerselsraekke.koerselsgodtgoerelse_modtager_cpr}` : ""}
+              on:change={(e) => {
+                const v = e.currentTarget.value;
+                if (!v) { updateNewField("koerselsgodtgoerelse_modtager_id", null); updateNewField("koerselsgodtgoerelse_modtager_cpr", null); }
+                else if (v.startsWith("p:")) { updateNewField("koerselsgodtgoerelse_modtager_id", Number(v.slice(2))); updateNewField("koerselsgodtgoerelse_modtager_cpr", null); }
+                else if (v.startsWith("f:")) { updateNewField("koerselsgodtgoerelse_modtager_id", null); updateNewField("koerselsgodtgoerelse_modtager_cpr", v.slice(2)); }
+              }}>
               <option value="">Vælg</option>
-              {#each parter as p}<option value={p.part_id}>{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+              {#if parter.some((r: any) => r.type === 'foraelder')}
+                <optgroup label="Forældre">
+                  {#each parter.filter((r: any) => r.type === 'foraelder') as r}<option value="f:{r.cpr_foraelder}">{r.fulde_navn ?? r.cpr_foraelder}{r.relation ? ` (${r.relation})` : ""}</option>{/each}
+                </optgroup>
+              {/if}
+              {#if parter.some((r: any) => r.type === 'part')}
+                <optgroup label="Øvrige parter">
+                  {#each parter.filter((r: any) => r.type === 'part') as r}<option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>{/each}
+                </optgroup>
+              {/if}
+              {#if !parter.some((r: any) => r.type)}
+                {#each parter as p}<option value="p:{p.part_id}">{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+              {/if}
             </select>
           </label>
           <div></div><div></div>
@@ -888,9 +911,30 @@
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager *</span>
-              <select class={selectClass} value={editableKoerselsraekke.koerselsgodtgoerelse_modtager_id ?? ""} on:change={(e) => updateField("koerselsgodtgoerelse_modtager_id", numberOrNull(e.currentTarget.value))}>
+              <select class={selectClass}
+                value={editableKoerselsraekke.koerselsgodtgoerelse_modtager_id ? `p:${editableKoerselsraekke.koerselsgodtgoerelse_modtager_id}` : editableKoerselsraekke.koerselsgodtgoerelse_modtager_cpr ? `f:${editableKoerselsraekke.koerselsgodtgoerelse_modtager_cpr}` : ""
+}
+                on:change={(e) => {
+                  const v = e.currentTarget.value;
+                  if (!v) { updateField("koerselsgodtgoerelse_modtager_id", null); updateField("koerselsgodtgoerelse_modtager_cpr", null); }
+                  else if (v.startsWith("p:")) { updateField("koerselsgodtgoerelse_modtager_id", Number(v.slice(2))); updateField("koerselsgodtgoerelse_modtager_cpr", null); }
+                  else if (v.startsWith("f:")) { updateField("koerselsgodtgoerelse_modtager_id", null); updateField("koerselsgodtgoerelse_modtager_cpr", v.slice(2)); }
+                }}>
                 <option value="">Vælg</option>
-                {#each parter as p}<option value={p.part_id}>{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+                {#if parter.some((r: any) => r.type === 'foraelder')}
+                  <optgroup label="Forældre">
+                    {#each parter.filter((r: any) => r.type === 'foraelder') as r}
+                      <option value="f:{r.cpr_foraelder}">{r.fulde_navn ?? r.cpr_foraelder}{r.relation ? ` (${r.relation})` : ""}</option>
+                    {/each}
+                  </optgroup>
+                {/if}
+                {#if parter.some((r: any) => r.type === 'part')}
+                  <optgroup label="Øvrige parter">
+                    {#each parter.filter((r: any) => r.type === 'part') as r}
+                      <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>
+                    {/each}
+                  </optgroup>
+                {/if}               
               </select>
             </label>
             <div></div><div></div>
@@ -1042,7 +1086,15 @@
               </div>
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselsgodtgørelse modtager</p>
-                <p class="text-sm text-gray-800 break-words">{parter.find((p: any) => p.part_id === row.koerselsgodtgoerelse_modtager_id)?.fulde_navn ?? parter.find((p: any) => p.part_id === row.koerselsgodtgoerelse_modtager_id)?.navn ?? "—"}</p>
+                <p class="text-sm text-gray-800 break-words">
+                  {#if row.koerselsgodtgoerelse_modtager_id}
+                    {parter.find((r: any) => r.type === 'part' && r.part_id === row.koerselsgodtgoerelse_modtager_id)?.fulde_navn ?? "—"}
+                  {:else if row.koerselsgodtgoerelse_modtager_cpr}
+                    {parter.find((r: any) => r.type === 'foraelder' && r.cpr_foraelder === row.koerselsgodtgoerelse_modtager_cpr)?.fulde_navn ?? "—"}
+                  {:else}
+                    —
+                  {/if}
+                </p>
               </div>
               <div></div><div></div>
               <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->

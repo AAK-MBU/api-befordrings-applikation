@@ -834,6 +834,12 @@ UPDATE [befordring].[Bevilling]
 SET revurdering = 1
 WHERE cpr_elev IN ('0303101234', '0404101234', '1414101234');
 
+-- Genbehandling: Kristian has a skolekode mismatch (test case)
+UPDATE [befordring].[Bevilling]
+SET genbehandling = 1,
+    genbehandling_bemaerkning = N'Skolekode på bevilling matcher ikke elevens aktuelle skolekode'
+WHERE cpr_elev = '0202101234';
+
 
 /* ============================================================
    Bevilling_Hjaelpemiddel_LINK
@@ -1106,6 +1112,7 @@ SELECT * FROM [befordring].[view_Bevilling_Koerselsraekker];
 SELECT * FROM [befordring].[view_All_Active_Bevillinger];
 SELECT * FROM [befordring].[view_New_Applications];
 SELECT * FROM [befordring].[view_Revurderinger];
+SELECT * FROM [befordring].[view_Genbehandling];
 SELECT * FROM [befordring].[Sagsaktivitet] ORDER BY cpr, oprettet_tidspunkt;
 
 PRINT '';
