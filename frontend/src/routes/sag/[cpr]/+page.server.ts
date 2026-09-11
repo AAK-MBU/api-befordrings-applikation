@@ -1,3 +1,5 @@
+import { error } from "@sveltejs/kit";
+
 import { backendUserFetcher } from "$lib/server/backendApi";
 
 import type { PageServerLoad } from "./$types";
@@ -106,6 +108,15 @@ export const load: PageServerLoad = async (event) => {
   const stamdata = Array.isArray(stamdataResponse)
     ? stamdataResponse[0]
     : stamdataResponse;
+
+  // /citizen/stamdata/{cpr} answers 200 with a null body for a CPR that is not
+  // in Elev, so assertResponseOk above lets it through. Without this the page
+  // renders with stamdata = null and dies on the first stamdata.cpr — a blank
+  // screen and a console TypeError, with nothing telling the caseworker that
+  // the CPR is simply unknown.
+  if (!stamdata) {
+    throw error(404, `Ingen elev fundet med CPR ${cpr}`);
+  }
 
   return {
     cpr,
