@@ -71,6 +71,8 @@ BEGIN
             b.revurderet_af_ppr,
             b.revurderet_af_br,
             b.revurdering AS current_revurdering,
+            b.genbehandling AS current_genbehandling,
+            b.genbehandling_haandteret,
             CASE
                 WHEN b.matrikel_id IS NOT NULL
                     AND ISNULL(e.skolekode, 0) <> 0
@@ -84,7 +86,11 @@ BEGIN
                     AND b.adresse_id <> e.adresse_id
                 THEN 1
                 ELSE 0
-            END AS adresse_mismatch
+            END AS adresse_mismatch,
+            e.adresse_id  AS elev_adresse_id,
+            e.skolekode   AS elev_skolekode,
+            b.genbehandling_haandteret_adresse_id,
+            b.genbehandling_haandteret_skolekode
         FROM
             [befordring].[Bevilling] b
         LEFT JOIN [befordring].[Status] s ON s.status_id = b.status_id
@@ -177,26 +183,23 @@ BEGIN
                     THEN N'Udløbet'
                 ELSE N'Fejlet'
             END AS calculated_status_text,
-            -- Reassessment flag: same triggers the old Revurdering status used.
+            -- Reassessment flag: date-based only (approaching revurderingsdato).
+            -- Mismatch cases (skolekode/adresse) are handled by needs_genbehandling below.
             CASE
                 WHEN LOWER(ISNULL(kf.current_status_text, '')) NOT IN (N'afslag', N'ophørt')
                     AND NULLIF(LTRIM(RTRIM(kf.cpr_elev)), '') IS NOT NULL
                     AND kf.complete_koersel_count > 0
                     AND kf.invalid_date_range_count = 0
                     AND (
-                        -- entry
+                        -- entry: date trigger only
                         (
                             kf.has_active_koersel = 1
                             AND ISNULL(kf.revurderet_af_br, 0) = 0
-                            AND (
-                                (kf.revurderingsdato IS NOT NULL AND @today >= DATEADD(MONTH, -2, kf.revurderingsdato))
-                                OR kf.skolekode_mismatch = 1
-                                OR kf.adresse_mismatch = 1
-                            )
+                            AND kf.revurderingsdato IS NOT NULL
+                            AND @today >= DATEADD(MONTH, -2, kf.revurderingsdato)
                         )
                         OR
-                        -- stay: hold the flag until BR signs off, regardless of PPR.
-                        -- PPR revurderet is informational only; only BR closes a reassessment.
+                        -- stay: hold until BR signs off
                         (
                             ISNULL(kf.current_revurdering, 0) = 1
                             AND ISNULL(kf.revurderet_af_br, 0) = 0
@@ -204,7 +207,49 @@ BEGIN
                     )
                 THEN 1
                 ELSE 0
-            END AS needs_revurdering
+            END AS needs_revurdering,
+            -- Genbehandling flag: mismatch-based (skolekode or adresse drift).
+            CASE
+                WHEN LOWER(ISNULL(kf.current_status_text, '')) NOT IN (N'afslag', N'ophørt')
+                    AND NULLIF(LTRIM(RTRIM(kf.cpr_elev)), '') IS NOT NULL
+                    AND kf.complete_koersel_count > 0
+                    AND kf.invalid_date_range_count = 0
+                    AND (
+                        -- entry: mismatch detected and not yet acknowledged via snapshot
+                        (
+                            kf.has_active_koersel = 1
+                            AND (
+                                (
+                                    kf.adresse_mismatch = 1
+                                    AND (
+                                        kf.genbehandling_haandteret_adresse_id IS NULL
+                                        OR kf.elev_adresse_id <> kf.genbehandling_haandteret_adresse_id
+                                    )
+                                )
+                                OR
+                                (
+                                    kf.skolekode_mismatch = 1
+                                    AND (
+                                        kf.genbehandling_haandteret_skolekode IS NULL
+                                        OR kf.elev_skolekode <> kf.genbehandling_haandteret_skolekode
+                                    )
+                                )
+                            )
+                        )
+                        OR
+                        -- stay: hold until caseworker marks it handled, but only while
+                        -- a mismatch is still live AND the bevilling has an active kørsel.
+                        -- Expired bevillinger auto-close rather than requiring caseworker action.
+                        (
+                            ISNULL(kf.current_genbehandling, 0) = 1
+                            AND ISNULL(kf.genbehandling_haandteret, 0) = 0
+                            AND (kf.adresse_mismatch = 1 OR kf.skolekode_mismatch = 1)
+                            AND kf.has_active_koersel = 1
+                        )
+                    )
+                THEN 1
+                ELSE 0
+            END AS needs_genbehandling
         FROM
             koersel_flags kf
     )
@@ -216,13 +261,15 @@ BEGIN
         s.status_id AS calculated_status_id,
         c.calculated_status_text,
         c.needs_revurdering,
+        c.needs_genbehandling,
         c.skolekode_mismatch,
         c.adresse_mismatch,
         CASE
             WHEN ISNULL(c.current_status_id, -1) <> ISNULL(s.status_id, -1) THEN 1
             ELSE 0
         END AS status_will_change,
-        CAST(NULL AS NVARCHAR(500)) AS status_reason
+        CAST(NULL AS NVARCHAR(500)) AS status_reason,
+        CAST(NULL AS NVARCHAR(500)) AS genbehandling_bemaerkning
     INTO
         #calculated_statuses
     FROM
@@ -283,9 +330,9 @@ BEGIN
     INNER JOIN active_conflicts ac ON ac.cpr_elev = b.cpr_elev
     WHERE LOWER(cs.calculated_status_text) = N'aktiv';
 
-    -- Do not flag a broken (Fejlet) bevilling as needing reassessment.
+    -- Do not flag a broken (Fejlet) bevilling as needing reassessment or genbehandling.
     UPDATE #calculated_statuses
-    SET needs_revurdering = 0
+    SET needs_revurdering = 0, needs_genbehandling = 0
     WHERE calculated_status_text = N'Fejlet';
 
     /* Revurdering reason — skolekode mismatch. */
@@ -316,6 +363,24 @@ BEGIN
         AND b.revurderingsdato IS NOT NULL
         AND @today >= DATEADD(MONTH, -2, CONVERT(DATE, b.revurderingsdato))
         AND cs.status_reason IS NULL;
+
+    /* Genbehandling reason — skolekode mismatch. */
+    UPDATE cs
+    SET cs.genbehandling_bemaerkning = N'Skolekode på bevilling matcher ikke elevens aktuelle skolekode'
+    FROM #calculated_statuses cs
+    WHERE
+        cs.skolekode_mismatch = 1
+        AND cs.needs_genbehandling = 1
+        AND cs.genbehandling_bemaerkning IS NULL;
+
+    /* Genbehandling reason — address mismatch. */
+    UPDATE cs
+    SET cs.genbehandling_bemaerkning = N'Elevens adresse matcher ikke adressen på bevillingen'
+    FROM #calculated_statuses cs
+    WHERE
+        cs.adresse_mismatch = 1
+        AND cs.needs_genbehandling = 1
+        AND cs.genbehandling_bemaerkning IS NULL;
 
     /* Fejlet reason — missing CPR. */
     UPDATE cs
@@ -370,6 +435,32 @@ BEGIN
                     THEN NULL
                 ELSE b.revurderet_af_br
             END,
+            b.genbehandling = cs.needs_genbehandling,
+            b.genbehandling_bemaerkning = CASE
+                WHEN cs.needs_genbehandling = 1 THEN cs.genbehandling_bemaerkning
+                ELSE NULL
+            END,
+            b.genbehandling_haandteret = CASE
+                -- New cycle (0→1) or re-entry (signed-off cycle has new drift): reset so
+                -- caseworker must re-acknowledge the new mismatch.
+                WHEN cs.needs_genbehandling = 1 AND (ISNULL(b.genbehandling, 0) = 0 OR ISNULL(b.genbehandling_haandteret, 0) = 1)
+                    THEN NULL
+                -- Cycle ending (1→0): clear stale haandteret so it starts NULL next cycle.
+                WHEN cs.needs_genbehandling = 0 AND ISNULL(b.genbehandling, 0) = 1
+                    THEN NULL
+                ELSE b.genbehandling_haandteret
+            END,
+            -- Reset snapshot columns on new/re-entry; clear per-dimension when mismatch resolves.
+            b.genbehandling_haandteret_adresse_id = CASE
+                WHEN cs.needs_genbehandling = 1 AND (ISNULL(b.genbehandling, 0) = 0 OR ISNULL(b.genbehandling_haandteret, 0) = 1) THEN NULL
+                WHEN cs.adresse_mismatch = 0                                                                                        THEN NULL
+                ELSE b.genbehandling_haandteret_adresse_id
+            END,
+            b.genbehandling_haandteret_skolekode = CASE
+                WHEN cs.needs_genbehandling = 1 AND (ISNULL(b.genbehandling, 0) = 0 OR ISNULL(b.genbehandling_haandteret, 0) = 1) THEN NULL
+                WHEN cs.skolekode_mismatch = 0                                                                                      THEN NULL
+                ELSE b.genbehandling_haandteret_skolekode
+            END,
             b.updated_by = 'status_engine',
             b.updated_at = GETDATE()
         FROM
@@ -379,12 +470,19 @@ BEGIN
         WHERE
             ISNULL(b.status_id, -1) <> ISNULL(cs.calculated_status_id, -1)
             OR ISNULL(b.revurdering, 0) <> cs.needs_revurdering
+            OR ISNULL(b.genbehandling, 0) <> cs.needs_genbehandling
             OR ISNULL(b.statusbemaerkning, N'') <> ISNULL(
                    CASE
                        WHEN cs.calculated_status_text = N'Fejlet' THEN cs.status_reason
                        WHEN cs.needs_revurdering = 1 THEN cs.status_reason
                        ELSE NULL
-                   END, N'');
+                   END, N'')
+            -- Snapshot columns may need clearing even when nothing else changed.
+            OR (cs.adresse_mismatch = 0 AND b.genbehandling_haandteret_adresse_id IS NOT NULL)
+            OR (cs.skolekode_mismatch = 0 AND b.genbehandling_haandteret_skolekode IS NOT NULL)
+            -- Re-entry: haandteret must reset when a signed-off cycle sees new drift
+            -- (genbehandling stays 1 so the genbehandling column comparison won't catch it).
+            OR (cs.needs_genbehandling = 1 AND ISNULL(b.genbehandling_haandteret, 0) = 1);
     END;
 
     SELECT
@@ -394,10 +492,12 @@ BEGIN
         calculated_status_id,
         calculated_status_text,
         needs_revurdering,
+        needs_genbehandling,
         skolekode_mismatch,
         adresse_mismatch,
         status_will_change,
         status_reason,
+        genbehandling_bemaerkning,
         @dry_run AS dry_run
     FROM
         #calculated_statuses
@@ -405,5 +505,3 @@ BEGIN
         bevilling_id;
 END;
 GO
-
-

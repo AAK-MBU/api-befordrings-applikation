@@ -119,6 +119,12 @@ class Bevilling(Base):
     # the status resolves to Aktiv or Ophørt.
     statusbemaerkning: Mapped[str | None] = mapped_column(Unicode, nullable=True)
 
+    genbehandling: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    genbehandling_haandteret: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    genbehandling_bemaerkning: Mapped[str | None] = mapped_column(Unicode(500), nullable=True)
+    genbehandling_haandteret_adresse_id: Mapped[str | None] = mapped_column(Unicode(36), nullable=True)
+    genbehandling_haandteret_skolekode: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DATETIME2,
         nullable=False,
@@ -214,12 +220,18 @@ class Koersel(Base):
     koersel_til_institution: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     max_minutter_i_transport: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # Egenbefordring-specific: which Part receives the kilometre reimbursement.
-    # Soft in practice — Part rows are soft-deleted rather than removed, so the
-    # reference stays resolvable even after a party is deleted from the case.
+    # Egenbefordring-specific: which person receives the kilometre reimbursement.
+    # Two mutually exclusive columns — exactly one should be set for egenbefordring:
+    #   modtager_id  → FK to Part (øvrig part, manually added on the Parter tab)
+    #   modtager_cpr → CPR from Foraelder table (legal guardian / parent)
+    # Keeping them separate preserves the strict Foraelder/Part distinction.
     koerselsgodtgoerelse_modtager_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(f"{DB_SCHEMA}.Part.part_id"),
+        nullable=True,
+    )
+    koerselsgodtgoerelse_modtager_cpr: Mapped[str | None] = mapped_column(
+        String(10),
         nullable=True,
     )
 

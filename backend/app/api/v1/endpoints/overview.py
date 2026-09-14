@@ -40,6 +40,11 @@ def get_revurderinger(db: DbSession):
     return OverviewService(db=db).get_revurderinger()
 
 
+@router.get("/genbehandlinger")
+def get_genbehandlinger(db: DbSession):
+    return OverviewService(db=db).get_genbehandlinger()
+
+
 @router.get("/new_applications")
 def get_new_applications(db: DbSession):
     return OverviewService(db=db).get_new_applications()

@@ -76,6 +76,7 @@ class BevillingUpdateRequest(BaseModel):
     ppr_sagsbehandler_id: int | None = None
     revurderet_af_ppr: bool | None = None
     revurderet_af_br: bool | None = None
+    genbehandling_haandteret: bool | None = None
 
     # Lock flag. Sent on its own by the lock/unlock control, exactly as the
     # kørselsrække lock sends {"final": true} to its own update endpoint.
@@ -110,8 +111,10 @@ class KoerselsraekkeCreateRequest(BaseModel):
     koersel_til_institution: bool | None = None
     max_minutter_i_transport: int | None = None
 
-    # Egenbefordring-specific: the Part receiving the kilometre reimbursement.
-    koerselsgodtgoerelse_modtager_id: int | None = None
+    # Egenbefordring-specific: recipient of the kilometre reimbursement.
+    # Exactly one should be provided — mutually exclusive.
+    koerselsgodtgoerelse_modtager_id: int | None = None   # øvrig part (Part table)
+    koerselsgodtgoerelse_modtager_cpr: str | None = None  # foraelder (Foraelder table)
 
     tillaeg_ids: list[int] = Field(default_factory=list)
     dag_ids: list[int] = Field(default_factory=list)
@@ -143,8 +146,10 @@ class KoerselsraekkeUpdateRequest(BaseModel):
     koersel_til_institution: bool | None = None
     max_minutter_i_transport: int | None = None
 
-    # Egenbefordring-specific: the Part receiving the kilometre reimbursement.
-    koerselsgodtgoerelse_modtager_id: int | None = None
+    # Egenbefordring-specific: recipient of the kilometre reimbursement.
+    # Exactly one should be provided — mutually exclusive.
+    koerselsgodtgoerelse_modtager_id: int | None = None   # øvrig part (Part table)
+    koerselsgodtgoerelse_modtager_cpr: str | None = None  # foraelder (Foraelder table)
 
 
 class KoerselTillaegUpdateRequest(BaseModel):

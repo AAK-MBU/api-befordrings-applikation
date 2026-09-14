@@ -31,6 +31,11 @@ SELECT
     st.status_tekst,
     b.statusbemaerkning,
     b.revurdering,
+    -- Genbehandling: the bevilling's school or address no longer matches the
+    -- elev's current CPR data. Exposed so the bevilling card can show it —
+    -- previously it was only visible on the Genbehandling page.
+    b.genbehandling,
+    b.genbehandling_bemaerkning,
     b.final,
     b.esdh_noegle,
     e.elevklassetrin,
@@ -93,7 +98,8 @@ WHERE
 GROUP BY
     b.bevilling_id, b.loebenummer, b.created_at, b.updated_at,
     e.navne_adresse_beskyttelse, e.adresseringsnavn, e.cpr,
-    b.status_id, st.status_tekst, b.statusbemaerkning, b.revurdering, b.final, b.esdh_noegle, e.elevklassetrin,
+    b.status_id, st.status_tekst, b.statusbemaerkning, b.revurdering,
+    b.genbehandling, b.genbehandling_bemaerkning, b.final, b.esdh_noegle, e.elevklassetrin,
     b.sagsbehandlingsdato,
     ba.adresse_tekst,
     b.adresse_id,

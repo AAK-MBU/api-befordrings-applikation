@@ -31,7 +31,7 @@ from app.models.bevilling import (
     KoerselKoerselstypeTillaegLink,
     KoerselUgedagLink,
 )
-from app.models.citizen import Sagsaktivitet
+from app.models.citizen import Elev, Sagsaktivitet
 from app.models.lookup import PPRSagsbehandler, Sagsbehandler, Status
 
 
@@ -767,6 +767,12 @@ class BevillingService:
         ophoert_status_id = self.get_status_id_by_text("Ophørt")
         was_ophoert = bevilling.status_id == ophoert_status_id
 
+        # The genbehandling mismatch compares the bevilling against the elev, so
+        # a sign-off acknowledges that specific PAIR. Captured before mutating so
+        # the block below can tell whether the bevilling half of it moved.
+        gb_matrikel_before = bevilling.matrikel_id
+        gb_adresse_before = bevilling.adresse_id
+
         try:
             for field_name, value in bevilling_data.items():
                 setattr(bevilling, field_name, value)
@@ -796,6 +802,58 @@ class BevillingService:
                 cleared_revurderingsdato = bevilling.revurderingsdato
                 bevilling.sagsbehandlingsdato = date.today()
                 bevilling.revurderingsdato = None
+
+            # Genbehandling sign-off: snapshot the elev values the caseworker
+            # actually reviewed, so the SP can tell a NEW drift apart from the
+            # one that was just acknowledged.
+            if bevilling_data.get("genbehandling_haandteret") is True:
+                elev = self.db.get(Elev, bevilling.cpr_elev)
+
+                if not elev:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Kan ikke registrere genbehandling: elev ikke fundet i stamdata.",
+                    )
+
+                # Writing NULL for a dimension is safe only when the SP would not
+                # flag it — but if both are NULL no snapshot can be written at
+                # all, and the SP's IS NULL re-flag condition would fire on the
+                # very next run and silently undo the sign-off.
+                if elev.adresse_id is not None:
+                    bevilling.genbehandling_haandteret_adresse_id = elev.adresse_id
+
+                if elev.skolekode is not None:
+                    bevilling.genbehandling_haandteret_skolekode = elev.skolekode
+
+                if elev.adresse_id is None and elev.skolekode is None:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=(
+                            "Kan ikke registrere genbehandling: eleven har hverken "
+                            "adresse eller skolekode registreret, så kvitteringen "
+                            "kan ikke gemmes."
+                        ),
+                    )
+
+            # Changing the bevilling's school or address invalidates an earlier
+            # genbehandling sign-off: the caseworker approved the old pairing,
+            # not this one.
+            #
+            # usp_recalculate_bevilling_status only re-flags when the ELEV side
+            # drifts from the snapshot (it has no record of the bevilling side),
+            # so without this a school changed after sign-off would never
+            # re-enter genbehandling. Clearing the snapshot makes the SP's
+            # "... IS NULL" entry condition fire on the recalculation below.
+            #
+            # update_bevilling is the only path that writes these two fields on
+            # an existing bevilling — os2forms sets them at creation only.
+            if (
+                bevilling.matrikel_id != gb_matrikel_before
+                or bevilling.adresse_id != gb_adresse_before
+            ):
+                bevilling.genbehandling_haandteret = None
+                bevilling.genbehandling_haandteret_adresse_id = None
+                bevilling.genbehandling_haandteret_skolekode = None
 
             bevilling.updated_by = "frontend"
 

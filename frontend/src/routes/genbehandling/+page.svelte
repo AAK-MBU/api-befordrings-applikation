@@ -1,33 +1,30 @@
   <script lang="ts">
     import { invalidateAll } from "$app/navigation";
     import { backendFetch } from "$lib/client/backendFetch";
-    import { formatDanishDate, getStatusBadgeClass, formatCpr, getBefordringstypeBadgeClass } from "$lib/tableColumnConfig";
+    import { formatDanishDate, formatCpr, getBefordringstypeBadgeClass } from "$lib/tableColumnConfig";
     import BevillingTable from "$lib/components/BevillingTable.svelte";
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
-    import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
-    import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
+    import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
     export let data;
 
-    // can_edit is resolved by the backend from EDIT_ROLES (see GET /me), so
-    // the UI cannot drift from what require_edit actually enforces.
     $: canEdit = data.user?.can_edit ?? false;
 
-    $: revurderinger        = data.revurderinger        ?? [];
-    $: koerselstyper        = data.koerselstyper        ?? [];
-    $: tidspunkter          = data.tidspunkter          ?? [];
-    $: hjemler              = data.hjemler              ?? [];
-    $: afgoerelsesbreve     = data.afgoerelsesbreve     ?? [];
-    $: koerselstypeTillaeg  = data.koerselstypeTillaeg  ?? [];
-    $: dage                 = data.dage                 ?? [];
-    $: statuser             = data.statuser             ?? [];
-    $: skolematrikler       = data.skolematrikler       ?? [];
-    $: sagsbehandlere       = data.sagsbehandlere       ?? [];
-    $: pprSagsbehandlere    = data.pprSagsbehandlere    ?? [];
-    $: hjaelpemidler        = data.hjaelpemidler        ?? [];
-    $: ungdomsuddannelser   = data.ungdomsuddannelser   ?? [];
-    $: rutetyper            = data.rutetyper            ?? [];
+    $: genbehandlinger       = data.genbehandlinger       ?? [];
+    $: koerselstyper         = data.koerselstyper         ?? [];
+    $: tidspunkter           = data.tidspunkter           ?? [];
+    $: hjemler               = data.hjemler               ?? [];
+    $: afgoerelsesbreve      = data.afgoerelsesbreve      ?? [];
+    $: koerselstypeTillaeg   = data.koerselstypeTillaeg   ?? [];
+    $: dage                  = data.dage                  ?? [];
+    $: statuser              = data.statuser              ?? [];
+    $: skolematrikler        = data.skolematrikler        ?? [];
+    $: sagsbehandlere        = data.sagsbehandlere        ?? [];
+    $: pprSagsbehandlere     = data.pprSagsbehandlere     ?? [];
+    $: hjaelpemidler         = data.hjaelpemidler         ?? [];
+    $: ungdomsuddannelser    = data.ungdomsuddannelser    ?? [];
+    $: rutetyper             = data.rutetyper             ?? [];
 
     $: lookupOptions = {
       koerselstyper, tidspunkter, koerselstypeTillaeg, dage,
@@ -41,20 +38,11 @@
     let selectedPprSagsbehandler = "";
     let selectedKoerselstype = "";
 
-    const defaultToDate = (() => {
-      const d = new Date();
-      d.setMonth(d.getMonth() + 1);
-      return d.toISOString().slice(0, 10);
-    })();
-    let filterFromDate = "";
-    let filterToDate = defaultToDate;
-    let quickFilter: null | "overskredet" | "inden30" = null;
-
-    $: uniqueSkoler            = [...new Set(revurderinger.map((b: any) => b.skole_navn).filter(Boolean))].sort() as string[];
-    $: uniqueSagsbehandlere    = [...new Set(revurderinger.map((b: any) => b.sagsbehandler_tekst).filter(Boolean))].sort() as string[];
-    $: uniquePprSagsbehandlere = [...new Set(revurderinger.map((b: any) => b.ppr_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
+    $: uniqueSkoler            = [...new Set(genbehandlinger.map((b: any) => b.skole_navn).filter(Boolean))].sort() as string[];
+    $: uniqueSagsbehandlere    = [...new Set(genbehandlinger.map((b: any) => b.sagsbehandler_tekst).filter(Boolean))].sort() as string[];
+    $: uniquePprSagsbehandlere = [...new Set(genbehandlinger.map((b: any) => b.ppr_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
     $: uniqueKoerselstyper     = [...new Set(
-      revurderinger.flatMap((b: any) =>
+      genbehandlinger.flatMap((b: any) =>
         (b.koerselsraekker ?? [])
           .filter((k: any) => !k.final)
           .map((k: any) => k.befordringstype_tekst)
@@ -62,78 +50,25 @@
       )
     )].sort() as string[];
 
-    $: filteredRevurderinger = revurderinger.filter((b: any) => {
+    $: filteredGenbehandlinger = genbehandlinger.filter((b: any) => {
       if (selectedSkole            && b.skole_navn              !== selectedSkole)            return false;
       if (selectedSagsbehandler    && b.sagsbehandler_tekst     !== selectedSagsbehandler)    return false;
       if (selectedPprSagsbehandler && b.ppr_sagsbehandler_tekst !== selectedPprSagsbehandler) return false;
-
       if (selectedKoerselstype) {
-        const types = (b.koerselsraekker ?? [])
-          .filter((k: any) => !k.final)
-          .map((k: any) => k.befordringstype_tekst);
+        const types = (b.koerselsraekker ?? []).filter((k: any) => !k.final).map((k: any) => k.befordringstype_tekst);
         if (!types.includes(selectedKoerselstype)) return false;
       }
-
-      if (b.revurderingsdato) {
-        if (filterFromDate && b.revurderingsdato < filterFromDate) return false;
-        if (filterToDate   && b.revurderingsdato > filterToDate)   return false;
-      }
-
-      if (quickFilter === "overskredet") {
-        if ((daysUntil(b.revurderingsdato) ?? 0) >= 0) return false;
-      }
-      if (quickFilter === "inden30") {
-        const d = daysUntil(b.revurderingsdato);
-        if (d === null || d < 0 || d > 30) return false;
-      }
-
       return true;
     });
 
-    $: anyFilterActive = !!(selectedSkole || selectedSagsbehandler || selectedPprSagsbehandler
-                            || selectedKoerselstype || filterFromDate
-                            || filterToDate !== defaultToDate || quickFilter);
-
-    $: overskredet    = revurderinger.filter((b: any) => (daysUntil(b.revurderingsdato) ?? 0) < 0).length;
-    $: indenFor30Dage = revurderinger.filter((b: any) => { const d = daysUntil(b.revurderingsdato); return d !== null && d >= 0 && d <= 30; }).length;
-
-    function daysUntil(dateStr: string | null): number | null {
-      if (!dateStr) return null;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const target = new Date(dateStr);
-      return Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    }
-
-    function urgencyColor(revurderingsdato: string | null): string {
-      const d = daysUntil(revurderingsdato);
-      if (d === null) return "#6b7280";
-      if (d < 0)     return "#dc2626";
-      if (d <= 30)   return "#ca8a04";
-      return "#3b82f6";
-    }
-
-    function urgencyLabel(revurderingsdato: string | null): string {
-      const d = daysUntil(revurderingsdato);
-      if (d === null) return "Ingen dato";
-      if (d < 0)     return `${Math.abs(d)} dage overskredet`;
-      if (d === 0)   return "I dag";
-      if (d === 1)   return "I morgen";
-      return `Om ${d} dage`;
-    }
+    $: anyFilterActive = !!(selectedSkole || selectedSagsbehandler || selectedPprSagsbehandler || selectedKoerselstype);
 
     let expandedIds = new Set<number>();
-
-    // Parties per citizen, loaded lazily alongside aktiviteter and bevillinger
-    // when a row is expanded. Needed by the egenbefordring kørselsrække, which
-    // names one of them as the recipient of the kilometre reimbursement.
     let parterByCpr: Record<string, any[]> = {};
 
     async function loadParter(cpr: string) {
       const res = await backendFetch(`/part/${cpr}/recipients`);
-
       if (!res.ok) return;
-
       parterByCpr[cpr] = await res.json();
       parterByCpr = { ...parterByCpr };
     }
@@ -143,7 +78,7 @@
         expandedIds.delete(id);
       } else {
         expandedIds.add(id);
-        const bev = revurderinger.find((r: any) => r.bevilling_id === id);
+        const bev = genbehandlinger.find((r: any) => r.bevilling_id === id);
         if (bev) {
           if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
           if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
@@ -154,8 +89,8 @@
     }
 
     function expandAll() {
-      expandedIds = new Set(filteredRevurderinger.map((b: any) => b.bevilling_id));
-      filteredRevurderinger.forEach((bev: any) => {
+      expandedIds = new Set(filteredGenbehandlinger.map((b: any) => b.bevilling_id));
+      filteredGenbehandlinger.forEach((bev: any) => {
         if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
         if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
         if (!parterByCpr[bev.cpr_elev]) loadParter(bev.cpr_elev);
@@ -166,10 +101,7 @@
       expandedIds = new Set();
     }
 
-    $: allExpanded = filteredRevurderinger.length > 0 && filteredRevurderinger.every((b: any) => expandedIds.has(b.bevilling_id));
-
-    function emptyToNull(value: any) { return value === "" ? null : value; }
-    function numberOrNull(value: any) { return value === "" ? null : Number(value); }
+    $: allExpanded = filteredGenbehandlinger.length > 0 && filteredGenbehandlinger.every((b: any) => expandedIds.has(b.bevilling_id));
 
     async function handleSaveBevilling(bevillingId: number, updates: any): Promise<string | null> {
       const { hjaelpemiddel_ids, ...bevillingUpdates } = updates;
@@ -240,41 +172,38 @@
       return null;
     }
 
+    let genbehandlingConfirmFor: { bevillingId: number; cpr: string } | null = null;
+    let genbehandlingSigningOff = false;
+    let genbehandlingSignOffError: string | null = null;
 
-
-    async function togglePpr(bevillingId: number, cpr: string, current: boolean | null) {
-      const res = await backendFetch(`/bevilling/${bevillingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ revurderet_af_ppr: !current }),
-      });
-      if (!res.ok) { console.error("Failed to update revurderet_af_ppr:", res.status); return; }
-      await loadAktiviteter(cpr);
-      await invalidateAll();
+    function openGenbehandlingConfirm(bevillingId: number, cpr: string) {
+      genbehandlingConfirmFor = { bevillingId, cpr };
+      genbehandlingSignOffError = null;
     }
 
-    let brConfirmFor: { bevillingId: number; cpr: string; current: boolean | null } | null = null;
-    let pprConfirmFor: { bevillingId: number; cpr: string; current: boolean | null } | null = null;
-
-    function openBrConfirm(bevillingId: number, cpr: string, current: boolean | null) {
-      if (current) { toggleBr(bevillingId, cpr, current); return; }
-      brConfirmFor = { bevillingId, cpr, current };
-    }
-
-    function openPprConfirm(bevillingId: number, cpr: string, current: boolean | null) {
-      if (current) { togglePpr(bevillingId, cpr, current); return; }
-      pprConfirmFor = { bevillingId, cpr, current };
-    }
-
-    async function toggleBr(bevillingId: number, cpr: string, current: boolean | null) {
-      const res = await backendFetch(`/bevilling/${bevillingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ revurderet_af_br: !current }),
-      });
-      if (!res.ok) { console.error("Failed to update revurderet_af_br:", res.status); return; }
-      await loadAktiviteter(cpr);
-      await invalidateAll();
+    async function markGenbehandlingHaandteret() {
+      if (!genbehandlingConfirmFor || genbehandlingSigningOff) return;
+      const { bevillingId, cpr } = genbehandlingConfirmFor;
+      genbehandlingSigningOff = true;
+      genbehandlingSignOffError = null;
+      try {
+        const res = await backendFetch(`/bevilling/${bevillingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ genbehandling_haandteret: true }),
+        });
+        if (!res.ok) {
+          let message = "Ukendt fejl";
+          try { const err = await res.json(); message = err?.detail ?? message; } catch { /* keep fallback */ }
+          genbehandlingSignOffError = message;
+          return;
+        }
+        await loadAktiviteter(cpr);
+        genbehandlingConfirmFor = null;
+        await invalidateAll();
+      } finally {
+        genbehandlingSigningOff = false;
+      }
     }
 
     let aktiviteterByCpr: Record<string, any[]> = {};
@@ -296,7 +225,6 @@
     }
 
     let expandedCommentsBevIds = new Set<number>();
-
     let copiedCpr: string | null = null;
 
     async function copyCpr(cpr: string, e: Event) {
@@ -343,13 +271,6 @@
         savingInlineCommentIds.delete(bevillingId);
         savingInlineCommentIds = new Set(savingInlineCommentIds);
       }
-    }
-
-    function openCommentModal(cpr: string, bevillingId: number) {
-      commentModalCpr = cpr;
-      commentModalBevillingId = bevillingId;
-      newComment = "";
-      showCommentModal = true;
     }
 
     async function saveComment() {
@@ -404,16 +325,10 @@
 
     let showCreateBevillingModal = false;
     let bevillingModalCpr = "";
-    // Captured when the modal opens: the modal sits outside the row loop, so the
-    // student's klassetrin has to be carried across with the cpr.
     let bevillingModalElevklassetrin: string | null = null;
     let createBevillingModalMode: 'kopi' | 'tom' | null = null;
 
-    function openCreateBevillingModal(
-      cpr: string,
-      mode: 'kopi' | 'tom',
-      elevklassetrin: string | null = null
-    ) {
+    function openCreateBevillingModal(cpr: string, mode: 'kopi' | 'tom', elevklassetrin: string | null = null) {
       bevillingModalCpr = cpr;
       bevillingModalElevklassetrin = elevklassetrin;
       createBevillingModalMode = mode;
@@ -422,10 +337,68 @@
 
     let showCreateLetterModal = false;
     let letterModalCpr = "";
+    let letterType = "";
+    let befordringsudvalgResultat = "";
+    let selectedLetterBevillingId = "";
+    let ophoersdato = "";
+    let creatingLetter = false;
+
+    $: selectedLetterBevilling = selectedLetterBevillingId
+      ? (bevillingerByCpr[letterModalCpr] ?? []).find((b: any) => String(b.bevilling_id) === selectedLetterBevillingId)
+      : null;
+    $: selectedLetterBevillingHasBefordringsudvalg = !!(selectedLetterBevilling?.befordringsudvalg);
+    $: selectedLetterBevillingIsOphoert = selectedLetterBevilling?.status_tekst === "Ophørt";
 
     function openCreateLetterModal(cpr: string) {
       letterModalCpr = cpr;
+      letterType = "";
+      befordringsudvalgResultat = "";
+      selectedLetterBevillingId = "";
+      ophoersdato = "";
       showCreateLetterModal = true;
+    }
+
+    async function handleCreateLetter() {
+      if (!selectedLetterBevillingId) { alert("Vælg en bevilling"); return; }
+      if (!letterType) { alert("Vælg hvad brevet er i forbindelse med"); return; }
+      if (selectedLetterBevillingHasBefordringsudvalg && !befordringsudvalgResultat) { alert("Vælg resultat af befordringsudvalgsmøde"); return; }
+      if (selectedLetterBevillingIsOphoert && !ophoersdato) { alert("Vælg ophørsdato"); return; }
+
+      creatingLetter = true;
+      try {
+        const payload = {
+          brev_i_forbindelse_med: letterType,
+          befordringsudvalg_resultat: selectedLetterBevillingHasBefordringsudvalg ? befordringsudvalgResultat : null,
+          ophoersdato: selectedLetterBevillingIsOphoert ? ophoersdato : null,
+        };
+        const res = await backendFetch(
+          `/bevilling/create_letter/${letterModalCpr}/${selectedLetterBevillingId}`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+        );
+        if (!res.ok) {
+          let message = "Kunne ikke oprette brev";
+          try { const err = await res.json(); message = err?.detail?.message ?? err?.detail ?? message; } catch { /* keep fallback */ }
+          alert(message);
+          return;
+        }
+        const result = await res.json();
+        alert(`Brev er sat i kø. Reference: ${result.reference}`);
+        await backendFetch(`/aktivitet/${letterModalCpr}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            aktivitetstype: "Brev oprettet",
+            kommentar: `Bevilling ID: ${selectedLetterBevillingId}`,
+            relateret_bevilling_id: Number(selectedLetterBevillingId),
+            udfoert_af: null,
+          }),
+        });
+        showCreateLetterModal = false;
+        await loadAktiviteter(letterModalCpr);
+        await invalidateAll();
+      } finally {
+        creatingLetter = false;
+      }
     }
 
     let editingBevillingFields: number | null = null;
@@ -433,7 +406,6 @@
       hjemmel_id: null as number | null,
       afgoerelsesbrev_id: null as number | null,
       afstandskriterie_dato: "",
-      revurderingsdato: "",
     };
 
     function startEditFields(bev: any) {
@@ -442,39 +414,10 @@
         hjemmel_id: bev.hjemmel_id ?? null,
         afgoerelsesbrev_id: bev.afgoerelsesbrev_id ?? null,
         afstandskriterie_dato: bev.afstandskriterie_dato ? bev.afstandskriterie_dato.slice(0, 10) : "",
-        revurderingsdato: bev.revurderingsdato ? bev.revurderingsdato.slice(0, 10) : "",
       };
     }
 
     function cancelEditFields() { editingBevillingFields = null; }
-
-    const labelFor = (options: any[] | undefined, id: any): string | null =>
-      id === null || id === undefined || id === ""
-        ? null
-        : (options ?? []).find((o: any) => Number(o.id) === Number(id))?.label ?? null;
-
-    // Changing hjemmel narrows the valid afgørelsesbreve, so a letter chosen
-    // under the previous hjemmel must not silently survive. Same rule as the
-    // bevilling card; this form has no status select, so the bevilling's saved
-    // status is what the status filter uses.
-    function changeHjemmel(bev: any, rawValue: string) {
-      const hjemmelId = rawValue ? Number(rawValue) : null;
-      const skoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole';
-
-      const gyldige = filterAfgoerelsesbreveByStatus(
-        filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, skoleType, labelFor(hjemler, hjemmelId)),
-        bev.status_tekst,
-        null,
-      );
-
-      const valgt = labelFor(afgoerelsesbreve, editFields.afgoerelsesbrev_id);
-
-      editFields = {
-        ...editFields,
-        hjemmel_id: hjemmelId,
-        afgoerelsesbrev_id: valgt && !containsLabel(gyldige, valgt) ? null : editFields.afgoerelsesbrev_id,
-      };
-    }
 
     async function saveEditFields(bevillingId: number) {
       const res = await backendFetch(`/bevilling/${bevillingId}`, {
@@ -484,7 +427,6 @@
           hjemmel_id: editFields.hjemmel_id,
           afgoerelsesbrev_id: editFields.afgoerelsesbrev_id,
           afstandskriterie_dato: editFields.afstandskriterie_dato || null,
-          revurderingsdato: editFields.revurderingsdato || null,
         }),
       });
       if (!res.ok) { console.error("Failed to update bevilling fields:", res.status); return; }
@@ -497,60 +439,39 @@
 <svelte:window on:keydown={(e) => {
   if (e.key !== 'Escape') return;
   if (showCreateBevillingModal) { showCreateBevillingModal = false; }
+  if (showCreateLetterModal) { showCreateLetterModal = false; }
   if (showCommentModal) { showCommentModal = false; }
-  if (pprConfirmFor) { pprConfirmFor = null; }
-  if (brConfirmFor) { brConfirmFor = null; }
+  if (genbehandlingConfirmFor) { genbehandlingConfirmFor = null; }
 }} />
 
 <svelte:head>
-  <title>Befordring – Revurdering</title>
+  <title>Befordring – Genbehandling</title>
 </svelte:head>
 
 
-{#if pprConfirmFor}
+{#if genbehandlingConfirmFor}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" tabindex="-1">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
       <div class="flex items-center justify-between px-5 py-4" style="background:#032A42;">
-        <h3 class="text-sm font-semibold text-white">PPR vurderet</h3>
-        <button type="button" aria-label="Luk" class="text-white/70 hover:text-white" on:click={() => (pprConfirmFor = null)}>
+        <h3 class="text-sm font-semibold text-white">Genbehandling håndteret</h3>
+        <button type="button" aria-label="Luk" class="text-white/70 hover:text-white" on:click={() => (genbehandlingConfirmFor = null)}>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
       <div class="px-5 py-5 text-sm text-gray-700 space-y-3">
-        <p>Sørg for at du er helt færdig med vurderingen før du godkender.</p>
-        <p class="font-semibold text-gray-900">Sagen er vurderet</p>
+        <p>Sagen fjernes fra listen når du trykker godkend. Sørg for at du er færdig med genbehandlingen og har oprettet eventuelle breve.</p>
+        <p class="font-semibold text-gray-900">Marker sagen som håndteret?</p>
+        {#if genbehandlingSignOffError}
+          <p class="text-sm text-red-600">{genbehandlingSignOffError}</p>
+        {/if}
       </div>
       <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
-        <button type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg" on:click={() => (pprConfirmFor = null)}>Annullér</button>
-        <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg"
-          on:click={async () => { if (pprConfirmFor) { await togglePpr(pprConfirmFor.bevillingId, pprConfirmFor.cpr, pprConfirmFor.current); pprConfirmFor = null; } }}>Godkend</button>
-      </div>
-    </div>
-  </div>
-{/if}
-
-
-{#if brConfirmFor}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" tabindex="-1">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-4" style="background:#032A42;">
-        <h3 class="text-sm font-semibold text-white">BR vurderet</h3>
-        <button type="button" aria-label="Luk" class="text-white/70 hover:text-white" on:click={() => (brConfirmFor = null)}>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div class="px-5 py-5 text-sm text-gray-700 space-y-3">
-        <p>Sagen forsvinder fra denne side når du godkender vurderingen. Sørg derfor for at du er helt færdig med vurderingen og har oprettet brev.</p>
-        <p class="font-semibold text-gray-900">Sagen er vurderet</p>
-      </div>
-      <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
-        <button type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg" on:click={() => (brConfirmFor = null)}>Annullér</button>
-        <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg"
-          on:click={async () => { if (brConfirmFor) { await toggleBr(brConfirmFor.bevillingId, brConfirmFor.cpr, brConfirmFor.current); brConfirmFor = null; } }}>Godkend</button>
+        <button type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg" on:click={() => (genbehandlingConfirmFor = null)}>Annullér</button>
+        <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50"
+          disabled={genbehandlingSigningOff}
+          on:click={markGenbehandlingHaandteret}>Godkend</button>
       </div>
     </div>
   </div>
@@ -571,13 +492,71 @@
 {/if}
 
 
-<!-- Create letter modal (shared with the student page) -->
-<CreateLetterModal
-  bind:open={showCreateLetterModal}
-  cpr={letterModalCpr}
-  bevillinger={bevillingerByCpr[letterModalCpr] ?? []}
-  on:created={async (e) => { await loadAktiviteter(e.detail.cpr); await invalidateAll(); }}
-/>
+{#if showCreateLetterModal}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="presentation">
+    <div class="w-[560px] bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
+
+      <div class="px-8 py-5 border-b border-gray-200 rounded-t-lg" style="background-color: #6d28d9;">
+        <h2 class="text-lg font-bold text-white">Opret brev</h2>
+        <p class="mt-0.5 text-sm" style="color: rgba(255,255,255,0.7);">Vælg bevilling og brevtype</p>
+      </div>
+
+      <div class="p-8 space-y-5">
+        <label class="block text-sm font-medium text-gray-700">
+          Vælg bevilling
+          <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={selectedLetterBevillingId}>
+            <option value="">Vælg bevilling</option>
+            {#each bevillingerByCpr[letterModalCpr] ?? [] as bevilling}
+              <option value={String(bevilling.bevilling_id)}>
+                Bevilling #{bevilling.bevilling_id} – {bevilling.status_tekst ?? "Ukendt status"}
+              </option>
+            {/each}
+          </select>
+        </label>
+
+        <label class="block text-sm font-medium text-gray-700">
+          Brevet er i forbindelse med en:
+          <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={letterType}>
+            <option value="">Vælg</option>
+            <option value="ansøgning">Ansøgning</option>
+            <option value="revurdering">Revurdering</option>
+            <option value="midlertidig kørsel">Midlertidig kørsel</option>
+          </select>
+        </label>
+
+        {#if selectedLetterBevillingHasBefordringsudvalg}
+          <label class="block text-sm font-medium text-gray-700">
+            Resultat af befordringsudvalgsmøde
+            <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={befordringsudvalgResultat}>
+              <option value="">Vælg</option>
+              <option value="Befordringsudvalg: Afslag / fastholdelse">Befordringsudvalg: Afslag / fastholdelse</option>
+              <option value="Befordringsudvalg: Ændring i bevilling">Befordringsudvalg: Ændring i bevilling</option>
+            </select>
+          </label>
+        {/if}
+
+        {#if selectedLetterBevillingIsOphoert}
+          <label class="block text-sm font-medium text-gray-700">
+            Ophørsdato
+            <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
+          </label>
+        {/if}
+      </div>
+
+      <div class="flex justify-end gap-3 border-t border-gray-200 px-8 py-5 bg-gray-50 rounded-b-lg">
+        <button type="button" class="px-5 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+          on:click={() => { showCreateLetterModal = false; }}>Annullér</button>
+        <button type="button" disabled={creatingLetter}
+          class="px-5 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors disabled:opacity-50"
+          on:click={handleCreateLetter}>
+          {creatingLetter ? "Opretter..." : "Opret brev"}
+        </button>
+      </div>
+
+    </div>
+  </div>
+{/if}
+
 
 {#if showCommentModal}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="presentation">
@@ -610,17 +589,17 @@
 
   <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Revurdering</h1>
-      <p class="text-sm text-gray-500 mt-0.5">Bevillinger der afventer revurdering</p>
+      <h1 class="text-2xl font-bold text-gray-900">Genbehandling</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Bevillinger med ændret data der kræver genbehandling</p>
     </div>
 
     <div class="flex items-center gap-4 flex-wrap">
 
       {#if uniqueSkoler.length > 0}
         <select class="min-w-[180px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedSkole}>
-          <option value="">Alle skoler ({revurderinger.length})</option>
+          <option value="">Alle skoler ({genbehandlinger.length})</option>
           {#each uniqueSkoler as skole}
-            {@const count = revurderinger.filter((b: any) => b.skole_navn === skole).length}
+            {@const count = genbehandlinger.filter((b: any) => b.skole_navn === skole).length}
             <option value={skole}>{skole} ({count})</option>
           {/each}
         </select>
@@ -630,7 +609,7 @@
         <select class="min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedSagsbehandler}>
           <option value="">Alle sagsbehandlere</option>
           {#each uniqueSagsbehandlere as sb}
-            {@const count = revurderinger.filter((b: any) => b.sagsbehandler_tekst === sb).length}
+            {@const count = genbehandlinger.filter((b: any) => b.sagsbehandler_tekst === sb).length}
             <option value={sb}>{sb} ({count})</option>
           {/each}
         </select>
@@ -640,7 +619,7 @@
         <select class="min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedPprSagsbehandler}>
           <option value="">Alle PPR sagsbehandlere</option>
           {#each uniquePprSagsbehandlere as ppr}
-            {@const count = revurderinger.filter((b: any) => b.ppr_sagsbehandler_tekst === ppr).length}
+            {@const count = genbehandlinger.filter((b: any) => b.ppr_sagsbehandler_tekst === ppr).length}
             <option value={ppr}>{ppr} ({count})</option>
           {/each}
         </select>
@@ -650,7 +629,7 @@
         <select class="min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedKoerselstype}>
           <option value="">Alle kørselstyper</option>
           {#each uniqueKoerselstyper as type}
-            {@const count = revurderinger.filter((b: any) =>
+            {@const count = genbehandlinger.filter((b: any) =>
               (b.koerselsraekker ?? []).filter((k: any) => !k.final).some((k: any) => k.befordringstype_tekst === type)
             ).length}
             <option value={type}>{type} ({count})</option>
@@ -658,17 +637,10 @@
         </select>
       {/if}
 
-      <div class="flex items-center gap-1.5">
-        <span class="text-xs text-gray-500 whitespace-nowrap">Dato fra</span>
-        <input type="date" bind:value={filterFromDate} class="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" />
-        <span class="text-xs text-gray-500">til</span>
-        <input type="date" bind:value={filterToDate} class="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" />
-      </div>
-
       {#if anyFilterActive}
         <button type="button"
           class="text-xs font-medium text-gray-500 hover:text-red-600 flex items-center gap-1 transition-colors whitespace-nowrap"
-          on:click={() => { selectedSkole = ""; selectedSagsbehandler = ""; selectedPprSagsbehandler = ""; selectedKoerselstype = ""; filterFromDate = ""; filterToDate = defaultToDate; quickFilter = null; }}>
+          on:click={() => { selectedSkole = ""; selectedSagsbehandler = ""; selectedPprSagsbehandler = ""; selectedKoerselstype = ""; }}>
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -676,7 +648,7 @@
         </button>
       {/if}
 
-      {#if filteredRevurderinger.length > 0}
+      {#if filteredGenbehandlinger.length > 0}
         <button type="button" class="text-xs font-medium text-sky-700 hover:underline whitespace-nowrap"
           on:click={() => allExpanded ? collapseAll() : expandAll()}>
           {allExpanded ? 'Fold alle' : 'Udvid alle'}
@@ -684,7 +656,7 @@
       {/if}
 
       <span class="text-sm font-bold text-gray-500">
-        {filteredRevurderinger.length}{anyFilterActive ? ` / ${revurderinger.length}` : ''} sager
+        {filteredGenbehandlinger.length}{anyFilterActive ? ` / ${genbehandlinger.length}` : ''} sager
       </span>
 
     </div>
@@ -692,37 +664,14 @@
 
 
   <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 mb-5 flex items-center gap-8">
-    <button type="button"
-      class="flex flex-col items-center rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-      class:hover:bg-gray-100={quickFilter !== null}
-      class:cursor-pointer={quickFilter !== null}
-      class:cursor-default={quickFilter === null}
-      on:click={() => { if (quickFilter !== null) quickFilter = null; }}>
-      <p class="text-3xl font-bold text-gray-900">{revurderinger.length}</p>
+    <div class="flex flex-col items-center">
+      <p class="text-3xl font-bold text-gray-900">{genbehandlinger.length}</p>
       <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Sager</p>
-    </button>
-    <div class="h-10 w-px bg-gray-200"></div>
-    <button type="button"
-      class="flex flex-col items-center hover:bg-red-50 transition-colors rounded px-2 py-1 -mx-2 -my-1"
-      class:ring-2={quickFilter === 'overskredet'}
-      class:ring-red-400={quickFilter === 'overskredet'}
-      on:click={() => { quickFilter = quickFilter === 'overskredet' ? null : 'overskredet'; }}>
-      <p class="text-3xl font-bold" style={overskredet > 0 ? 'color:#dc2626;' : 'color:#9ca3af;'}>{overskredet}</p>
-      <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Overskredet</p>
-    </button>
-    <div class="h-10 w-px bg-gray-200"></div>
-    <button type="button"
-      class="flex flex-col items-center hover:bg-yellow-50 transition-colors rounded px-2 py-1 -mx-2 -my-1"
-      class:ring-2={quickFilter === 'inden30'}
-      class:ring-yellow-400={quickFilter === 'inden30'}
-      on:click={() => { quickFilter = quickFilter === 'inden30' ? null : 'inden30'; }}>
-      <p class="text-3xl font-bold" style={indenFor30Dage > 0 ? 'color:#ca8a04;' : 'color:#9ca3af;'}>{indenFor30Dage}</p>
-      <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Inden for 30 dage</p>
-    </button>
+    </div>
   </div>
 
 
-  {#if filteredRevurderinger.length === 0}
+  {#if filteredGenbehandlinger.length === 0}
 
     <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-16 text-center">
       {#if anyFilterActive}
@@ -739,8 +688,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <p class="text-gray-700 font-semibold">Ingen sager til revurdering</p>
-        <p class="text-sm text-gray-400 mt-1">Alle bevillinger er opdaterede.</p>
+        <p class="text-gray-700 font-semibold">Ingen sager til genbehandling</p>
+        <p class="text-sm text-gray-400 mt-1">Ingen bevillinger har registreret data-mismatch.</p>
       {/if}
     </div>
 
@@ -748,10 +697,8 @@
 
     <div>
 
-      {#each filteredRevurderinger as bev, i}
+      {#each filteredGenbehandlinger as bev, i}
 
-        {@const color = urgencyColor(bev.revurderingsdato)}
-        {@const label = urgencyLabel(bev.revurderingsdato)}
         {@const isExpanded = expandedIds.has(bev.bevilling_id)}
         {@const activeKoerselstyper = [...new Set((bev.koerselsraekker ?? []).filter((k: any) => !k.final).map((k: any) => k.befordringstype_tekst).filter(Boolean))]}
 
@@ -759,7 +706,7 @@
 
           <div
             class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors select-none"
-            style="border-left: 3px solid {color};"
+            style="border-left: 3px solid #f59e0b;"
             on:click={() => toggleExpand(bev.bevilling_id)}
             role="button"
             tabindex="0"
@@ -825,57 +772,28 @@
                 <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Sagsbehandler</span>
                 <span class="text-xs text-gray-600 truncate">{bev.sagsbehandler_tekst ?? "—"}</span>
               </div>
-              <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Revurderingsdato</span>
-                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.revurderingsdato) ?? "—"}</span>
-              </div>
-              <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Udløbsdato</span>
-                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.gyldig_til) ?? "—"}</span>
-              </div>
-              {#if bev.statusbemaerkning}
+              {#if bev.genbehandling_bemaerkning}
                 <div class="flex flex-col min-w-0 flex-1 pl-2 border-l border-amber-200 ml-2">
                   <span class="text-[9px] font-bold uppercase tracking-wider text-amber-500 leading-none mb-0.5">Årsag</span>
-                  <span class="text-xs text-amber-700 truncate" title={bev.statusbemaerkning}>{bev.statusbemaerkning}</span>
+                  <span class="text-xs text-amber-700 truncate" title={bev.genbehandling_bemaerkning}>{bev.genbehandling_bemaerkning}</span>
                 </div>
               {/if}
             </div>
 
-            <div class="flex items-center gap-2 shrink-0">
-              <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style="background:{color}18; color:{color};">
-                {label}
-              </span>
-            </div>
-
             <div class="shrink-0 flex items-center gap-1.5">
-              <button type="button" title="PPR vurderet"
+              <button type="button" title="Genbehandling håndteret"
                 class="flex items-center gap-1.5 border-2 rounded px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap
-                  {bev.revurderet_af_ppr ? 'bg-green-600 border-green-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-500 hover:border-green-400 hover:text-green-600'}"
-                on:click|stopPropagation={() => openPprConfirm(bev.bevilling_id, bev.cpr_elev, bev.revurderet_af_ppr)}>
+                  {bev.genbehandling_haandteret ? 'bg-green-600 border-green-600 text-white shadow-sm cursor-default' : 'bg-white border-gray-300 text-gray-500 hover:border-green-400 hover:text-green-600'}"
+                on:click|stopPropagation={() => { if (!bev.genbehandling_haandteret) openGenbehandlingConfirm(bev.bevilling_id, bev.cpr_elev); }}>
                 <div class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0
-                  {bev.revurderet_af_ppr ? 'bg-white/20 border-white/60' : 'border-gray-300'}">
-                  {#if bev.revurderet_af_ppr}
+                  {bev.genbehandling_haandteret ? 'bg-white/20 border-white/60' : 'border-gray-300'}">
+                  {#if bev.genbehandling_haandteret}
                     <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   {/if}
                 </div>
-                PPR vurderet
-              </button>
-
-              <button type="button" title="BR vurderet"
-                class="flex items-center gap-1.5 border-2 rounded px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap
-                  {bev.revurderet_af_br ? 'bg-green-600 border-green-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-500 hover:border-green-400 hover:text-green-600'}"
-                on:click|stopPropagation={() => openBrConfirm(bev.bevilling_id, bev.cpr_elev, bev.revurderet_af_br)}>
-                <div class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0
-                  {bev.revurderet_af_br ? 'bg-white/20 border-white/60' : 'border-gray-300'}">
-                  {#if bev.revurderet_af_br}
-                    <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  {/if}
-                </div>
-                BR vurderet
+                Genbehandling håndteret
               </button>
             </div>
 
@@ -885,16 +803,16 @@
           {#if isExpanded}
             {@const isEditingFields = editingBevillingFields === bev.bevilling_id}
             {@const commentsOpen = expandedCommentsBevIds.has(bev.bevilling_id)}
-            <div class="border-t border-gray-100" style="border-left: 3px solid {color};">
+            <div class="border-t border-gray-100" style="border-left: 3px solid #f59e0b;">
 
-              {#if bev.statusbemaerkning}
+              {#if bev.genbehandling_bemaerkning}
                 <div class="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-start gap-2.5">
                   <svg class="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                   </svg>
                   <div>
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-0.5">Årsag til revurdering</p>
-                    <p class="text-sm text-amber-900">{bev.statusbemaerkning}</p>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-0.5">Årsag til genbehandling</p>
+                    <p class="text-sm text-amber-900">{bev.genbehandling_bemaerkning}</p>
                   </div>
                 </div>
               {/if}
@@ -925,7 +843,7 @@
                 </div>
                 <div class="px-4 pb-3">
                   <div class="bg-white border border-gray-300 rounded-lg shadow overflow-hidden">
-                    <div class="px-6 py-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-5">
+                    <div class="px-6 py-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-5">
 
                       <div>
                         <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klasseart</p>
@@ -940,8 +858,13 @@
                       </div>
 
                       <div class="col-span-2 sm:col-span-1">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Adresse</p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Adresse (folkeregister)</p>
                         <p class="text-sm text-gray-800 truncate" title={bev.folkeregister_adresse}>{bev.folkeregister_adresse ?? "—"}</p>
+                      </div>
+
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Adresse (bevilling)</p>
+                        <p class="text-sm text-gray-800 truncate" title={bev.adresse_for_bevilling}>{bev.adresse_for_bevilling ?? "—"}</p>
                       </div>
 
                       <div>
@@ -955,7 +878,7 @@
                           {@const editSkoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
                           <select class="w-full border border-gray-300 rounded pl-1.5 pr-6 py-0.5 text-xs focus:border-blue-400 focus:ring-0 bg-white"
                             value={editFields.hjemmel_id ?? ""}
-                            on:change={(e) => changeHjemmel(bev, e.currentTarget.value)}>
+                            on:change={(e) => editFields = { ...editFields, hjemmel_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}>
                             <option value="">—</option>
                             {#each filterHjemler(hjemler, bev.ansoegningstype, editSkoleType) as opt}
                               <option value={opt.id}>{opt.label}</option>
@@ -974,12 +897,7 @@
                             value={editFields.afgoerelsesbrev_id ?? ""}
                             on:change={(e) => editFields = { ...editFields, afgoerelsesbrev_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}>
                             <option value="">—</option>
-                            <!-- This form has no status select, so the bevilling's saved status decides. -->
-                            {#each filterAfgoerelsesbreveByStatus(
-                              filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType, labelFor(hjemler, editFields.hjemmel_id)),
-                              bev.status_tekst,
-                              afgoerelsesbreve.find((o: any) => Number(o.id) === Number(editFields.afgoerelsesbrev_id))?.label ?? null,
-                            ) as opt}
+                            {#each filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType) as opt}
                               <option value={opt.id}>{opt.label}</option>
                             {/each}
                           </select>
@@ -1005,15 +923,6 @@
                       <div>
                         <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Sagsbehandler</p>
                         <p class="text-sm text-gray-800">{bev.sagsbehandler_tekst ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Revurderingsdato</p>
-                        {#if isEditingFields}
-                          <input type="date" max="9999-12-31" class="w-full border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:border-blue-400 focus:ring-0" bind:value={editFields.revurderingsdato} />
-                        {:else}
-                          <p class="text-sm text-gray-800">{formatDanishDate(bev.revurderingsdato) ?? "—"}</p>
-                        {/if}
                       </div>
 
                     </div>

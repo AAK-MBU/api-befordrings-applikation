@@ -199,7 +199,7 @@
         koersel: { tidspunkt_id: "", befordringstype_id: "", bevilget_koereafstand_pr_vej: "",
           gyldig_fra: "", gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
           koersel_til_institution: "", max_minutter_i_transport: "",
-          koerselsgodtgoerelse_modtager_id: "", transporttid_i_bus: "", skift_med_bus: "" },
+          koerselsgodtgoerelse_modtager_id: "", koerselsgodtgoerelse_modtager_cpr: "", transporttid_i_bus: "", skift_med_bus: "" },
         dagIds: [] as number[],
         tillaegIds: [] as number[],
         dagSelectValue: "",
@@ -244,6 +244,7 @@
               koersel_til_institution: src.koersel_til_institution != null ? String(src.koersel_til_institution) : "",
               max_minutter_i_transport: src.max_minutter_i_transport != null ? String(src.max_minutter_i_transport) : "",
               koerselsgodtgoerelse_modtager_id: src.koerselsgodtgoerelse_modtager_id ?? "",
+              koerselsgodtgoerelse_modtager_cpr: src.koerselsgodtgoerelse_modtager_cpr ?? "",
               transporttid_i_bus: src.transporttid_i_bus != null ? String(src.transporttid_i_bus) : "",
               skift_med_bus: src.skift_med_bus != null ? String(src.skift_med_bus) : "",
             },
@@ -438,7 +439,7 @@
         if (!krs.rutetype_id) { modalError = `${prefix}Rutetype skal udfyldes`; return; }
         if (isModalKoerselEgenbefordring(krs.befordringstype_id)) {
           if (!krs.bevilget_koereafstand_pr_vej) { modalError = `${prefix}Bevilget km pr. vej skal udfyldes`; return; }
-          if (!krs.koerselsgodtgoerelse_modtager_id) { modalError = `${prefix}Kørselsgodtgørelse modtager skal udfyldes`; return; }
+          if (!krs.koerselsgodtgoerelse_modtager_id && !krs.koerselsgodtgoerelse_modtager_cpr) { modalError = `${prefix}Kørselsgodtgørelse modtager skal udfyldes`; return; }
         }
         if (isModalKoerselTaxaType(krs.befordringstype_id)) {
           if (krs.koersel_til_institution === "" || krs.koersel_til_institution == null) {
@@ -511,6 +512,7 @@
             koersel_til_institution:          isTxa ? (krs.koersel_til_institution === 'true' || krs.koersel_til_institution === true) : null,
             max_minutter_i_transport:         isTxa ? numberOrNull(krs.max_minutter_i_transport) : null,
             koerselsgodtgoerelse_modtager_id: isEgb ? numberOrNull(krs.koerselsgodtgoerelse_modtager_id) : null,
+            koerselsgodtgoerelse_modtager_cpr: isEgb ? (krs.koerselsgodtgoerelse_modtager_cpr || null) : null,
           };
           const krRes = await backendFetch(
             `/bevilling/create_koerselsraekke/${newBevillingId}`,
@@ -875,10 +877,29 @@
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager *</span>
                   <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
-                    value={krs.koerselsgodtgoerelse_modtager_id ?? ""}
-                    on:change={(e) => { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
+                    value={krs.koerselsgodtgoerelse_modtager_id ? `p:${krs.koerselsgodtgoerelse_modtager_id}` : krs.koerselsgodtgoerelse_modtager_cpr ? `f:${krs.koerselsgodtgoerelse_modtager_cpr}` : ""}
+                    on:change={(e) => {
+                      const v = e.currentTarget.value;
+                      if (!v) { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = ""; modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_cpr = ""; }
+                      else if (v.startsWith("p:")) { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = Number(v.slice(2)); modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_cpr = ""; }
+                      else if (v.startsWith("f:")) { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = ""; modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_cpr = v.slice(2); }
+                      modalKoerselList = modalKoerselList;
+                    }}>
                     <option value="">Vælg</option>
-                    {#each parter as p}<option value={p.part_id}>{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+                    {#if parter.some((r: any) => r.type === 'foraelder')}
+                      <optgroup label="Forældre">
+                        {#each parter.filter((r: any) => r.type === 'foraelder') as r}
+                          <option value="f:{r.cpr_foraelder}">{r.fulde_navn ?? r.cpr_foraelder}{r.relation ? ` (${r.relation})` : ""}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
+                    {#if parter.some((r: any) => r.type === 'part')}
+                      <optgroup label="Øvrige parter">
+                        {#each parter.filter((r: any) => r.type === 'part') as r}
+                          <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
                   </select>
                 </label>
                 <div></div><div></div>

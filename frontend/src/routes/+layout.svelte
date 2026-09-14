@@ -10,26 +10,17 @@
 
   let { children, data } = $props();
 
-  let nyeCount = $state(0);
-  let revCount = $state(0);
-
-  onMount(async () => {
-    try {
-      const [nyeRes, revRes] = await Promise.all([
-        backendFetch('/overview/new_applications'),
-        backendFetch('/overview/revurderinger'),
-      ]);
-      if (nyeRes.ok) nyeCount = (await nyeRes.json()).length;
-      if (revRes.ok) revCount = (await revRes.json()).length;
-    } catch {
-      // non-critical — badges just won't show
-    }
-  });
+  // Derived from layout data rather than fetched on mount, so invalidateAll()
+  // after a save updates the badges without a refresh. See +layout.server.ts.
+  const nyeCount = $derived(data.counts?.nye ?? 0);
+  const revCount = $derived(data.counts?.revurderinger ?? 0);
+  const genbehandlingCount = $derived(data.counts?.genbehandlinger ?? 0);
 
   const tabs = [
     { href: '/', label: 'Overblik' },
     { href: '/nye-ansoegninger', label: 'Nye ansøgninger' },
     { href: '/revurdering', label: 'Revurdering' },
+    { href: '/genbehandling', label: 'Genbehandling' },
     { href: '/links', label: 'Links' },
   ];
 
@@ -178,7 +169,7 @@
     <ul class="flex flex-wrap">
       {#each tabs as tab}
         {@const active = isActive(tab)}
-        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : 0}
+        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : tab.href === '/genbehandling' ? genbehandlingCount : 0}
         <li>
           <a
             href={tab.href}
