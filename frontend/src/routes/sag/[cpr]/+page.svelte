@@ -245,7 +245,8 @@
   let filterFra = "";
   let filterTil = "";
   let filterUdfoertAf: string[] = [];
-  let openDropdown: "type" | "sender" | null = null;
+  let filterBevillingIds: number[] = [];
+  let openDropdown: "type" | "sender" | "bevilling" | null = null;
   let sortAsc = false;
 
   const feedMinDate = new Date(new Date().getFullYear() - 10, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
@@ -253,7 +254,24 @@
 
   $: uniqueCategories = [...new Set<string>((aktiviteter ?? []).map((a: any) => getCategory(a.aktivitetstype ?? "")))].sort((a: string, b: string) => a.localeCompare(b, "da"));
   $: uniqueSenders = [...new Set<string>((aktiviteter ?? []).map((a: any) => a.udfoert_af ?? "").filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, "da"));
-  $: feedHasActiveFilters = filterTypes.length > 0 || filterFra !== "" || filterTil !== "" || filterUdfoertAf.length > 0;
+  // Bevillinger referenced by at least one activity, newest first. Built from
+  // the feed rather than from `bevillinger` so the dropdown never offers a
+  // bevilling that would filter the list down to nothing.
+  //
+  // Labelled with bevillingLabelById (the same "Bevilling 2" the badge shows),
+  // falling back to the system id for a bevilling that has since been deleted
+  // but whose activities remain.
+  $: bevillingFilterOptions = [
+    ...new Set<number>(
+      (aktiviteter ?? [])
+        .map((a: any) => a.relateret_bevilling_id)
+        .filter((id: any): id is number => id !== null && id !== undefined)
+    ),
+  ]
+    .sort((a, b) => b - a)
+    .map((id) => ({ id, label: bevillingLabelById.get(id) ?? `Bevilling #${id}` }));
+
+  $: feedHasActiveFilters = filterTypes.length > 0 || filterFra !== "" || filterTil !== "" || filterUdfoertAf.length > 0 || filterBevillingIds.length > 0;
 
   $: filteredAktiviteter = (() => {
     const list = (aktiviteter ?? []).filter((a: any) => {
@@ -270,6 +288,7 @@
         if (ts > til) return false;
       }
       if (filterUdfoertAf.length > 0 && !filterUdfoertAf.includes(a.udfoert_af ?? "")) return false;
+      if (filterBevillingIds.length > 0 && !filterBevillingIds.includes(a.relateret_bevilling_id)) return false;
       return true;
     });
     return sortAsc ? [...list].reverse() : list;
@@ -280,6 +299,7 @@
     filterFra = "";
     filterTil = "";
     filterUdfoertAf = [];
+    filterBevillingIds = [];
   }
 
 
@@ -1081,6 +1101,43 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </div>
           {/if}
         </div>
+
+
+        <!-- Bevilling dropdown -->
+        {#if bevillingFilterOptions.length > 0}
+          <div class="relative feed-filter-dropdown">
+            <button
+              type="button"
+              class="relative min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 bg-white hover:border-gray-400 text-left"
+              on:click|stopPropagation={() => openDropdown = openDropdown === "bevilling" ? null : "bevilling"}
+            >
+              {filterBevillingIds.length > 0
+                ? bevillingFilterOptions.filter((o) => filterBevillingIds.includes(o.id)).map((o) => o.label).join(", ")
+                : "Alle bevillinger"}
+              <svg class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            {#if openDropdown === "bevilling"}
+              <div class="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded shadow-lg min-w-[190px] py-1">
+                {#each bevillingFilterOptions as option}
+                  <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={filterBevillingIds.includes(option.id)}
+                      on:change={() => {
+                        filterBevillingIds = filterBevillingIds.includes(option.id)
+                          ? filterBevillingIds.filter((id) => id !== option.id)
+                          : [...filterBevillingIds, option.id];
+                      }}
+                      class="rounded border-gray-300 text-blue-500"
+                    />
+                    {option.label}
+                    <span class="ml-auto font-mono text-[10px] text-gray-400">#{option.id}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
 
 
         <!-- Udført af dropdown -->
