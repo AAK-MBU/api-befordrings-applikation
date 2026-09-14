@@ -11,7 +11,7 @@
   import { createEventDispatcher } from "svelte";
 
   import { backendFetch } from "$lib/client/backendFetch";
-  import { firstInvalidDate } from "$lib/dates";
+  import { MIN_DATE, MAX_DATE, firstInvalidDate, firstOutOfRangeDate } from "$lib/dates";
   import { bevillingLabel } from "$lib/bevillingLabel";
 
   export let open = false;
@@ -115,6 +115,29 @@
     );
 
     if (invalidDate) return "Angiv en gyldig dato (åååå-mm-dd).";
+
+    // Separate from the check above: a mistyped year like 2071 is a perfectly
+    // real calendar date, so isValidDate accepts it. The min/max attributes
+    // bound the picker but do not stop a typed or pasted value being read via
+    // bind:value — this is what actually blocks it.
+    const outOfRange = firstOutOfRangeDate(
+      {
+        koersel_startdato: koerselStartdato,
+        dato_for_seneste_bevilling: datoForSenesteBevilling,
+        dato_for_tidligere_afgoerelse: tidligereAfgoerelseDato,
+        ophoersdato,
+      },
+      [
+        "koersel_startdato",
+        "dato_for_seneste_bevilling",
+        "dato_for_tidligere_afgoerelse",
+        "ophoersdato",
+      ],
+    );
+
+    if (outOfRange) {
+      return `Dato er ugyldig — kontrollér årstallet (skal være mellem ${MIN_DATE.slice(0, 4)} og ${MAX_DATE.slice(0, 4)}).`;
+    }
 
     return null;
   }
@@ -236,7 +259,7 @@
 
         <label class={labelClass}>
           Startdato for kørsel *
-          <input type="date" max="9999-12-31" class={fieldClass} bind:value={koerselStartdato} />
+          <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={koerselStartdato} />
           <span class="mt-1 block text-xs font-normal text-gray-500">
             Udfyldes automatisk med den tidligste "gyldig fra" på bevillingens kørselsrækker.
           </span>
@@ -244,7 +267,7 @@
 
         <label class={labelClass}>
           Dato for seneste bevilling
-          <input type="date" max="9999-12-31" class={fieldClass} bind:value={datoForSenesteBevilling} />
+          <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={datoForSenesteBevilling} />
         </label>
 
         {#if harBefordringsudvalg}
@@ -258,14 +281,14 @@
           </label>
           <label class={labelClass}>
             Dato for tidligere afgørelse *
-            <input type="date" max="9999-12-31" class={fieldClass} bind:value={tidligereAfgoerelseDato} />
+            <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={tidligereAfgoerelseDato} />
           </label>
         {/if}
 
         {#if erOphoert}
           <label class={labelClass}>
             Ophørsdato *
-            <input type="date" max="9999-12-31" class={fieldClass} bind:value={ophoersdato} />
+            <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={ophoersdato} />
           </label>
         {/if}
       </div>

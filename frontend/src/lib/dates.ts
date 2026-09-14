@@ -60,3 +60,54 @@ export function firstInvalidDate(
 
   return null;
 }
+
+/**
+ * The plausible date window for this application: ±10 calendar years around
+ * today, snapped to year boundaries (1 Jan … 31 Dec).
+ *
+ * Bevillinger and kørselsrækker are school-year scoped, so nothing legitimate
+ * falls outside this. The range exists to catch typos — a mistyped year is the
+ * common failure, and `isValidDate` alone accepts 1998 or 2071 happily because
+ * both are real calendar dates.
+ *
+ * Use both halves together at every date input:
+ *   - `MIN_DATE` / `MAX_DATE` as the `min`/`max` attributes, which bound the
+ *     native picker and mark the field invalid;
+ *   - `isDateOutOfRange` in the submit handler, which is what actually blocks
+ *     the value — these forms submit via JS, so the attributes do not stop a
+ *     pasted or typed value from being read through `bind:value`.
+ *
+ * Computed once at module load. A session spanning New Year keeps the window it
+ * started with, which is immaterial at ±10 years.
+ */
+export const MIN_DATE = new Date(new Date().getFullYear() - 10, 0, 1)
+  .toISOString()
+  .slice(0, 10);
+
+export const MAX_DATE = new Date(new Date().getFullYear() + 10, 11, 31)
+  .toISOString()
+  .slice(0, 10);
+
+/** True when `value` is present and falls outside MIN_DATE…MAX_DATE. */
+export function isDateOutOfRange(value: string | null | undefined): boolean {
+  return !!value && (value < MIN_DATE || value > MAX_DATE);
+}
+
+/**
+ * Returns the first `[key, value]` that is present but outside the plausible
+ * range, or `null`. Mirrors `firstInvalidDate` so a caller can run both.
+ */
+export function firstOutOfRangeDate(
+  payload: Record<string, unknown>,
+  dateKeys: string[],
+): [string, unknown] | null {
+  for (const key of dateKeys) {
+    const value = payload[key];
+
+    if (typeof value === "string" && isDateOutOfRange(value)) {
+      return [key, value];
+    }
+  }
+
+  return null;
+}

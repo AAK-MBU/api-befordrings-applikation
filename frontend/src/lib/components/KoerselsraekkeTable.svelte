@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/stores";
+  import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
   import { formatDanishDate } from "$lib/tableColumnConfig";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
   import DagePicker from "$lib/components/DagePicker.svelte";
@@ -15,12 +16,6 @@
   } from "$lib/koerselstype";
   import { afstandFraAdresse } from "$lib/client/afstand";
 
-  const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
-  const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
-
-  function isDateOutOfRange(value: string | null | undefined): boolean {
-    return !!value && (value < minDate || value > maxDate);
-  }
 
   // -----------------------------
   // Props
@@ -652,11 +647,11 @@
           <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 4: Kommentar full width -->
@@ -690,11 +685,11 @@
           <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 4: Kommentar -->
@@ -717,11 +712,11 @@
           <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 4: Kommentar -->
@@ -734,11 +729,11 @@
           <!-- Default (Skolebus, Gåbus, etc.): Row 2: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 3: Kommentar -->
@@ -941,11 +936,11 @@
             <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 4: Kommentar -->
@@ -979,11 +974,11 @@
             <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 4: Kommentar -->
@@ -1006,11 +1001,11 @@
             <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 4: Kommentar -->
@@ -1023,11 +1018,11 @@
             <!-- Default (Skolebus, Gåbus, etc.): Row 2: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 3: Kommentar -->

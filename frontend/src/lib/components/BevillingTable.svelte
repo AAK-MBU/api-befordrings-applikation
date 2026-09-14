@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/stores";
+  import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
   import { onMount } from "svelte";
   import KoerselsraekkeTable from "$lib/components/KoerselsraekkeTable.svelte";
   import AddresseSearch from "$lib/components/AddresseSearch.svelte";
@@ -19,12 +20,6 @@
   import { isEgenbefordring as typeIsEgenbefordring } from "$lib/koerselstype";
   import { afstandFraKoordinater } from "$lib/client/afstand";
   import { bevillingLabel, bevillingLabelWithId, bevillingSystemId } from "$lib/bevillingLabel";
-  const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
-  const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
-
-  function isDateOutOfRange(value: string | null | undefined): boolean {
-    return !!value && (value < minDate || value > maxDate);
-  }
 
   // -----------------------------
   // Props
@@ -780,7 +775,7 @@
             {#if isEditing}
               <input
                 type="date"
-                min={minDate} max={maxDate}
+                min={MIN_DATE} max={MAX_DATE}
                 class={inputClass}
                 value={editableBevilling.sagsbehandlingsdato ?? ""}
                 on:change={(e) => updateField("sagsbehandlingsdato", emptyToNull(e.currentTarget.value))}
@@ -890,7 +885,7 @@
             {#if isEditing}
               <input
                 type="date"
-                min={minDate} max={maxDate}
+                min={MIN_DATE} max={MAX_DATE}
                 class={inputClass}
                 value={editableBevilling.afstandskriterie_dato ?? ""}
                 on:change={(e) => updateField("afstandskriterie_dato", emptyToNull(e.currentTarget.value))}
@@ -967,7 +962,7 @@
             {#if isEditing}
               <input
                 type="date"
-                min={minDate} max={maxDate}
+                min={MIN_DATE} max={MAX_DATE}
                 class={inputClass}
                 value={editableBevilling.revurderingsdato ?? ""}
                 on:change={(e) => updateField("revurderingsdato", emptyToNull(e.currentTarget.value))}
@@ -984,7 +979,7 @@
             {#if isEditing}
               <input
                 type="date"
-                min={minDate} max={maxDate}
+                min={MIN_DATE} max={MAX_DATE}
                 class={inputClass}
                 value={editableBevilling.befordringsudvalg ?? ""}
                 on:change={(e) => updateField("befordringsudvalg", emptyToNull(e.currentTarget.value))}
