@@ -48,7 +48,10 @@ class Elev(Base):
     klasseart: Mapped[str | None] = mapped_column(String, nullable=True)
     elevklassetrin: Mapped[str | None] = mapped_column(String, nullable=True)
     klassebetegnelse: Mapped[str | None] = mapped_column(String, nullable=True)
-    sfo: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The institution the student attends outside school hours. Not always an
+    # SFO — "Klubben Holme Søndergaard" is a klub — which is why the column is
+    # named for what it holds rather than for one of its values.
+    institution: Mapped[str | None] = mapped_column(String, nullable=True)
     bopaelsdistrikt: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Skolekode is denormalised directly onto Elev so the nightly RPA can

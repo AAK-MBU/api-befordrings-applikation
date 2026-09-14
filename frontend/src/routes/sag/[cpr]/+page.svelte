@@ -831,10 +831,10 @@
           <p class="text-sm text-gray-800">{stamdata?.elevklassetrin ?? "—"}</p>
         </div>
 
-        <!-- SFO -->
+        <!-- Institution (SFO / klub) -->
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">SFO</p>
-          <p class="text-sm text-gray-800">{stamdata?.sfo ?? "—"}</p>
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Institution</p>
+          <p class="text-sm text-gray-800">{stamdata?.institution ?? "—"}</p>
         </div>
 
         <!-- BOPÆLSDISTRIKT -->

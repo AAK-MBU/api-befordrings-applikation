@@ -189,10 +189,23 @@
       begrundelseSelectValue = "";
     }
 
+    // Step 1's "Dato for første kørsel" seeds step 2's "Gyldig fra".
+    //
+    // Seed-once: only ever fills a gyldig_fra that is still empty, never
+    // overwrites one the caseworker typed. Going back to step 1 and changing
+    // the date therefore does not rewrite rows that already have a value —
+    // a stale date is recoverable, a silently rewritten one is not.
+    //
+    // foerste_koersel_dato is nullable, so an empty step 1 simply seeds
+    // nothing and step 2 behaves exactly as before.
+    function seedGyldigFra(): string {
+      return newBevilling.foerste_koersel_dato || "";
+    }
+
     function makeEmptyModalEntry(): any {
       return {
         koersel: { tidspunkt_id: "", befordringstype_id: "", bevilget_koereafstand_pr_vej: "",
-          gyldig_fra: "", gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
+          gyldig_fra: seedGyldigFra(), gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
           koersel_til_institution: "", max_minutter_i_transport: "",
           koerselsgodtgoerelse_modtager_id: "", koerselsgodtgoerelse_modtager_cpr: "", transporttid_i_bus: "", skift_med_bus: "" },
         dagIds: [] as number[],
@@ -206,7 +219,7 @@
 
     function makeModalEntryCopy(src: any): any {
       return {
-        koersel: { ...src.koersel, gyldig_fra: "", gyldig_til: "" },
+        koersel: { ...src.koersel, gyldig_fra: src.koersel.gyldig_fra || seedGyldigFra(), gyldig_til: "" },
         dagIds: [...src.dagIds],
         tillaegIds: [...src.tillaegIds],
         dagSelectValue: "",
@@ -231,7 +244,9 @@
               tidspunkt_id: src.tidspunkt_id ?? "",
               befordringstype_id: src.befordringstype_id ?? "",
               bevilget_koereafstand_pr_vej: src.bevilget_koereafstand_pr_vej != null ? String(src.bevilget_koereafstand_pr_vej) : "",
-              gyldig_fra: "",
+              // Dates are NOT inherited from the copied bevilling — they come
+              // from step 1, or are typed in step 2.
+              gyldig_fra: seedGyldigFra(),
               gyldig_til: "",
               taxa_id: src.taxa_id ?? "",
               kommentar: src.kommentar ?? "",
@@ -312,6 +327,21 @@
       if (!newBevilling.hjemmel_id)         { modalError = "Hjemmel skal udfyldes"; return; }
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
+
+      // The first kørselsrække is built in onMount, before step 1 has been
+      // filled in, so it cannot be seeded at construction. Fill it here on the
+      // way into step 2 — still seed-once, so any row already carrying a date
+      // keeps it.
+      const seeded = seedGyldigFra();
+
+      if (seeded) {
+        modalKoerselList = modalKoerselList.map((entry: any) =>
+          entry.koersel.gyldig_fra
+            ? entry
+            : { ...entry, koersel: { ...entry.koersel, gyldig_fra: seeded } }
+        );
+      }
+
       createBevillingStep = 2; 
     }
 

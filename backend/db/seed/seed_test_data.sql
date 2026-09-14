@@ -429,7 +429,7 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
 INSERT INTO [befordring].[Elev]
     (cpr, adresseringsnavn, navne_adresse_beskyttelse, adresse_id,
      skoleafstand, klasseart, elevklassetrin, klassebetegnelse,
-     sfo, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
+     institution, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
 VALUES
 (
     '0101101234', 'Kasper Søndergaard', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
