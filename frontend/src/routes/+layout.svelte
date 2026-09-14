@@ -10,24 +10,11 @@
 
   let { children, data } = $props();
 
-  let nyeCount = $state(0);
-  let revCount = $state(0);
-  let genbehandlingCount = $state(0);
-
-  onMount(async () => {
-    try {
-      const [nyeRes, revRes, genRes] = await Promise.all([
-        backendFetch('/overview/new_applications'),
-        backendFetch('/overview/revurderinger'),
-        backendFetch('/overview/genbehandlinger'),
-      ]);
-      if (nyeRes.ok) nyeCount = (await nyeRes.json()).length;
-      if (revRes.ok) revCount = (await revRes.json()).length;
-      if (genRes.ok) genbehandlingCount = (await genRes.json()).length;
-    } catch {
-      // non-critical — badges just won't show
-    }
-  });
+  // Derived from layout data rather than fetched on mount, so invalidateAll()
+  // after a save updates the badges without a refresh. See +layout.server.ts.
+  const nyeCount = $derived(data.counts?.nye ?? 0);
+  const revCount = $derived(data.counts?.revurderinger ?? 0);
+  const genbehandlingCount = $derived(data.counts?.genbehandlinger ?? 0);
 
   const tabs = [
     { href: '/', label: 'Overblik' },

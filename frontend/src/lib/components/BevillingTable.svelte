@@ -638,6 +638,20 @@
                   Revurdering
                 </span>
               {/if}
+              <!-- Genbehandling: the SP clears the flag on sign-off, so a set
+                   flag always means "still needs attention". The reason text is
+                   written by the SP and is what the Genbehandling page shows. -->
+              {#if bevilling.genbehandling}
+                <span
+                  class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300"
+                  title={bevilling.genbehandling_bemaerkning ?? 'Bevillingen afviger fra elevens aktuelle stamdata'}
+                >
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                  Genbehandling
+                </span>
+              {/if}
               {#if bevilling.statusbemaerkning}
                 <span class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium {getStatusBemaerkningClass(bevilling.revurdering ? 'Revurdering' : bevilling.status_tekst)}">
                   {#if getStatusBemaerkningIcon(bevilling.revurdering ? 'Revurdering' : bevilling.status_tekst) === "error"}

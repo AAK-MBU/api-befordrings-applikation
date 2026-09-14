@@ -767,6 +767,12 @@ class BevillingService:
         ophoert_status_id = self.get_status_id_by_text("Ophørt")
         was_ophoert = bevilling.status_id == ophoert_status_id
 
+        # The genbehandling mismatch compares the bevilling against the elev, so
+        # a sign-off acknowledges that specific PAIR. Captured before mutating so
+        # the block below can tell whether the bevilling half of it moved.
+        gb_matrikel_before = bevilling.matrikel_id
+        gb_adresse_before = bevilling.adresse_id
+
         try:
             for field_name, value in bevilling_data.items():
                 setattr(bevilling, field_name, value)
@@ -828,6 +834,26 @@ class BevillingService:
                             "kan ikke gemmes."
                         ),
                     )
+
+            # Changing the bevilling's school or address invalidates an earlier
+            # genbehandling sign-off: the caseworker approved the old pairing,
+            # not this one.
+            #
+            # usp_recalculate_bevilling_status only re-flags when the ELEV side
+            # drifts from the snapshot (it has no record of the bevilling side),
+            # so without this a school changed after sign-off would never
+            # re-enter genbehandling. Clearing the snapshot makes the SP's
+            # "... IS NULL" entry condition fire on the recalculation below.
+            #
+            # update_bevilling is the only path that writes these two fields on
+            # an existing bevilling — os2forms sets them at creation only.
+            if (
+                bevilling.matrikel_id != gb_matrikel_before
+                or bevilling.adresse_id != gb_adresse_before
+            ):
+                bevilling.genbehandling_haandteret = None
+                bevilling.genbehandling_haandteret_adresse_id = None
+                bevilling.genbehandling_haandteret_skolekode = None
 
             bevilling.updated_by = "frontend"
 
