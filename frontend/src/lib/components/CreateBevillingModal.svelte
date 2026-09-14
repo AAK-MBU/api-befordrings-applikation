@@ -328,6 +328,16 @@
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
 
+      // Required in this form only — NOT in BevillingCreateRequest or the
+      // database column, both of which stay nullable because OS2Forms submits
+      // through the same create path and a citizen's application may legitimately
+      // arrive without the field. Tightening it there would reject the
+      // submission outright.
+      //
+      // Here it guards the seeding below: without a date, gyldig_fra on step 2
+      // is seeded with nothing and the caseworker is left wondering why.
+      if (!newBevilling.foerste_koersel_dato) { modalError = "Dato for første kørsel skal udfyldes"; return; }
+
       // The first kørselsrække is built in onMount, before step 1 has been
       // filled in, so it cannot be seeded at construction. Fill it here on the
       // way into step 2 — still seed-once, so any row already carrying a date
@@ -755,7 +765,7 @@
             </label>
 
             <label class="text-sm font-medium text-gray-700">
-              Dato for første kørsel
+              Dato for første kørsel <span class="text-red-500">*</span>
               <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
             </label>
 
