@@ -240,6 +240,26 @@
     return   { border: "border-l-gray-300",  icon: "gear",     badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
   }
 
+  // "14.09.2026, 10.05" — the default da-DK toLocaleString appends seconds
+  // ("10.05.00"), which is noise in a feed and widens the metadata row for no
+  // information. An unparseable value is returned as-is rather than rendered
+  // as "Invalid Date".
+  function formatAktivitetTidspunkt(value: string | null | undefined): string {
+    if (!value) return "";
+
+    const parsed = new Date(value);
+
+    if (Number.isNaN(parsed.getTime())) return String(value);
+
+    return parsed.toLocaleString("da-DK", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   // Feed filters
   let filterTypes: string[] = [];
   let filterFra = "";
@@ -1213,7 +1233,12 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             <div class="border-l-4 {style.border} {style.cardBg} border border-gray-100 rounded-r-lg px-4 py-3">
               <div class="flex items-start justify-between gap-2">
 
-                <!-- Left: icon + badge + bevilling pill -->
+                <!-- All information sits left, in two rows: what happened, then
+                     when and by whom. The right side carries only the action, so
+                     a destructive button is never mixed in among metadata. -->
+                <div class="min-w-0">
+
+                <!-- Row 1: icon + type badge + bevilling pill -->
                 <div class="flex items-center gap-2 flex-wrap">
                   {#if style.icon === "check"}
                     <svg class="w-3.5 h-3.5 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -1249,27 +1274,31 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                   {/if}
                 </div>
 
-                <!-- Right: timestamp + sender + delete -->
-                <div class="flex flex-col items-end shrink-0 text-right gap-0.5">
-                  <span class="text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
-                  </span>
+                <!-- Row 2: when + by whom. Muted and smaller so the badge above
+                     stays the anchor the eye lands on when scanning the feed. -->
+                <div class="mt-1 flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500">
+                  <span class="whitespace-nowrap">{formatAktivitetTidspunkt(aktivitet.oprettet_tidspunkt)}</span>
                   {#if aktivitet.udfoert_af}
+                    <span class="text-gray-300" aria-hidden="true">·</span>
                     {#if aktivitet.udfoert_af === "System"}
-                      <span class="text-xs italic text-gray-500">System</span>
+                      <span class="italic">System</span>
                     {:else}
-                      <span class="text-xs font-medium text-gray-700">{aktivitet.udfoert_af}</span>
+                      <span class="font-medium text-gray-600">{aktivitet.udfoert_af}</span>
                     {/if}
                   {/if}
+                </div>
 
-                  <!-- Only comments can be deleted. System-written entries are
-                       the case history, and the backend refuses them too. -->
+                </div>
+
+                <!-- Right: action only. Only comments can be deleted — system
+                     entries are the case history, and the backend refuses them. -->
+                <div class="shrink-0">
                   {#if aktivitet.aktivitetstype === "Kommentar"}
                     <button
                       type="button"
                       title="Slet kommentar"
                       disabled={!canEdit}
-                      class="mt-1 p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      class="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       on:click={() => { confirmingDeleteAktivitetId = aktivitet.aktivitet_id; deleteAktivitetError = null; }}
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
