@@ -19,6 +19,18 @@ function normalize(text: string): string {
   return String(text ?? "").replace(/\s+/g, " ").trim();
 }
 
+// Looser form used to match hjemmel labels against the keys below.
+//
+// The keys are written with the parenthetical descriptor the paragraphs are
+// usually quoted with — "§ 26, stk. 1 (afstand)" — but the Hjemmel lookup table
+// stores them without brackets: "§ 26, stk. 1 afstand". Matching on the exact
+// text meant five of the six mappings never fired, and the dropdown silently
+// showed everything. Dropping brackets and case makes both spellings meet.
+function canonicalLabel(text: string | null | undefined): string {
+  return normalize(String(text ?? "").replace(/[()]/g, ""))
+    .toLowerCase();
+}
+
 // Allowed afgørelsesbrev texts per selected hjemmel.
 const HJEMMEL_AFGOERELSESBREVE: Record<string, string[]> = {
   "§ 26, stk. 1 (afstand)": [
@@ -130,6 +142,105 @@ export function filterHjemler(
   return applyRule(all, key ? HJEMMEL_ALLOW[key] : undefined, MIDLERTIDIG_ONLY_HJEMLER);
 }
 
+/**
+ * Which bevilling-status an afgørelsesbrev belongs with.
+ *
+ * "bevilling" covers every status that is not a manual Afslag/Ophørt — i.e. the
+ * automatically calculated ones (Ny, Påbegyndt, Aktiv, Kommende, Udløbet,
+ * Fejlet) and "no status chosen yet".
+ */
+export type AfgoerelseKategori = "afslag" | "ophoer" | "bevilling";
+
+// Keyword matching, not "starts with". Five rejection letters do not begin with
+// "Afslag:" — the three "Påtænkt afslag: …" and the two "Midlertidig kørsel
+// afslag: …" — so a prefix rule would hide real options. The Danish letters are
+// folded so "ophør" and "ophoert" match each other.
+function normalizeKeyword(label: string | null | undefined): string {
+  return String(label ?? "")
+    .toLowerCase()
+    .replace(/ø/g, "oe")
+    .replace(/å/g, "aa")
+    .replace(/æ/g, "ae")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * The status an afgørelsesbrev belongs with.
+ *
+ * "Påtænkt" letters follow their own keyword: a påtænkt ophør belongs with
+ * Ophørt and a påtænkt afslag with Afslag, so each is offered only where it is
+ * relevant.
+ *
+ * Deriving this from the text (rather than listing all 18 rows) means a new
+ * afgørelsesbrev added to the lookup table is classified automatically.
+ */
+export function afgoerelsesbrevKategori(
+  label: string | null | undefined
+): AfgoerelseKategori {
+  const text = normalizeKeyword(label);
+
+  // Checked before "afslag" so precedence is explicit, even though no current
+  // text contains both.
+  if (text.includes("ophoer")) return "ophoer";
+  if (text.includes("afslag")) return "afslag";
+
+  return "bevilling";
+}
+
+/** The category a bevilling's status belongs to. */
+export function statusKategori(
+  statusLabel: string | null | undefined
+): AfgoerelseKategori {
+  const text = normalizeKeyword(statusLabel);
+
+  if (text === "ophoert") return "ophoer";
+  if (text === "afslag") return "afslag";
+
+  return "bevilling";
+}
+
+/**
+ * Narrow afgørelsesbreve to those that belong with the chosen status.
+ *
+ * One rule for every status: the letter's category must equal the status's.
+ * The "show everything except afslag/ophør on a calculated status" case is not
+ * a separate branch — those statuses simply classify as "bevilling".
+ *
+ * `currentLabel` is always kept in the list even when it does not match. A
+ * <select> whose bound value is absent from its options silently renders blank,
+ * which would look like the saved afgørelsesbrev had been erased — filtering
+ * must never hide data that is already stored.
+ */
+/**
+ * True when `label` is among the options — used by the edit forms to decide
+ * whether a chosen afgørelsesbrev survives a change of status or hjemmel.
+ */
+export function containsLabel(
+  options: LookupOption[],
+  label: string | null | undefined
+): boolean {
+  if (!label) return false;
+  const target = canonicalLabel(label);
+  return options.some((option) => canonicalLabel(option.label) === target);
+}
+
+export function filterAfgoerelsesbreveByStatus(
+  all: LookupOption[] | undefined,
+  statusLabel: string | null | undefined,
+  currentLabel?: string | null
+): LookupOption[] {
+  const kategori = statusKategori(statusLabel);
+  const current = currentLabel ? normalize(currentLabel) : null;
+
+  return (all ?? []).filter(
+    (option) =>
+      afgoerelsesbrevKategori(option.label) === kategori ||
+      (current !== null && normalize(option.label) === current)
+  );
+}
+
+
 export function filterAfgoerelsesbreve(
   all: LookupOption[] | undefined,
   ansoegningstype: string | null | undefined,
@@ -140,11 +251,27 @@ export function filterAfgoerelsesbreve(
   let filtered = applyRule(all, key ? AFGOERELSESBREV_ALLOW[key] : undefined, MIDLERTIDIG_ONLY_AFGOERELSESBREVE);
 
   if (selectedHjemmelLabel) {
-    const normalizedHjemmel = normalize(selectedHjemmelLabel);
-    const mappingKey = Object.keys(HJEMMEL_AFGOERELSESBREVE).find(k => normalize(k) === normalizedHjemmel);
+    const canonicalHjemmel = canonicalLabel(selectedHjemmelLabel);
+    const mappingKey = Object.keys(HJEMMEL_AFGOERELSESBREVE).find(
+      (key) => canonicalLabel(key) === canonicalHjemmel
+    );
+
+    // A hjemmel with no mapping (e.g. "§ 10 (brækket ben)", which the
+    // midlertidig allow-list already covers) restricts nothing.
     if (mappingKey) {
-      const allowed = new Set(HJEMMEL_AFGOERELSESBREVE[mappingKey].map(normalize));
-      filtered = filtered.filter(opt => allowed.has(normalize(opt.label)));
+      const allowed = new Set(HJEMMEL_AFGOERELSESBREVE[mappingKey].map(canonicalLabel));
+
+      // Ophør letters are exempt. The mapping pairs a legal basis with the
+      // letters that DECIDE an application under it; ending a bevilling is not
+      // a new legal basis. A bevilling granted under "§ 26, stk. 1 afstand"
+      // keeps that hjemmel when it ends — the caseworker cannot rewrite what it
+      // was granted on — so without this the ophør letter is unreachable for
+      // six of the seven hjemler.
+      filtered = filtered.filter(
+        (opt) =>
+          allowed.has(canonicalLabel(opt.label)) ||
+          afgoerelsesbrevKategori(opt.label) === "ophoer"
+      );
     }
   }
 

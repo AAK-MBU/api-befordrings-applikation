@@ -117,7 +117,7 @@ class CitizenService:
             klasseart=elev_data.get("klasseart", ""),
             elevklassetrin=elev_data.get("elevklassetrin", ""),
             klassebetegnelse=elev_data.get("klassebetegnelse", ""),
-            sfo=elev_data.get("sfo", ""),
+            institution=elev_data.get("institution", ""),
             bopaelsdistrikt=elev_data.get("bopaelsdistrikt", ""),
         )
         self.db.add(elev)

@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.citizen import Part
+from app.models.citizen import Foraelder, Part
 from app.schemas.part import PartCreateRequest, PartUpdateRequest
 
 
@@ -32,6 +32,53 @@ class PartService:
         )
 
         return list(self.db.execute(stmt).scalars().all())
+
+    def get_recipients(self, cpr: str) -> list[dict]:
+        """Return all kørselsgodtgørelse recipient candidates for a student.
+
+        Combines øvrige parter (Part table) with forældre (Foraelder table)
+        without modifying either table. The two groups are returned with a
+        'type' field so the frontend can keep them visually distinct.
+        """
+
+        parts = list(
+            self.db.execute(
+                select(Part)
+                .options(joinedload(Part.adresse))
+                .where(Part.cpr_elev == cpr, Part.aktiv == True)  # noqa: E712
+                .order_by(Part.fulde_navn)
+            ).scalars().all()
+        )
+
+        foraeldres = list(
+            self.db.execute(
+                select(Foraelder)
+                .where(Foraelder.cpr_elev == cpr)
+                .order_by(Foraelder.adresseringsnavn)
+            ).scalars().all()
+        )
+
+        recipients = [
+            {
+                "type": "foraelder",
+                "fulde_navn": f.adresseringsnavn,
+                "part_id": None,
+                "cpr_foraelder": f.cpr_foraelder,
+                "relation": f.relation,
+            }
+            for f in foraeldres
+        ] + [
+            {
+                "type": "part",
+                "fulde_navn": p.fulde_navn,
+                "part_id": p.part_id,
+                "cpr_foraelder": None,
+                "relation": p.relation,
+            }
+            for p in parts
+        ]
+
+        return recipients
 
     def create_part(self, cpr: str, payload: PartCreateRequest) -> Part:
         """Create a party for a student."""

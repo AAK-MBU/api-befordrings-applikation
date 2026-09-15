@@ -63,7 +63,7 @@ SELECT
     e.klasseart,
     e.klassebetegnelse,
     e.elevklassetrin,
-    e.sfo,
+    e.institution,
     e.bopaelsdistrikt
 
 FROM [Befordringssystemet].[befordring].[Elev] e

@@ -215,47 +215,121 @@ class OverviewService:
         ]
 
 
-    def search_bevillinger(self, q: str):
-        """Search bevillinger by CPR or name (partial match).
+    @staticmethod
+    def _escape_like(value: str) -> str:
+        """Neutralise LIKE wildcards in user input.
+
+        Without this a caseworker typing "%" matches every student in the
+        municipality. Bracket-escaping avoids needing an ESCAPE clause; "["
+        must be handled first or it would re-escape the brackets added after.
+        """
+
+        return (
+            value.replace("[", "[[]")
+            .replace("%", "[%]")
+            .replace("_", "[_]")
+        )
+
+    def search_elever(self, q: str):
+        """Search students by CPR or name, for the global search box.
 
         Args:
             q:
                 Search string. Must be at least 2 characters.
 
         Returns:
-            Up to 20 unique citizen records matching the query, each with
-            ``cpr_elev``, ``adresseringsnavn``, and ``bevilling_count``.
+            Up to 20 students, each with ``cpr_elev`` and ``adresseringsnavn``.
+
+        Notes:
+            Reads [Elev] directly rather than view_Stamdata. The view ranks every
+            bevilling through a ROW_NUMBER() window before its WHERE applies, so
+            searching it made each keystroke sort the whole bevilling table to
+            fetch two columns that sit on Elev anyway. With Elev holding every
+            student in the municipality (30-50k) that cost is not affordable.
+
+            Digits and text are handled as separate statements so each can use an
+            index:
+
+            * CPR is matched as a prefix, which seeks the primary key. Nobody
+              searches a CPR by its middle digits.
+            * Names are matched as a WORD prefix — "starts with" OR "contains a
+              word starting with" — because adresseringsnavn is stored as
+              "Fornavn Efternavn" and searching by surname has to work. The
+              second pattern keeps a leading wildcard, so it scans; an index on
+              adresseringsnavn keeps that scan narrow. If it ever gets too slow,
+              a full-text index with CONTAINS(..., '"q*"') is the proper fix.
         """
 
-        if not q or len(q.strip()) < 2:
+        query = (q or "").strip()
+
+        if len(query) < 2:
             return []
 
-        like_q = f"%{q.strip()}%"
+        digits = "".join(ch for ch in query if ch.isdigit())
 
-        # Search view_Stamdata so citizens without any bevillinger are still found.
-        # LEFT JOIN Bevilling to count each citizen's bevillinger (0 if none).
+        # A CPR may be typed with or without its hyphen.
+        if digits and not any(ch.isalpha() for ch in query):
+            sql = text("""
+                SELECT TOP 20
+                    e.cpr AS cpr_elev,
+                    e.adresseringsnavn
+                FROM
+                    [befordring].[Elev] e
+                WHERE
+                    e.cpr LIKE :prefix
+                ORDER BY
+                    e.cpr
+            """)
+
+            params = {"prefix": f"{self._escape_like(digits)}%"}
+
+        else:
+            escaped = self._escape_like(query)
+
+            sql = text("""
+                SELECT TOP 20
+                    e.cpr AS cpr_elev,
+                    e.adresseringsnavn
+                FROM
+                    [befordring].[Elev] e
+                WHERE
+                    e.adresseringsnavn LIKE :prefix
+                    OR e.adresseringsnavn LIKE :word_prefix
+                ORDER BY
+                    e.adresseringsnavn
+            """)
+
+            params = {"prefix": f"{escaped}%", "word_prefix": f"% {escaped}%"}
+
+        result = self.db.execute(sql, params)
+
+        return self._rows_to_dicts(result)
+
+
+    def get_koerselsgodtgoerelse_modtagere(self):
+        """Everyone currently receiving kørselsgodtgørelse for egenbefordring.
+
+        The monthly list a caseworker messages. One row per person — the same
+        parent can receive for several children, and they only need telling
+        once — with the children they receive for aggregated alongside.
+
+        "Currently" is evaluated in the view against today's date, so the list
+        reflects whoever is receiving at the moment it is generated.
+
+        Returns:
+            A list of dicts, sorted by name.
+        """
+
         sql = text("""
-            SELECT TOP 20
-                s.cpr         AS cpr_elev,
-                s.adresseringsnavn,
-                COUNT(b.bevilling_id) AS bevilling_count
+            SELECT
+                *
             FROM
-                [befordring].[view_Stamdata] s
-            LEFT JOIN
-                [befordring].[Bevilling] b
-                ON b.cpr_elev = s.cpr
-                AND b.aktiv = 1
-            WHERE
-                s.cpr LIKE :q
-                OR s.adresseringsnavn LIKE :q
-            GROUP BY
-                s.cpr,
-                s.adresseringsnavn
+                [befordring].[view_Koerselsgodtgoerelse_Modtagere]
             ORDER BY
-                s.adresseringsnavn
+                modtager_navn
         """)
 
-        result = self.db.execute(sql, {"q": like_q})
+        result = self.db.execute(sql)
 
         return self._rows_to_dicts(result)
 
@@ -302,6 +376,66 @@ class OverviewService:
                 ON bt.befordringstype_id = k.befordringstype_id
             WHERE
                 b.revurdering = 1
+            ORDER BY
+                vbk.bevilling_id,
+                vbk.gyldig_til DESC
+        """)
+
+        koersler = self._rows_to_dicts(self.db.execute(koersel_sql))
+
+        koersel_map: dict = {}
+        for k in koersler:
+            bid = k["bevilling_id"]
+            koersel_map.setdefault(bid, []).append(k)
+
+        for b in bevillinger:
+            b["koerselsraekker"] = koersel_map.get(b.get("bevilling_id"), [])
+
+        return bevillinger
+
+
+    def get_genbehandlinger(self):
+        """Get bevillinger flagged for genbehandling, with nested koerselsraekker.
+
+        Returns:
+            List of bevilling dicts, each with a 'koerselsraekker' key containing
+            a list of that bevilling's koersel rows.
+        """
+
+        bev_sql = text("""
+            SELECT
+                *
+            FROM
+                [befordring].[view_Genbehandling]
+            ORDER BY
+                bevilling_id ASC
+        """)
+
+        bevillinger = self._rows_to_dicts(self.db.execute(bev_sql))
+
+        if not bevillinger:
+            return []
+
+        koersel_sql = text("""
+            SELECT
+                vbk.*,
+                k.final,
+                bt.befordringstype_tekst
+            FROM
+                [befordring].[view_Bevilling_Koerselsraekker] vbk
+            INNER JOIN
+                [befordring].[Koersel] k
+                ON k.koersel_id = vbk.koersel_id
+                AND k.aktiv = 1
+            INNER JOIN
+                [befordring].[Bevilling] b
+                ON b.bevilling_id = vbk.bevilling_id
+                AND b.aktiv = 1
+            LEFT JOIN
+                [befordring].[Befordringstype] bt
+                ON bt.befordringstype_id = k.befordringstype_id
+            WHERE
+                b.genbehandling = 1
             ORDER BY
                 vbk.bevilling_id,
                 vbk.gyldig_til DESC

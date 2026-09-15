@@ -43,8 +43,16 @@
   let draft: Draft = emptyDraft();
   let saving = false;
 
+  // Shown in the edit row rather than a browser alert, so the refusal sits next
+  // to the fields it is about and the row stays open to be corrected.
+  let saveError: string | null = null;
+
   let confirmingDeleteId: number | null = null;
   let deleting = false;
+
+  // Rendered inside the confirmation dialog, matching BevillingTable and
+  // KoerselsraekkeTable — this was the only delete dialog without one.
+  let deleteError: string | null = null;
 
   const inputClass =
     "w-full border border-gray-300 rounded px-2 py-1 text-sm focus:border-blue-400 focus:ring-0 bg-white";
@@ -115,10 +123,12 @@
   function startAdd() {
     editingId = "new";
     draft = emptyDraft();
+    saveError = null;
   }
 
   function startEdit(p: any) {
     editingId = p.part_id;
+    saveError = null;
     draft = {
       fulde_navn: p.fulde_navn ?? "",
       cpr_nummer: p.cpr_nummer ?? "",
@@ -132,6 +142,7 @@
   function cancel() {
     editingId = null;
     draft = emptyDraft();
+    saveError = null;
   }
 
   // Blank optional fields are stored as NULL.
@@ -170,6 +181,7 @@
   async function save() {
     if (saving) return;
     saving = true;
+    saveError = null;
 
     try {
       const body = JSON.stringify({
@@ -194,7 +206,7 @@
             });
 
       if (!res.ok) {
-        alert(await refusalReason(res, "Kunne ikke gemme part"));
+        saveError = await refusalReason(res, "Kunne ikke gemme part");
         return;
       }
 
@@ -209,12 +221,13 @@
   async function doDelete() {
     if (deleting || confirmingDeleteId === null) return;
     deleting = true;
+    deleteError = null;
 
     try {
       const res = await backendFetch(`/part/${confirmingDeleteId}`, { method: "DELETE" });
 
       if (!res.ok) {
-        alert(await refusalReason(res, "Kunne ikke slette part"));
+        deleteError = await refusalReason(res, "Kunne ikke slette part");
         return;
       }
 
@@ -287,6 +300,16 @@
             <button type="button" class="ml-1 px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50" on:click={cancel}>Annullér</button>
           </td>
         </tr>
+
+        {#if saveError}
+          <tr class="border-b border-gray-200 bg-blue-50/40">
+            <td colspan="6" class="px-3 pb-2">
+              <div class="px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded" role="alert">
+                {saveError}
+              </div>
+            </td>
+          </tr>
+        {/if}
       {/if}
 
       {#each displayed as p}
@@ -320,10 +343,20 @@
             <td class="px-3 py-2">{p.telefonnummer ?? "—"}</td>
             <td class="px-3 py-2 text-right whitespace-nowrap">
               <button type="button" disabled={editingId !== null || !canEdit} class="px-3 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed" on:click={() => startEdit(p)}>Redigér</button>
-              <button type="button" disabled={editingId !== null || !canEdit} class="ml-1 px-3 py-1 text-xs font-medium text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed" on:click={() => (confirmingDeleteId = p.part_id)}>Slet</button>
+              <button type="button" disabled={editingId !== null || !canEdit} class="ml-1 px-3 py-1 text-xs font-medium text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed" on:click={() => { confirmingDeleteId = p.part_id; deleteError = null; }}>Slet</button>
             </td>
           {/if}
         </tr>
+
+        {#if editingId === p.part_id && saveError}
+          <tr class="border-b border-gray-200 bg-blue-50/40">
+            <td colspan="6" class="px-3 pb-2">
+              <div class="px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded" role="alert">
+                {saveError}
+              </div>
+            </td>
+          </tr>
+        {/if}
       {/each}
 
       {#if displayed.length === 0 && editingId !== "new"}
@@ -358,6 +391,12 @@
       </div>
       <div class="px-6 py-5">
         <p class="text-sm text-gray-700">Er du sikker på, at du vil slette denne part?</p>
+
+        {#if deleteError}
+          <p class="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2" role="alert">
+            {deleteError}
+          </p>
+        {/if}
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
         <button type="button" class="px-4 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-white transition-colors" on:click={() => (confirmingDeleteId = null)}>

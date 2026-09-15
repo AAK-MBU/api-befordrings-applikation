@@ -1,3 +1,5 @@
+import { error } from "@sveltejs/kit";
+
 import { backendUserFetcher } from "$lib/server/backendApi";
 
 import type { PageServerLoad } from "./$types";
@@ -31,6 +33,7 @@ export const load: PageServerLoad = async (event) => {
     stamdataRes,
     parentsRes,
     parterRes,
+    recipientsRes,
     bevillingerRes,
     aktiviteterRes,
     lookupRes
@@ -38,6 +41,7 @@ export const load: PageServerLoad = async (event) => {
     api(`/citizen/stamdata/${cpr}`),
     api(`/citizen/stamdata/${cpr}/parents`),
     api(`/part/${cpr}`),
+    api(`/part/${cpr}/recipients`),
     api(`/bevilling/get_student_bevillinger/${cpr}`),
     api(`/aktivitet/${cpr}`),
 
@@ -49,6 +53,7 @@ export const load: PageServerLoad = async (event) => {
   await assertResponseOk(stamdataRes, "Failed to fetch stamdata");
   await assertResponseOk(parentsRes, "Failed to fetch parents");
   await assertResponseOk(parterRes, "Failed to fetch parter");
+  await assertResponseOk(recipientsRes, "Failed to fetch recipients");
   await assertResponseOk(bevillingerRes, "Failed to fetch bevillinger");
   await assertResponseOk(aktiviteterRes, "Failed to fetch aktiviteter");
   await assertResponseOk(lookupRes, "Failed to fetch lookup data");
@@ -56,6 +61,7 @@ export const load: PageServerLoad = async (event) => {
   const stamdataResponse = await stamdataRes.json();
   const parents = await parentsRes.json();
   const parter = await parterRes.json();
+  const recipients = await recipientsRes.json();
   const bevillinger: BevillingRecord[] = await bevillingerRes.json();
   const aktiviteter = await aktiviteterRes.json();
   const lookup = await lookupRes.json();
@@ -107,11 +113,21 @@ export const load: PageServerLoad = async (event) => {
     ? stamdataResponse[0]
     : stamdataResponse;
 
+  // /citizen/stamdata/{cpr} answers 200 with a null body for a CPR that is not
+  // in Elev, so assertResponseOk above lets it through. Without this the page
+  // renders with stamdata = null and dies on the first stamdata.cpr — a blank
+  // screen and a console TypeError, with nothing telling the caseworker that
+  // the CPR is simply unknown.
+  if (!stamdata) {
+    throw error(404, `Ingen elev fundet med CPR ${cpr}`);
+  }
+
   return {
     cpr,
     stamdata,
     parents,
     parter,
+    recipients,
     bevillinger: sortedBevillinger,
     aktiviteter,
 

@@ -14,6 +14,17 @@ from app.services.part_service import PartService
 
 router = APIRouter(prefix="/part", tags=["Part"])
 
+@router.get("/{cpr}/recipients")
+def get_recipients(cpr: str, db: DbSession):
+    """Return all kørselsgodtgørelse recipient candidates (parter + forældre).
+
+    Returns a combined list with a 'type' field ('part' or 'foraelder') so
+    the frontend can group them in the dropdown without mixing the two tables.
+    Foraeldre come first, then øvrige parter, each sorted by name.
+    """
+
+    return PartService(db=db).get_recipients(cpr=cpr)
+
 
 @router.get("/{cpr}", response_model=list[PartResponse])
 def get_parts(cpr: str, db: DbSession):

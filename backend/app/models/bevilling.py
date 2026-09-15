@@ -26,6 +26,18 @@ class Bevilling(Base):
         nullable=False,
     )
 
+    # Display identifier: counts within the child (1, 2, 3) rather than across
+    # the whole table, so a caseworker is not left wondering where #2 to #12
+    # went. bevilling_id remains the real key — this is what the UI labels a
+    # bevilling with, nothing more.
+    #
+    # Assigned once by BevillingService._next_loebenummer and never reassigned:
+    # soft-deleted rows keep their number so the gap they leave stays visible,
+    # and every note that referenced a number keeps pointing at the same row.
+    # Unique per (cpr_elev, loebenummer) — see
+    # backend/db/migrations/008_add_bevilling_loebenummer.sql.
+    loebenummer: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     adresse_id: Mapped[str] = mapped_column(
         Unicode(36),
         ForeignKey(f"{DB_SCHEMA}.Adresse.adresse_id"),
@@ -106,6 +118,12 @@ class Bevilling(Base):
     # mismatch, approaching revurderingsdato). Cleared automatically when
     # the status resolves to Aktiv or Ophørt.
     statusbemaerkning: Mapped[str | None] = mapped_column(Unicode, nullable=True)
+
+    genbehandling: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    genbehandling_haandteret: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    genbehandling_bemaerkning: Mapped[str | None] = mapped_column(Unicode(500), nullable=True)
+    genbehandling_haandteret_adresse_id: Mapped[str | None] = mapped_column(Unicode(36), nullable=True)
+    genbehandling_haandteret_skolekode: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DATETIME2,
@@ -202,12 +220,18 @@ class Koersel(Base):
     koersel_til_institution: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     max_minutter_i_transport: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # Egenbefordring-specific: which Part receives the kilometre reimbursement.
-    # Soft in practice — Part rows are soft-deleted rather than removed, so the
-    # reference stays resolvable even after a party is deleted from the case.
+    # Egenbefordring-specific: which person receives the kilometre reimbursement.
+    # Two mutually exclusive columns — exactly one should be set for egenbefordring:
+    #   modtager_id  → FK to Part (øvrig part, manually added on the Parter tab)
+    #   modtager_cpr → CPR from Foraelder table (legal guardian / parent)
+    # Keeping them separate preserves the strict Foraelder/Part distinction.
     koerselsgodtgoerelse_modtager_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(f"{DB_SCHEMA}.Part.part_id"),
+        nullable=True,
+    )
+    koerselsgodtgoerelse_modtager_cpr: Mapped[str | None] = mapped_column(
+        String(10),
         nullable=True,
     )
 
@@ -277,4 +301,62 @@ class KoerselUgedagLink(Base):
         Integer,
         ForeignKey(f"{DB_SCHEMA}.Ugedag.dag_id"),
         primary_key=True,
+    )
+
+
+class Brev(Base):
+    """One decision letter that was created for a bevilling.
+
+    Creating a letter queues an ATS work item; it does NOT post anything to the
+    parents. This table is what separates the two: a row appears when the letter
+    is generated, and `afsendt` is set when a caseworker has actually sent it.
+    The Forsendelse page is the worklist of rows where afsendt = 0.
+
+    A bevilling has many of these over time — a påtænkt afslag followed by the
+    final afslag, or a bevilling followed by an ophør letter — which is why this
+    is its own table rather than a pair of columns on Bevilling.
+    """
+
+    __tablename__ = "Brev"
+    __table_args__ = {"schema": DB_SCHEMA}
+
+    brev_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    bevilling_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Bevilling.bevilling_id"),
+        nullable=False,
+    )
+
+    cpr_elev: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    # ATS work-item reference, e.g. "0101101234_2026-09-15_14_30_05". Nothing
+    # reads it yet — stored so the page can later surface whether the RPA
+    # actually produced the document.
+    reference: Mapped[str | None] = mapped_column(Unicode(100), nullable=True)
+
+    # Snapshots, deliberately not foreign keys: the letter said what it said.
+    # Editing the bevilling afterwards must not rewrite history.
+    afgoerelsesbrev_tekst: Mapped[str | None] = mapped_column(Unicode(500), nullable=True)
+    brev_i_forbindelse_med: Mapped[str | None] = mapped_column(Unicode(100), nullable=True)
+
+    oprettet_tidspunkt: Mapped[datetime] = mapped_column(
+        DATETIME2,
+        nullable=False,
+        server_default=text("sysdatetime()"),
+    )
+    oprettet_af: Mapped[str | None] = mapped_column(Unicode(200), nullable=True)
+
+    afsendt: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("0"),
+    )
+    afsendt_tidspunkt: Mapped[datetime | None] = mapped_column(DATETIME2, nullable=True)
+    afsendt_af: Mapped[str | None] = mapped_column(Unicode(200), nullable=True)
+
+    aktiv: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("1"),
     )

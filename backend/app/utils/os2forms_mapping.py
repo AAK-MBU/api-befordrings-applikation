@@ -178,7 +178,7 @@ def get_ansoegningstype(payload: dict) -> str:
         Application type text used internally by the API.
 
     Notes:
-        Unknown webform IDs fall back to "Kørsel".
+        Unknown webform IDs fall back to "Fast kørsel".
     """
 
     webform_id = payload.get("webform_id")
@@ -186,7 +186,10 @@ def get_ansoegningstype(payload: dict) -> str:
     if webform_id == "ny_ansoegning_om_midlertidig_koe":
         return "Midlertidig kørsel"
 
-    # "Skolebus" is treated as regular "Kørsel" - they are the same koersel type;
-    # we only distinguish "Kørsel" from "Midlertidig kørsel". The skolebus webform
-    # therefore falls through to the "Kørsel" default below.
-    return "Kørsel"
+    # "Skolebus" is treated as regular "Fast kørsel" - they are the same koersel
+    # type; we only distinguish "Fast kørsel" from "Midlertidig kørsel". The
+    # skolebus webform therefore falls through to the default below.
+    #
+    # This value was "Kørsel" until migration 009 renamed it; existing rows were
+    # updated at the same time, so both old and new data read "Fast kørsel".
+    return "Fast kørsel"

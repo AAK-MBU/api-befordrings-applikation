@@ -9,11 +9,12 @@
   import BevillingTable from "$lib/components/BevillingTable.svelte";
   import ParterTable from "$lib/components/ParterTable.svelte";
   import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
+  import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
+  import { bevillingLabel } from "$lib/bevillingLabel";
   import {
     getStatusBadgeClass,
     formatCpr,
   } from "$lib/tableColumnConfig";
-  import { firstInvalidDate } from "$lib/dates";
 
   export let data;
 
@@ -30,30 +31,20 @@
   // Page state
   // -----------------------------
 
-  let letterType = "";
-  let befordringsudvalgResultat = "";
-  let tidligereAfgoerelseDato = "";
-  let koerselStartdato = "";
-  let datoForSenesteBevilling = "";
-
-  let creatingLetter = false;
   let showCreateLetterModal = false;
-  let selectedLetterBevillingId = "";
-  let ophoersdato = "";
 
-  $: selectedLetterBevilling = bevillinger.find(
-    (bevilling: any) => String(bevilling.bevilling_id) === selectedLetterBevillingId
+  let { stamdata, parents, parter, recipients, bevillinger, lookupOptions, aktiviteter } = data;
+
+  // The aktivitet feed persists only relateret_bevilling_id, so the løbenummer
+  // is looked up from the bevillinger already on the page.
+  //
+  // Built as a reactive map rather than a lookup function called from the
+  // template: Svelte derives a template expression's dependencies from the
+  // identifiers it can see, so a helper's read of `bevillinger` would not be
+  // one, and the badges would keep their first-render labels after a reload.
+  $: bevillingLabelById = new Map<number, string>(
+    (bevillinger ?? []).map((b: any) => [b.bevilling_id, bevillingLabel(b)])
   );
-
-  $: selectedLetterBevillingHasBefordringsudvalg =
-    selectedLetterBevilling?.befordringsudvalg !== null &&
-    selectedLetterBevilling?.befordringsudvalg !== undefined &&
-    selectedLetterBevilling?.befordringsudvalg !== "";
-
-  $: selectedLetterBevillingIsOphoert =
-    selectedLetterBevilling?.status_tekst == "Ophørt";
-
-  let { stamdata, parents, parter, bevillinger, lookupOptions, aktiviteter } = data;
 
   const initialHash = window.location.hash.slice(1);
   const validTabs = ["elev", "parter", "sagsforloeb"];
@@ -65,7 +56,15 @@
   }
 
   $: initial = (stamdata?.adresseringsnavn ?? "?").charAt(0).toUpperCase();
-  $: anyParentCannotKnowAddress = (parents ?? []).some((p: any) => p.maa_vide_barns_adresse === false);
+  // The warning names the specific parents, so the caseworker does not have to
+  // cross-reference the parter table to see who the restriction applies to.
+  $: parentsCannotKnowAddress = (parents ?? []).filter(
+    (parent: any) => parent.maa_vide_barns_adresse === false
+  );
+  $: anyParentCannotKnowAddress = parentsCannotKnowAddress.length > 0;
+  $: restrictedParentCprList = parentsCannotKnowAddress
+    .map((parent: any) => formatCpr(parent.cpr_foraelder))
+    .join(", ");
 
   $: anyPprRevurderet = (bevillinger as any[]).some((b) => b.revurderet_af_ppr);
   $: anyBrRevurderet  = (bevillinger as any[]).some((b) => b.revurderet_af_br);
@@ -110,6 +109,7 @@
     stamdata = data.stamdata;
     parents = data.parents;
     parter = data.parter;
+    recipients = data.recipients;
     bevillinger = data.bevillinger;
     lookupOptions = data.lookupOptions;
     aktiviteter = data.aktiviteter;
@@ -122,6 +122,7 @@
 
   let nyKommentar = "";
   let savingKommentar = false;
+  let kommentarError: string | null = null;
 
   async function saveKommentar() {
     if (!nyKommentar.trim()) {
@@ -129,6 +130,7 @@
     }
 
     savingKommentar = true;
+    kommentarError = null;
 
     try {
       const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
@@ -144,7 +146,7 @@
       });
 
       if (!response.ok) {
-        alert("Kunne ikke gemme kommentar");
+        kommentarError = "Kunne ikke gemme kommentar";
         return;
       }
 
@@ -240,12 +242,33 @@
     return   { border: "border-l-gray-300",  icon: "gear",     badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
   }
 
+  // "14.09.2026, 10.05" — the default da-DK toLocaleString appends seconds
+  // ("10.05.00"), which is noise in a feed and widens the metadata row for no
+  // information. An unparseable value is returned as-is rather than rendered
+  // as "Invalid Date".
+  function formatAktivitetTidspunkt(value: string | null | undefined): string {
+    if (!value) return "";
+
+    const parsed = new Date(value);
+
+    if (Number.isNaN(parsed.getTime())) return String(value);
+
+    return parsed.toLocaleString("da-DK", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   // Feed filters
   let filterTypes: string[] = [];
   let filterFra = "";
   let filterTil = "";
   let filterUdfoertAf: string[] = [];
-  let openDropdown: "type" | "sender" | null = null;
+  let filterBevillingIds: number[] = [];
+  let openDropdown: "type" | "sender" | "bevilling" | null = null;
   let sortAsc = false;
 
   const feedMinDate = new Date(new Date().getFullYear() - 10, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
@@ -253,7 +276,24 @@
 
   $: uniqueCategories = [...new Set<string>((aktiviteter ?? []).map((a: any) => getCategory(a.aktivitetstype ?? "")))].sort((a: string, b: string) => a.localeCompare(b, "da"));
   $: uniqueSenders = [...new Set<string>((aktiviteter ?? []).map((a: any) => a.udfoert_af ?? "").filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, "da"));
-  $: feedHasActiveFilters = filterTypes.length > 0 || filterFra !== "" || filterTil !== "" || filterUdfoertAf.length > 0;
+  // Bevillinger referenced by at least one activity, newest first. Built from
+  // the feed rather than from `bevillinger` so the dropdown never offers a
+  // bevilling that would filter the list down to nothing.
+  //
+  // Labelled with bevillingLabelById (the same "Bevilling 2" the badge shows),
+  // falling back to the system id for a bevilling that has since been deleted
+  // but whose activities remain.
+  $: bevillingFilterOptions = [
+    ...new Set<number>(
+      (aktiviteter ?? [])
+        .map((a: any) => a.relateret_bevilling_id)
+        .filter((id: any): id is number => id !== null && id !== undefined)
+    ),
+  ]
+    .sort((a, b) => b - a)
+    .map((id) => ({ id, label: bevillingLabelById.get(id) ?? `Bevilling #${id}` }));
+
+  $: feedHasActiveFilters = filterTypes.length > 0 || filterFra !== "" || filterTil !== "" || filterUdfoertAf.length > 0 || filterBevillingIds.length > 0;
 
   $: filteredAktiviteter = (() => {
     const list = (aktiviteter ?? []).filter((a: any) => {
@@ -270,6 +310,7 @@
         if (ts > til) return false;
       }
       if (filterUdfoertAf.length > 0 && !filterUdfoertAf.includes(a.udfoert_af ?? "")) return false;
+      if (filterBevillingIds.length > 0 && !filterBevillingIds.includes(a.relateret_bevilling_id)) return false;
       return true;
     });
     return sortAsc ? [...list].reverse() : list;
@@ -280,6 +321,7 @@
     filterFra = "";
     filterTil = "";
     filterUdfoertAf = [];
+    filterBevillingIds = [];
   }
 
 
@@ -330,25 +372,6 @@
   // Small helpers
   // -----------------------------
 
-  function getStatusReason(result: any) {
-    return (
-      result?.status?.status_reason ??
-      result?.status_reason ??
-      null
-    );
-  }
-
-
-  function showStatusReasonIfAny(result: any) {
-    const statusReason = getStatusReason(result);
-
-    if (!statusReason) {
-      return;
-    }
-
-    alert(statusReason);
-  }
-
   function emptyToNull(value: any) {
     if (value === "") {
       return null;
@@ -367,142 +390,9 @@
   }
 
 
-  function resetCreateLetterForm() {
-    selectedLetterBevillingId = "";
-    letterType = "";
-    befordringsudvalgResultat = "";
-    tidligereAfgoerelseDato = "";
-    koerselStartdato = "";
-    datoForSenesteBevilling = "";
-  }
-
-
   // -----------------------------
   // Bevilling handlers
   // -----------------------------
-
-  async function handleCreateLetter() {
-    if (!selectedLetterBevillingId) {
-      alert("Vælg en bevilling");
-      return;
-    }
-
-    if (!letterType) {
-      alert("Vælg hvad brevet er i forbindelse med");
-      return;
-    }
-
-    if (selectedLetterBevillingHasBefordringsudvalg && !befordringsudvalgResultat) {
-      alert("Vælg resultat af befordringsudvalgsmøde");
-      return;
-    }
-
-    if (selectedLetterBevillingHasBefordringsudvalg && !tidligereAfgoerelseDato) {
-      alert("Angiv dato for tidligere afgørelse");
-      return;
-    }
-
-    if (selectedLetterBevillingIsOphoert && !ophoersdato) {
-      alert("Vælg ophørsdato");
-      return;
-    }
-
-    const invalidDate = firstInvalidDate(
-      {
-        koersel_startdato: koerselStartdato,
-        dato_for_seneste_bevilling: datoForSenesteBevilling,
-        dato_for_tidligere_afgoerelse: tidligereAfgoerelseDato,
-        ophoersdato,
-      },
-      [
-        "koersel_startdato",
-        "dato_for_seneste_bevilling",
-        "dato_for_tidligere_afgoerelse",
-        "ophoersdato",
-      ],
-    );
-
-    if (invalidDate) {
-      alert("Angiv en gyldig dato (åååå-mm-dd).");
-      return;
-    }
-
-    creatingLetter = true;
-
-    const payload = {
-      brev_i_forbindelse_med: letterType,
-
-      koersel_startdato: koerselStartdato || null,
-
-      dato_for_seneste_bevilling: datoForSenesteBevilling || null,
-
-      befordringsudvalg_resultat: selectedLetterBevillingHasBefordringsudvalg
-        ? befordringsudvalgResultat
-        : null,
-
-      dato_for_tidligere_afgoerelse: selectedLetterBevillingHasBefordringsudvalg
-        ? tidligereAfgoerelseDato
-        : null,
-
-      ophoersdato: selectedLetterBevillingIsOphoert
-        ? ophoersdato
-        : null
-    };
-
-    try {
-      const response = await backendFetch(
-        `/bevilling/create_letter/${stamdata.cpr}/${selectedLetterBevillingId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
-        }
-      );
-
-      if (!response.ok) {
-        let message = "Kunne ikke oprette brev";
-
-        try {
-          const errorData = await response.json();
-
-          message =
-            errorData?.detail?.message ??
-            errorData?.detail ??
-            message;
-        } catch {
-          // Keep fallback message
-        }
-
-        alert(message);
-        return;
-      }
-
-      const result = await response.json();
-
-      alert(`Brev er sat i kø. Reference: ${result.reference}`);
-
-      await backendFetch(`/aktivitet/${stamdata.cpr}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aktivitetstype: "Brev oprettet",
-          kommentar: `Bevilling ID: ${selectedLetterBevillingId}`,
-          relateret_bevilling_id: Number(selectedLetterBevillingId),
-          udfoert_af: null,
-        })
-      });
-
-      showCreateLetterModal = false;
-      resetCreateLetterForm();
-      await invalidateAll();
-
-    } finally {
-      creatingLetter = false;
-    }
-  }
-
 
   async function handleSaveBevilling(bevillingId: number, updates: any): Promise<string | null> {
     const { hjaelpemiddel_ids, ...bevillingUpdates } = updates;
@@ -532,8 +422,6 @@
       return message;
     }
 
-    const bevillingResult = await bevillingResponse.json();
-
     const hjaelpemidlerResponse = await backendFetch(
       `/bevilling/${bevillingId}/hjaelpemidler`,
       {
@@ -550,8 +438,6 @@
     if (!hjaelpemidlerResponse.ok) {
       return "Bevilling blev gemt, men hjælpemidler kunne ikke gemmes";
     }
-
-    showStatusReasonIfAny(bevillingResult);
 
     await invalidateAll();
 
@@ -595,10 +481,6 @@
       } catch { /* keep fallback */ }
       return message;
     }
-
-    const result = await response.json();
-
-    showStatusReasonIfAny(result);
 
     await invalidateAll();
 
@@ -689,8 +571,6 @@
       return message;
     }
 
-    const koerselsraekkeResult = await response.json();
-
     const tillaegResponse = await backendFetch(
       `/bevilling/koerselsraekke/${koerselId}/tillaeg`,
       {
@@ -724,8 +604,6 @@
     if (!dageResponse.ok) {
       return "Kørselsrække blev gemt, men dage kunne ikke gemmes";
     }
-
-    showStatusReasonIfAny(koerselsraekkeResult);
 
     await invalidateAll();
 
@@ -778,7 +656,6 @@
     if (e.key !== 'Escape') return;
     if (openDropdown) { openDropdown = null; return; }
     if (showCreateBevillingModal) { showCreateBevillingModal = false; }
-    if (showCreateLetterModal) { showCreateLetterModal = false; resetCreateLetterForm(); }
   }}
   on:click={(e) => {
     if (openDropdown && !(e.target as Element)?.closest?.('.feed-filter-dropdown')) {
@@ -801,7 +678,11 @@
   <!-- Parent address restriction warning -->
   {#if anyParentCannotKnowAddress}
     <div class="mb-4 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900">
-      <p class="mt-0.5 text-xs">En eller flere forældre/værger må <strong>ikke</strong> oplyses om barnets adresse.</p>
+      <p class="mt-0.5 text-xs">
+        {restrictedParentCprList} har fået frataget deres rettigheder til at se oplysninger om
+        {formatCpr(stamdata?.cpr)}, og I må derfor <strong>ikke</strong> på nogen måde videregive
+        oplysninger om barnet til forældrene.
+      </p>
     </div>
   {/if}
 
@@ -961,10 +842,10 @@
           <p class="text-sm text-gray-800">{stamdata?.elevklassetrin ?? "—"}</p>
         </div>
 
-        <!-- SFO -->
+        <!-- Institution (SFO / klub) -->
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">SFO</p>
-          <p class="text-sm text-gray-800">{stamdata?.sfo ?? "—"}</p>
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Institution</p>
+          <p class="text-sm text-gray-800">{stamdata?.institution ?? "—"}</p>
         </div>
 
         <!-- BOPÆLSDISTRIKT -->
@@ -1063,7 +944,7 @@
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
         elevklassetrin={stamdata?.elevklassetrin ?? null}
-        {parter}
+        parter={recipients}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}
         on:cancel={() => { showCreateBevillingModal = false; }}
@@ -1071,103 +952,13 @@
     {/if}
 
 
-    <!-- Create letter modal -->
-    {#if showCreateLetterModal}
-      <!-- Backdrop is non-dismissing: close only via Escape or the Annullér button. -->
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        role="presentation"
-      >
-        <div
-          class="w-[560px] bg-white rounded-lg shadow-2xl"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Opret brev"
-          tabindex="-1"
-        >
-
-          <div class="px-8 py-5 border-b border-gray-200 rounded-t-lg" style="background-color: #6d28d9;">
-            <h2 class="text-lg font-bold text-white">Opret brev</h2>
-            <p class="mt-0.5 text-sm" style="color: rgba(255,255,255,0.7);">Vælg bevilling og brevtype</p>
-          </div>
-
-          <div class="p-8 space-y-5">
-            <label class="block text-sm font-medium text-gray-700">
-              Vælg bevilling
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={selectedLetterBevillingId}>
-                <option value="">Vælg bevilling</option>
-                {#each bevillinger ?? [] as bevilling}
-                  <option value={String(bevilling.bevilling_id)}>
-                    Bevilling #{bevilling.bevilling_id} – {bevilling.status_tekst ?? "Ukendt status"}
-                  </option>
-                {/each}
-              </select>
-            </label>
-
-            <label class="block text-sm font-medium text-gray-700">
-              Brevet er i forbindelse med en:
-              <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={letterType}>
-                <option value="">Vælg</option>
-                <option value="ansøgning">Ansøgning</option>
-                <option value="revurdering">Revurdering</option>
-                <option value="midlertidig kørsel">Midlertidig kørsel</option>
-              </select>
-            </label>
-
-            <label class="block text-sm font-medium text-gray-700">
-              Startdato for kørsel
-              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={koerselStartdato} />
-            </label>
-
-            <label class="block text-sm font-medium text-gray-700">
-              Dato for seneste bevilling
-              <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={datoForSenesteBevilling} />
-            </label>
-
-            {#if selectedLetterBevillingHasBefordringsudvalg}
-              <label class="block text-sm font-medium text-gray-700">
-                Resultat af befordringsudvalgsmøde
-                <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={befordringsudvalgResultat}>
-                  <option value="">Vælg</option>
-                  <option value="Befordringsudvalg: Afslag / fastholdelse">Befordringsudvalg: Afslag / fastholdelse</option>
-                  <option value="Befordringsudvalg: Ændring i bevilling">Befordringsudvalg: Ændring i bevilling</option>
-                </select>
-              </label>
-              <label class="block text-sm font-medium text-gray-700">
-                Dato for tidligere afgørelse
-                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={tidligereAfgoerelseDato} />
-              </label>
-            {/if}
-
-            {#if selectedLetterBevillingIsOphoert}
-              <label class="block text-sm font-medium text-gray-700">
-                Ophørsdato
-                <input type="date" max="9999-12-31" class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={ophoersdato} />
-              </label>
-            {/if}
-          </div>
-
-          <div class="flex justify-end gap-3 border-t border-gray-200 px-8 py-5 bg-gray-50 rounded-b-lg">
-            <button
-              type="button"
-              class="px-5 py-2 text-sm font-medium border border-gray-300 rounded hover:bg-white transition-colors"
-              on:click={() => { showCreateLetterModal = false; resetCreateLetterForm(); }}
-            >
-              Annullér
-            </button>
-            <button
-              type="button"
-              class="px-5 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={creatingLetter}
-              on:click={handleCreateLetter}
-            >
-              {creatingLetter ? "Opretter..." : "Opret brev"}
-            </button>
-          </div>
-
-        </div>
-      </div>
-    {/if}
+    <!-- Create letter modal (shared with the revurdering page) -->
+    <CreateLetterModal
+      bind:open={showCreateLetterModal}
+      cpr={stamdata.cpr}
+      bevillinger={bevillinger}
+      on:created={() => invalidateAll()}
+    />
 
 
     <BevillingTable
@@ -1177,7 +968,7 @@
       onSaveKoerselsraekke={handleSaveKoerselsraekke}
       onCreateKoerselsraekke={handleCreateKoerselsraekke}
       onFinalizeKoerselsraekke={handleFinalizeKoerselsraekke}
-      {parter}
+      parter={recipients}
       onSetBevillingLock={handleSetBevillingLock}
       onDeleteBevilling={handleDeleteBevilling}
       onDeleteKoerselsraekke={handleDeleteKoerselsraekke}
@@ -1220,6 +1011,12 @@
     <!-- Ny kommentar -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
       <h2 class="font-semibold text-gray-800 mb-3">Tilføj kommentar</h2>
+
+      {#if kommentarError}
+        <div class="mb-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded" role="alert">
+          {kommentarError}
+        </div>
+      {/if}
 
       <textarea
         bind:value={nyKommentar}
@@ -1303,6 +1100,43 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </div>
 
 
+        <!-- Bevilling dropdown -->
+        {#if bevillingFilterOptions.length > 0}
+          <div class="relative feed-filter-dropdown">
+            <button
+              type="button"
+              class="relative min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 bg-white hover:border-gray-400 text-left"
+              on:click|stopPropagation={() => openDropdown = openDropdown === "bevilling" ? null : "bevilling"}
+            >
+              {filterBevillingIds.length > 0
+                ? bevillingFilterOptions.filter((o) => filterBevillingIds.includes(o.id)).map((o) => o.label).join(", ")
+                : "Alle bevillinger"}
+              <svg class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            {#if openDropdown === "bevilling"}
+              <div class="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded shadow-lg min-w-[190px] py-1">
+                {#each bevillingFilterOptions as option}
+                  <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={filterBevillingIds.includes(option.id)}
+                      on:change={() => {
+                        filterBevillingIds = filterBevillingIds.includes(option.id)
+                          ? filterBevillingIds.filter((id) => id !== option.id)
+                          : [...filterBevillingIds, option.id];
+                      }}
+                      class="rounded border-gray-300 text-blue-500"
+                    />
+                    {option.label}
+                    <span class="ml-auto font-mono text-[10px] text-gray-400">#{option.id}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+
+
         <!-- Udført af dropdown -->
         <div class="relative feed-filter-dropdown">
           <button
@@ -1376,7 +1210,12 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             <div class="border-l-4 {style.border} {style.cardBg} border border-gray-100 rounded-r-lg px-4 py-3">
               <div class="flex items-start justify-between gap-2">
 
-                <!-- Left: icon + badge + bevilling pill -->
+                <!-- All information sits left, in two rows: what happened, then
+                     when and by whom. The right side carries only the action, so
+                     a destructive button is never mixed in among metadata. -->
+                <div class="min-w-0">
+
+                <!-- Row 1: icon + type badge + bevilling pill -->
                 <div class="flex items-center gap-2 flex-wrap">
                   {#if style.icon === "check"}
                     <svg class="w-3.5 h-3.5 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -1408,31 +1247,35 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                     {getDisplayLabel(aktivitet.aktivitetstype ?? "")}
                   </span>
                   {#if aktivitet.relateret_bevilling_id}
-                    <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">Bevilling #{aktivitet.relateret_bevilling_id}</span>
+                    <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{bevillingLabelById.get(aktivitet.relateret_bevilling_id) ?? `Bevilling #${aktivitet.relateret_bevilling_id}`}</span>
                   {/if}
                 </div>
 
-                <!-- Right: timestamp + sender + delete -->
-                <div class="flex flex-col items-end shrink-0 text-right gap-0.5">
-                  <span class="text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
-                  </span>
+                <!-- Row 2: when + by whom. Muted and smaller so the badge above
+                     stays the anchor the eye lands on when scanning the feed. -->
+                <div class="mt-1 flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500">
+                  <span class="whitespace-nowrap">{formatAktivitetTidspunkt(aktivitet.oprettet_tidspunkt)}</span>
                   {#if aktivitet.udfoert_af}
+                    <span class="text-gray-300" aria-hidden="true">·</span>
                     {#if aktivitet.udfoert_af === "System"}
-                      <span class="text-xs italic text-gray-500">System</span>
+                      <span class="italic">System</span>
                     {:else}
-                      <span class="text-xs font-medium text-gray-700">{aktivitet.udfoert_af}</span>
+                      <span class="font-medium text-gray-600">{aktivitet.udfoert_af}</span>
                     {/if}
                   {/if}
+                </div>
 
-                  <!-- Only comments can be deleted. System-written entries are
-                       the case history, and the backend refuses them too. -->
+                </div>
+
+                <!-- Right: action only. Only comments can be deleted — system
+                     entries are the case history, and the backend refuses them. -->
+                <div class="shrink-0">
                   {#if aktivitet.aktivitetstype === "Kommentar"}
                     <button
                       type="button"
                       title="Slet kommentar"
                       disabled={!canEdit}
-                      class="mt-1 p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      class="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       on:click={() => { confirmingDeleteAktivitetId = aktivitet.aktivitet_id; deleteAktivitetError = null; }}
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

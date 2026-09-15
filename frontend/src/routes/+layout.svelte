@@ -10,27 +10,20 @@
 
   let { children, data } = $props();
 
-  let nyeCount = $state(0);
-  let revCount = $state(0);
-
-  onMount(async () => {
-    try {
-      const [nyeRes, revRes] = await Promise.all([
-        backendFetch('/overview/new_applications'),
-        backendFetch('/overview/revurderinger'),
-      ]);
-      if (nyeRes.ok) nyeCount = (await nyeRes.json()).length;
-      if (revRes.ok) revCount = (await revRes.json()).length;
-    } catch {
-      // non-critical — badges just won't show
-    }
-  });
+  // Derived from layout data rather than fetched on mount, so invalidateAll()
+  // after a save updates the badges without a refresh. See +layout.server.ts.
+  const nyeCount = $derived(data.counts?.nye ?? 0);
+  const revCount = $derived(data.counts?.revurderinger ?? 0);
+  const genbehandlingCount = $derived(data.counts?.genbehandlinger ?? 0);
+  const forsendelseCount = $derived(data.counts?.forsendelser ?? 0);
 
   const tabs = [
     { href: '/', label: 'Overblik' },
     { href: '/nye-ansoegninger', label: 'Nye ansøgninger' },
     { href: '/revurdering', label: 'Revurdering' },
-    { href: '/rapporter', label: 'Rapporter' },
+    { href: '/genbehandling', label: 'Genbehandling' },
+    { href: '/forsendelse', label: 'Forsendelse' },
+    { href: '/links', label: 'Links' },
   ];
 
   const currentPath = $derived($page.url.pathname);
@@ -178,7 +171,7 @@
     <ul class="flex flex-wrap">
       {#each tabs as tab}
         {@const active = isActive(tab)}
-        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : 0}
+        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : tab.href === '/genbehandling' ? genbehandlingCount : tab.href === '/forsendelse' ? forsendelseCount : 0}
         <li>
           <a
             href={tab.href}
@@ -263,9 +256,6 @@
                 <p class="text-sm font-semibold text-gray-900 truncate">{result.adresseringsnavn ?? '—'}</p>
                 <p class="text-xs text-gray-400 mt-0.5">{formatCpr(result.cpr_elev)}</p>
               </div>
-              <span class="ml-3 shrink-0 text-[11px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                {result.bevilling_count} {result.bevilling_count === 1 ? 'bevilling' : 'bevillinger'}
-              </span>
             </div>
           {/each}
         </div>

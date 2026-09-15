@@ -43,6 +43,7 @@ AS
         k.koersel_til_institution,
         k.max_minutter_i_transport,
         k.koerselsgodtgoerelse_modtager_id,
+        k.koerselsgodtgoerelse_modtager_cpr,
 
         k.final
     FROM

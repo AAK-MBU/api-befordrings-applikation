@@ -15,7 +15,7 @@ SELECT
     e.cpr                           AS barnets_cpr,
     e.adresseringsnavn              AS barnets_fulde_navn,
     ad.adresse_tekst                AS folkeregisteradresse,
-    e.sfo,
+    e.institution,
     e.klasseart,
     e.klassebetegnelse,
     e.elevklassetrin                AS personligt_klassetrin,

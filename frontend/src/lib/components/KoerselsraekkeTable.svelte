@@ -1,16 +1,21 @@
 <script lang="ts">
   import { page } from "$app/stores";
+  import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
   import { formatDanishDate } from "$lib/tableColumnConfig";
-  import { backendFetch } from "$lib/client/backendFetch";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
   import DagePicker from "$lib/components/DagePicker.svelte";
+  import {
+    availableKoerselstyper as koerselstyperFor,
+    isEgenbefordring as typeIsEgenbefordring,
+    isKoerselType as typeIsKoersel,
+    isSkolerejsekort as typeIsSkolerejsekort,
+    isTaxaType as typeIsTaxa,
+    labelIsEgenbefordring,
+    labelIsSkolerejsekort,
+    labelIsTaxa,
+  } from "$lib/koerselstype";
+  import { afstandFraKoordinater } from "$lib/client/afstand";
 
-  const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
-  const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
-
-  function isDateOutOfRange(value: string | null | undefined): boolean {
-    return !!value && (value < minDate || value > maxDate);
-  }
 
   // -----------------------------
   // Props
@@ -39,7 +44,10 @@
     koerselId: number
   ) => Promise<string | null>;
 
-  export let adresseForBevilling: string = "";
+  // Coordinates rather than the address text: they come from the LOIS sync on
+  // the address itself, so there is nothing to geocode. See $lib/client/afstand.
+  export let adresseLat: number | null = null;
+  export let adresseLon: number | null = null;
   export let matrikelId: number | null = null;
   export let readonly: boolean = false;
 
@@ -65,71 +73,22 @@
   let distanceErrorFrom: 'edit' | 'new' | null = null;   // persists after finally for display
   let distanceError: string | null = null;
 
-  // Kørselstyper where Taxa-ID is relevant.
-  const TAXA_TYPES = new Set(['rutekørsel', 'skånekørsel', 'solokørsel', 'variabel kørsel']);
+  // Classification lives in $lib/koerselstype so the create modal, this table
+  // and BevillingTable can never disagree about what a kørselstype is. These
+  // thin wrappers bind the lookup list once so call sites stay readable.
+  $: availableKoerselstyper = koerselstyperFor(lookupOptions.koerselstyper, ansoegningstype);
 
-  // Kørselstyper the midlertidig-kørsel form actually offers. The lookup table
-  // holds every type used anywhere in the system, so without this a caseworker
-  // can pick one the form could never have produced.
-  const MIDLERTIDIG_ALLOWED = new Set([
-    'egenbefordring', 'skolerejsekort', 'rutekørsel',
-    'solokørsel', 'variabelkørsel', 'skånekørsel',
-  ]);
+  const isEgenbefordring = (typeId: string | number | null | undefined) =>
+    typeIsEgenbefordring(lookupOptions.koerselstyper, typeId);
 
-  // Compared with whitespace stripped, because the lookup labels are not
-  // consistent about it ("Variabel kørsel" vs "Variabelkørsel").
-  $: availableKoerselstyper = ansoegningstype === 'Midlertidig kørsel'
-    ? (lookupOptions.koerselstyper ?? []).filter(
-        (type: any) => MIDLERTIDIG_ALLOWED.has(normalizeType(type.label).replace(/\s/g, ''))
-      )
-    : (lookupOptions.koerselstyper ?? []);
+  const isTaxaType = (typeId: string | number | null | undefined) =>
+    typeIsTaxa(lookupOptions.koerselstyper, typeId);
 
-  function normalizeType(label: string | null | undefined): string {
-    return String(label ?? '').trim().toLowerCase();
-  }
+  const isSkolerejsekort = (typeId: string | number | null | undefined) =>
+    typeIsSkolerejsekort(lookupOptions.koerselstyper, typeId);
 
-  function labelForType(typeId: string | number | null | undefined): string | undefined {
-    if (!typeId) return undefined;
-    return lookupOptions.koerselstyper?.find(
-      (t: any) => Number(t.id) === Number(typeId)
-    )?.label;
-  }
-
-  // Tolerate both "Egen befordring" and "Egenbefordring".
-  function labelIsEgenbefordring(label: string | null | undefined): boolean {
-    return normalizeType(label).replace(/\s/g, '') === 'egenbefordring';
-  }
-
-  function labelIsTaxa(label: string | null | undefined): boolean {
-    return TAXA_TYPES.has(normalizeType(label));
-  }
-
-  function isEgenbefordring(typeId: string | number | null | undefined): boolean {
-    return labelIsEgenbefordring(labelForType(typeId));
-  }
-
-  function isTaxaType(typeId: string | number | null | undefined): boolean {
-    return labelIsTaxa(labelForType(typeId));
-  }
-
-  // Tillæg only applies to befordringstyper that are a form of "kørsel"
-  // (e.g. Rutekørsel, Skånekørsel) — not Skolerejsekort, Skolebus, Cykelbus, etc.
-  function labelIsKoersel(label: string | null | undefined): boolean {
-    return TAXA_TYPES.has(normalizeType(label));
-  }
-
-  function isKoerselType(typeId: string | number | null | undefined): boolean {
-    return labelIsKoersel(labelForType(typeId));
-  }
-
-  // Transporttid i bus / antal skift only apply to Skolerejsekort.
-  function labelIsSkolerejsekort(label: string | null | undefined): boolean {
-    return normalizeType(label) === 'skolerejsekort';
-  }
-
-  function isSkolerejsekort(typeId: string | number | null | undefined): boolean {
-    return labelIsSkolerejsekort(labelForType(typeId));
-  }
+  const isKoerselType = (typeId: string | number | null | undefined) =>
+    typeIsKoersel(lookupOptions.koerselstyper, typeId);
 
   async function calculateAndFillDistance(
     befordringtypeId: string | number | null,
@@ -144,76 +103,31 @@
       return;
     }
 
-    if (!adresseForBevilling) {
-      distanceError = 'Ingen adresse på bevillingen — kan ikke beregne afstand';
-      return;
-    }
-
-    if (!matrikelId) {
-      distanceError = 'Ingen skole valgt på bevillingen — kan ikke beregne afstand';
-      return;
-    }
-
     isCalculatingDistance = true;
     distanceCalcTarget = target;
     distanceError = null;
     distanceErrorFrom = null;
 
     try {
-      // 1. Geocode the citizen's address
-      const geocodeRes = await backendFetch(
-        `/bevilling/geocode_address?address=${encodeURIComponent(adresseForBevilling)}`
-      );
-      if (!geocodeRes.ok) {
-        let detail = 'Kunne ikke geokode adressen';
-        try { const body = await geocodeRes.json(); detail = body?.detail ?? detail; } catch { /* keep fallback */ }
-        throw new Error(detail);
+      const { km, error } = await afstandFraKoordinater(adresseLat, adresseLon, matrikelId);
+
+      if (error !== null) {
+        distanceError = error;
+        distanceErrorFrom = target;
+        return;
       }
-      const geocodeData = await geocodeRes.json();
 
-      // 2. Get school matrikel coordinates
-      const schoolRes = await backendFetch(`/lookup/skolematrikel/${matrikelId}/coordinates`);
-      if (!schoolRes.ok) {
-        let detail = 'Kunne ikke hente skolens koordinater';
-        try { const body = await schoolRes.json(); detail = body?.detail ?? detail; } catch { /* keep fallback */ }
-        throw new Error(detail);
-      }
-      const schoolData = await schoolRes.json();
-
-      // 3. Calculate driving distance
-      const distParams = new URLSearchParams({
-        lat1: String(geocodeData.latitude),
-        lon1: String(geocodeData.longitude),
-        lat2: String(schoolData.latitude),
-        lon2: String(schoolData.longitude)
-      });
-      const distRes = await backendFetch(`/bevilling/calculate_driving_distance?${distParams}`);
-      if (!distRes.ok) {
-        let detail = 'Kunne ikke beregne køreafstand';
-        try { const body = await distRes.json(); detail = body?.detail ?? detail; } catch { /* keep fallback */ }
-        throw new Error(detail);
-      }
-      const distData = await distRes.json();
-
-      const distance = distData.distance_km ?? distData.distance ?? distData.driving_distance_km;
-      if (distance == null) throw new Error('Ugyldigt svar fra afstandsberegning');
-
-      // 4. Guard: discard if the user changed the type while we were calculating
+      // Discard if the user changed the type while we were calculating.
       const currentTypeId = target === 'new'
         ? newKoerselsraekke.befordringstype_id
         : editableKoerselsraekke.befordringstype_id;
       if (Number(currentTypeId) !== Number(befordringtypeId)) return;
 
-      // 5. Auto-fill the km field
       if (target === 'new') {
-        updateNewField('bevilget_koereafstand_pr_vej', String(distance));
+        updateNewField('bevilget_koereafstand_pr_vej', String(km));
       } else {
-        updateField('bevilget_koereafstand_pr_vej', String(distance));
+        updateField('bevilget_koereafstand_pr_vej', String(km));
       }
-
-    } catch (err: any) {
-      distanceError = err?.message ?? 'Fejl ved beregning af afstand';
-      distanceErrorFrom = target;
     } finally {
       isCalculatingDistance = false;
       distanceCalcTarget = null;
@@ -369,6 +283,7 @@
       koersel_til_institution: "",
       max_minutter_i_transport: "",
       koerselsgodtgoerelse_modtager_id: "",
+      koerselsgodtgoerelse_modtager_cpr: "",
       final: false
     };
   }
@@ -458,6 +373,7 @@
       koersel_til_institution: isTaxaType(editableKoerselsraekke.befordringstype_id) ? boolOrNull(editableKoerselsraekke.koersel_til_institution) : null,
       max_minutter_i_transport: isTaxaType(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.max_minutter_i_transport) : null,
       koerselsgodtgoerelse_modtager_id: isEgenbefordring(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
+      koerselsgodtgoerelse_modtager_cpr: isEgenbefordring(editableKoerselsraekke.befordringstype_id) ? (editableKoerselsraekke.koerselsgodtgoerelse_modtager_cpr || null) : null,
 
       tillaeg_ids: isKoerselType(editableKoerselsraekke.befordringstype_id) ? selectedTillaegIds : [],
       dag_ids: selectedDagIds
@@ -500,6 +416,7 @@
         koersel_til_institution: source.koersel_til_institution != null ? String(source.koersel_til_institution) : "",
         max_minutter_i_transport: source.max_minutter_i_transport != null ? String(source.max_minutter_i_transport) : "",
         koerselsgodtgoerelse_modtager_id: source.koerselsgodtgoerelse_modtager_id ?? "",
+        koerselsgodtgoerelse_modtager_cpr: source.koerselsgodtgoerelse_modtager_cpr ?? "",
         final: false,
       };
       newSelectedTillaegIds = parseIds(source.tillaeg_ids);
@@ -545,7 +462,7 @@
 
     if (isEgenbefordring(befordringstypeId)) {
       if (isBlank(values.bevilget_koereafstand_pr_vej)) return "Bevilget km pr. vej skal udfyldes";
-      if (isBlank(values.koerselsgodtgoerelse_modtager_id)) return "Kørselsgodtgørelse modtager skal udfyldes";
+      if (isBlank(values.koerselsgodtgoerelse_modtager_id) && isBlank(values.koerselsgodtgoerelse_modtager_cpr)) return "Kørselsgodtgørelse modtager skal udfyldes";
     }
 
     if (isTaxaType(befordringstypeId)) {
@@ -604,6 +521,7 @@
       koersel_til_institution: isTaxaType(newKoerselsraekke.befordringstype_id) ? boolOrNull(newKoerselsraekke.koersel_til_institution) : null,
       max_minutter_i_transport: isTaxaType(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.max_minutter_i_transport) : null,
       koerselsgodtgoerelse_modtager_id: isEgenbefordring(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
+      koerselsgodtgoerelse_modtager_cpr: isEgenbefordring(newKoerselsraekke.befordringstype_id) ? (newKoerselsraekke.koerselsgodtgoerelse_modtager_cpr || null) : null,
 
       tillaeg_ids: isKoerselType(newKoerselsraekke.befordringstype_id) ? newSelectedTillaegIds : [],
       dag_ids: newSelectedDagIds
@@ -704,20 +622,39 @@
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager *</span>
-            <select class={selectClass} value={newKoerselsraekke.koerselsgodtgoerelse_modtager_id ?? ""} on:change={(e) => updateNewField("koerselsgodtgoerelse_modtager_id", numberOrNull(e.currentTarget.value))}>
+            <select class={selectClass}
+              value={newKoerselsraekke.koerselsgodtgoerelse_modtager_id ? `p:${newKoerselsraekke.koerselsgodtgoerelse_modtager_id}` : newKoerselsraekke.koerselsgodtgoerelse_modtager_cpr ? `f:${newKoerselsraekke.koerselsgodtgoerelse_modtager_cpr}` : ""}
+              on:change={(e) => {
+                const v = e.currentTarget.value;
+                if (!v) { updateNewField("koerselsgodtgoerelse_modtager_id", null); updateNewField("koerselsgodtgoerelse_modtager_cpr", null); }
+                else if (v.startsWith("p:")) { updateNewField("koerselsgodtgoerelse_modtager_id", Number(v.slice(2))); updateNewField("koerselsgodtgoerelse_modtager_cpr", null); }
+                else if (v.startsWith("f:")) { updateNewField("koerselsgodtgoerelse_modtager_id", null); updateNewField("koerselsgodtgoerelse_modtager_cpr", v.slice(2)); }
+              }}>
               <option value="">Vælg</option>
-              {#each parter as p}<option value={p.part_id}>{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+              {#if parter.some((r: any) => r.type === 'foraelder')}
+                <optgroup label="Forældre">
+                  {#each parter.filter((r: any) => r.type === 'foraelder') as r}<option value="f:{r.cpr_foraelder}">{r.fulde_navn ?? r.cpr_foraelder}{r.relation ? ` (${r.relation})` : ""}</option>{/each}
+                </optgroup>
+              {/if}
+              {#if parter.some((r: any) => r.type === 'part')}
+                <optgroup label="Øvrige parter">
+                  {#each parter.filter((r: any) => r.type === 'part') as r}<option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>{/each}
+                </optgroup>
+              {/if}
+              {#if !parter.some((r: any) => r.type)}
+                {#each parter as p}<option value="p:{p.part_id}">{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+              {/if}
             </select>
           </label>
           <div></div><div></div>
           <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 4: Kommentar full width -->
@@ -751,11 +688,11 @@
           <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 4: Kommentar -->
@@ -778,11 +715,11 @@
           <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 4: Kommentar -->
@@ -795,11 +732,11 @@
           <!-- Default (Skolebus, Gåbus, etc.): Row 2: Gyldig fra | Gyldig til | empty | empty -->
           <label class="block md:col-start-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateNewField("gyldig_fra", e.currentTarget.value)} />
           </label>
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-            <input type="date" class={inputClass} min={minDate} max={maxDate} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
+            <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={newKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateNewField("gyldig_til", e.currentTarget.value)} />
           </label>
           <div></div><div></div>
           <!-- Row 3: Kommentar -->
@@ -972,20 +909,41 @@
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager *</span>
-              <select class={selectClass} value={editableKoerselsraekke.koerselsgodtgoerelse_modtager_id ?? ""} on:change={(e) => updateField("koerselsgodtgoerelse_modtager_id", numberOrNull(e.currentTarget.value))}>
+              <select class={selectClass}
+                value={editableKoerselsraekke.koerselsgodtgoerelse_modtager_id ? `p:${editableKoerselsraekke.koerselsgodtgoerelse_modtager_id}` : editableKoerselsraekke.koerselsgodtgoerelse_modtager_cpr ? `f:${editableKoerselsraekke.koerselsgodtgoerelse_modtager_cpr}` : ""
+}
+                on:change={(e) => {
+                  const v = e.currentTarget.value;
+                  if (!v) { updateField("koerselsgodtgoerelse_modtager_id", null); updateField("koerselsgodtgoerelse_modtager_cpr", null); }
+                  else if (v.startsWith("p:")) { updateField("koerselsgodtgoerelse_modtager_id", Number(v.slice(2))); updateField("koerselsgodtgoerelse_modtager_cpr", null); }
+                  else if (v.startsWith("f:")) { updateField("koerselsgodtgoerelse_modtager_id", null); updateField("koerselsgodtgoerelse_modtager_cpr", v.slice(2)); }
+                }}>
                 <option value="">Vælg</option>
-                {#each parter as p}<option value={p.part_id}>{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+                {#if parter.some((r: any) => r.type === 'foraelder')}
+                  <optgroup label="Forældre">
+                    {#each parter.filter((r: any) => r.type === 'foraelder') as r}
+                      <option value="f:{r.cpr_foraelder}">{r.fulde_navn ?? r.cpr_foraelder}{r.relation ? ` (${r.relation})` : ""}</option>
+                    {/each}
+                  </optgroup>
+                {/if}
+                {#if parter.some((r: any) => r.type === 'part')}
+                  <optgroup label="Øvrige parter">
+                    {#each parter.filter((r: any) => r.type === 'part') as r}
+                      <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>
+                    {/each}
+                  </optgroup>
+                {/if}               
               </select>
             </label>
             <div></div><div></div>
             <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 4: Kommentar -->
@@ -1019,11 +977,11 @@
             <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 4: Kommentar -->
@@ -1046,11 +1004,11 @@
             <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 4: Kommentar -->
@@ -1063,11 +1021,11 @@
             <!-- Default (Skolebus, Gåbus, etc.): Row 2: Gyldig fra | Gyldig til | empty | empty -->
             <label class="block md:col-start-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_fra ?? ""} on:change={(e) => updateField("gyldig_fra", e.currentTarget.value)} />
             </label>
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-              <input type="date" class={inputClass} min={minDate} max={maxDate} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
+              <input type="date" class={inputClass} min={MIN_DATE} max={MAX_DATE} value={editableKoerselsraekke.gyldig_til ?? ""} on:change={(e) => updateField("gyldig_til", e.currentTarget.value)} />
             </label>
             <div></div><div></div>
             <!-- Row 3: Kommentar -->
@@ -1126,7 +1084,15 @@
               </div>
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselsgodtgørelse modtager</p>
-                <p class="text-sm text-gray-800 break-words">{parter.find((p: any) => p.part_id === row.koerselsgodtgoerelse_modtager_id)?.fulde_navn ?? parter.find((p: any) => p.part_id === row.koerselsgodtgoerelse_modtager_id)?.navn ?? "—"}</p>
+                <p class="text-sm text-gray-800 break-words">
+                  {#if row.koerselsgodtgoerelse_modtager_id}
+                    {parter.find((r: any) => r.type === 'part' && r.part_id === row.koerselsgodtgoerelse_modtager_id)?.fulde_navn ?? "—"}
+                  {:else if row.koerselsgodtgoerelse_modtager_cpr}
+                    {parter.find((r: any) => r.type === 'foraelder' && r.cpr_foraelder === row.koerselsgodtgoerelse_modtager_cpr)?.fulde_navn ?? "—"}
+                  {:else}
+                    —
+                  {/if}
+                </p>
               </div>
               <div></div><div></div>
               <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->

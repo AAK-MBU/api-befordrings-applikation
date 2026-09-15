@@ -2,6 +2,7 @@
     import { onMount, createEventDispatcher } from "svelte";
     import { backendFetch } from "$lib/client/backendFetch";
     import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+    import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
     import {
       AFSTANDSKRITERIE_KLASSETRIN,
       beregnAfstandskriterieDato,
@@ -9,6 +10,14 @@
     } from "$lib/afstandskriterie";
     import AddresseSearch from "$lib/components/AddresseSearch.svelte";
     import DagePicker from "$lib/components/DagePicker.svelte";
+    import {
+      availableKoerselstyper as koerselstyperFor,
+      isEgenbefordring as typeIsEgenbefordring,
+      isSkolerejsekort as typeIsSkolerejsekort,
+      isTaxaType as typeIsTaxa,
+    } from "$lib/koerselstype";
+    import { afstandFraKoordinater } from "$lib/client/afstand";
+    import { bevillingLabel } from "$lib/bevillingLabel";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
     export let cpr: string;
@@ -30,12 +39,6 @@
     function emptyToNull(value: any) { return value === "" ? null : value; }
     function numberOrNull(value: any) { return value === "" ? null : Number(value); }
     
-    const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
-    const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
-    
-    function isDateOutOfRange(value: string): boolean {
-      return !!value && (value < minDate || value > maxDate);
-    }
 
     function validateBevillingDates(): boolean {
       const fields: [string, string][] = [
@@ -85,17 +88,10 @@
     // fields, befordringsudvalg and PPR ansvarlig do not apply and are hidden.
     $: isMidlertidig = isMidlertidigKoersel(newBevilling.ansoegningstype);
 
-    // Same restriction as KoerselsraekkeTable: only the kørselstyper the
-    // midlertidig-kørsel form can actually produce. Whitespace is stripped
-    // because the lookup labels are inconsistent about it.
-    const MIDLERTIDIG_ALLOWED_MODAL = new Set([
-      'egenbefordring', 'skolerejsekort', 'rutekørsel',
-      'solokørsel', 'variabelkørsel', 'skånekørsel',
-    ]);
-
-    $: availableModalKoerselstyper = newBevilling.ansoegningstype === 'Midlertidig kørsel'
-      ? koerselstyper.filter((t: any) => MIDLERTIDIG_ALLOWED_MODAL.has(normalizeModalType(t.label).replace(/\s/g, '')))
-      : koerselstyper;
+    $: availableModalKoerselstyper = koerselstyperFor(
+      koerselstyper,
+      newBevilling.ansoegningstype
+    );
 
     $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
     $: selectedHjemmelLabel = visibleHjemler.find((h: any) => String(h.id) === String(newBevilling.hjemmel_id))?.label ?? null;
@@ -165,6 +161,10 @@
       return {
         adresse_id: null as string | null,
         adresse_tekst: "",
+        // Carried alongside the id so the distance can be calculated without
+        // geocoding the text back into the coordinates we were just handed.
+        adresse_lat: null as number | null,
+        adresse_lon: null as number | null,
         matrikel_id: "",
         ungdomsuddannelse_id: "",
         hjemmel_id: "",
@@ -193,12 +193,25 @@
       begrundelseSelectValue = "";
     }
 
+    // Step 1's "Dato for første kørsel" seeds step 2's "Gyldig fra".
+    //
+    // Seed-once: only ever fills a gyldig_fra that is still empty, never
+    // overwrites one the caseworker typed. Going back to step 1 and changing
+    // the date therefore does not rewrite rows that already have a value —
+    // a stale date is recoverable, a silently rewritten one is not.
+    //
+    // foerste_koersel_dato is nullable, so an empty step 1 simply seeds
+    // nothing and step 2 behaves exactly as before.
+    function seedGyldigFra(): string {
+      return newBevilling.foerste_koersel_dato || "";
+    }
+
     function makeEmptyModalEntry(): any {
       return {
         koersel: { tidspunkt_id: "", befordringstype_id: "", bevilget_koereafstand_pr_vej: "",
-          gyldig_fra: "", gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
+          gyldig_fra: seedGyldigFra(), gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
           koersel_til_institution: "", max_minutter_i_transport: "",
-          koerselsgodtgoerelse_modtager_id: "", transporttid_i_bus: "", skift_med_bus: "" },
+          koerselsgodtgoerelse_modtager_id: "", koerselsgodtgoerelse_modtager_cpr: "", transporttid_i_bus: "", skift_med_bus: "" },
         dagIds: [] as number[],
         tillaegIds: [] as number[],
         dagSelectValue: "",
@@ -210,7 +223,7 @@
 
     function makeModalEntryCopy(src: any): any {
       return {
-        koersel: { ...src.koersel, gyldig_fra: "", gyldig_til: "" },
+        koersel: { ...src.koersel, gyldig_fra: src.koersel.gyldig_fra || seedGyldigFra(), gyldig_til: "" },
         dagIds: [...src.dagIds],
         tillaegIds: [...src.tillaegIds],
         dagSelectValue: "",
@@ -235,7 +248,9 @@
               tidspunkt_id: src.tidspunkt_id ?? "",
               befordringstype_id: src.befordringstype_id ?? "",
               bevilget_koereafstand_pr_vej: src.bevilget_koereafstand_pr_vej != null ? String(src.bevilget_koereafstand_pr_vej) : "",
-              gyldig_fra: "",
+              // Dates are NOT inherited from the copied bevilling — they come
+              // from step 1, or are typed in step 2.
+              gyldig_fra: seedGyldigFra(),
               gyldig_til: "",
               taxa_id: src.taxa_id ?? "",
               kommentar: src.kommentar ?? "",
@@ -243,6 +258,7 @@
               koersel_til_institution: src.koersel_til_institution != null ? String(src.koersel_til_institution) : "",
               max_minutter_i_transport: src.max_minutter_i_transport != null ? String(src.max_minutter_i_transport) : "",
               koerselsgodtgoerelse_modtager_id: src.koerselsgodtgoerelse_modtager_id ?? "",
+              koerselsgodtgoerelse_modtager_cpr: src.koerselsgodtgoerelse_modtager_cpr ?? "",
               transporttid_i_bus: src.transporttid_i_bus != null ? String(src.transporttid_i_bus) : "",
               skift_med_bus: src.skift_med_bus != null ? String(src.skift_med_bus) : "",
             },
@@ -261,26 +277,15 @@
       }
     }
 
-    function isModalKoerselEgenbefordring(typeId: any): boolean {
-      if (!typeId) return false;
-      const type = koerselstyper.find((t: any) => Number(t.id) === Number(typeId));
-      return type?.label?.toLowerCase().replace(/\s/g, '') === 'egenbefordring';
-    }
-    
-    const TAXA_TYPES = new Set(['rutekørsel', 'skånekørsel', 'solokørsel', 'variabel kørsel']);
-    function normalizeModalType(label: string | null | undefined): string { return (label ?? '').toLowerCase().trim(); }
+    // Classification is shared with KoerselsraekkeTable and BevillingTable via
+    // $lib/koerselstype; these wrappers just bind the lookup list.
+    const isModalKoerselEgenbefordring = (typeId: any) =>
+      typeIsEgenbefordring(koerselstyper, typeId);
 
-    function isModalKoerselTaxaType(typeId: any): boolean {
-      if (!typeId) return false;
-      const type = koerselstyper.find((t: any) => Number(t.id) === Number(typeId));
-      return TAXA_TYPES.has(normalizeModalType(type?.label));
-    }
+    const isModalKoerselTaxaType = (typeId: any) => typeIsTaxa(koerselstyper, typeId);
 
-    function isModalKoerselSkolerejsekort(typeId: any): boolean {
-      if (!typeId) return false;
-      const type = koerselstyper.find((t: any) => Number(t.id) === Number(typeId));
-      return normalizeModalType(type?.label) === 'skolerejsekort';
-    }
+    const isModalKoerselSkolerejsekort = (typeId: any) =>
+      typeIsSkolerejsekort(koerselstyper, typeId);
 
     async function calculateModalKoerselDistance(typeId: any, idx: number) {
       if (!isModalKoerselEgenbefordring(typeId)) {
@@ -288,38 +293,27 @@
         modalKoerselList = modalKoerselList;
         return;
       }
-      if (!newBevilling.adresse_tekst) {
-        modalKoerselList[idx].distanceError = "Ingen adresse på bevillingen — kan ikke beregne afstand";
-        modalKoerselList = modalKoerselList;
-        return;
-      }
-      if (!newBevilling.matrikel_id) {
-        modalKoerselList[idx].distanceError = "Ingen skole valgt på bevillingen — kan ikke beregne afstand";
-        modalKoerselList = modalKoerselList;
-        return;
-      }
+
       modalKoerselList[idx].calculatingDistance = true;
       modalKoerselList[idx].distanceError = null;
       modalKoerselList = modalKoerselList;
+
       try {
-        const geoRes = await backendFetch(`/bevilling/geocode_address?address=${encodeURIComponent(newBevilling.adresse_tekst)}`);
-        if (!geoRes.ok) throw new Error("Kunne ikke geokode adressen");
-        const geo = await geoRes.json();
-        const schoolRes = await backendFetch(`/lookup/skolematrikel/${newBevilling.matrikel_id}/coordinates`);
-        if (!schoolRes.ok) throw new Error("Kunne ikke hente skolens koordinater");
-        const school = await schoolRes.json();
-        const params = new URLSearchParams({ lat1: String(geo.latitude), lon1: String(geo.longitude), lat2: String(school.latitude), lon2: String(school.longitude) });
-        const distRes = await backendFetch(`/bevilling/calculate_driving_distance?${params}`);
-        if (!distRes.ok) throw new Error("Kunne ikke beregne køreafstand");
-        const dist = await distRes.json();
-        const km = dist.distance_km ?? dist.distance ?? dist.driving_distance_km;
-        if (km == null) throw new Error("Ugyldigt svar fra afstandsberegning");
+        const { km, error } = await afstandFraKoordinater(
+          newBevilling.adresse_lat,
+          newBevilling.adresse_lon,
+          newBevilling.matrikel_id
+        );
+
+        if (error !== null) {
+          modalKoerselList[idx].distanceError = error;
+          return;
+        }
+
+        // Discard if the user changed the type on this row while we calculated.
         if (Number(modalKoerselList[idx]?.koersel?.befordringstype_id) !== Number(typeId)) return;
+
         modalKoerselList[idx].koersel.bevilget_koereafstand_pr_vej = String(km);
-        modalKoerselList = modalKoerselList;
-      } catch (err: any) {
-        modalKoerselList[idx].distanceError = err?.message ?? "Fejl ved beregning af afstand";
-        modalKoerselList = modalKoerselList;
       } finally {
         modalKoerselList[idx].calculatingDistance = false;
         modalKoerselList = modalKoerselList;
@@ -338,6 +332,31 @@
       if (!newBevilling.hjemmel_id)         { modalError = "Hjemmel skal udfyldes"; return; }
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
+
+      // Required in this form only — NOT in BevillingCreateRequest or the
+      // database column, both of which stay nullable because OS2Forms submits
+      // through the same create path and a citizen's application may legitimately
+      // arrive without the field. Tightening it there would reject the
+      // submission outright.
+      //
+      // Here it guards the seeding below: without a date, gyldig_fra on step 2
+      // is seeded with nothing and the caseworker is left wondering why.
+      if (!newBevilling.foerste_koersel_dato) { modalError = "Dato for første kørsel skal udfyldes"; return; }
+
+      // The first kørselsrække is built in onMount, before step 1 has been
+      // filled in, so it cannot be seeded at construction. Fill it here on the
+      // way into step 2 — still seed-once, so any row already carrying a date
+      // keeps it.
+      const seeded = seedGyldigFra();
+
+      if (seeded) {
+        modalKoerselList = modalKoerselList.map((entry: any) =>
+          entry.koersel.gyldig_fra
+            ? entry
+            : { ...entry, koersel: { ...entry.koersel, gyldig_fra: seeded } }
+        );
+      }
+
       createBevillingStep = 2; 
     }
 
@@ -349,6 +368,8 @@
       newBevilling = {
         adresse_id:                  source.adresse_id ?? null,
         adresse_tekst:               source.adresse_for_bevilling ?? "",
+        adresse_lat:                 source.adresse_latitude ?? null,
+        adresse_lon:                 source.adresse_longitude ?? null,
         matrikel_id:                 source.matrikel_id != null ? String(source.matrikel_id) : "",
         ungdomsuddannelse_id:        source.ungdomsuddannelse_id != null ? String(source.ungdomsuddannelse_id) : "",
         hjemmel_id:                  source.hjemmel_id != null ? String(source.hjemmel_id) : "",
@@ -460,7 +481,7 @@
         if (!krs.rutetype_id) { modalError = `${prefix}Rutetype skal udfyldes`; return; }
         if (isModalKoerselEgenbefordring(krs.befordringstype_id)) {
           if (!krs.bevilget_koereafstand_pr_vej) { modalError = `${prefix}Bevilget km pr. vej skal udfyldes`; return; }
-          if (!krs.koerselsgodtgoerelse_modtager_id) { modalError = `${prefix}Kørselsgodtgørelse modtager skal udfyldes`; return; }
+          if (!krs.koerselsgodtgoerelse_modtager_id && !krs.koerselsgodtgoerelse_modtager_cpr) { modalError = `${prefix}Kørselsgodtgørelse modtager skal udfyldes`; return; }
         }
         if (isModalKoerselTaxaType(krs.befordringstype_id)) {
           if (krs.koersel_til_institution === "" || krs.koersel_til_institution == null) {
@@ -533,6 +554,7 @@
             koersel_til_institution:          isTxa ? (krs.koersel_til_institution === 'true' || krs.koersel_til_institution === true) : null,
             max_minutter_i_transport:         isTxa ? numberOrNull(krs.max_minutter_i_transport) : null,
             koerselsgodtgoerelse_modtager_id: isEgb ? numberOrNull(krs.koerselsgodtgoerelse_modtager_id) : null,
+            koerselsgodtgoerelse_modtager_cpr: isEgb ? (krs.koerselsgodtgoerelse_modtager_cpr || null) : null,
           };
           const krRes = await backendFetch(
             `/bevilling/create_koerselsraekke/${newBevillingId}`,
@@ -597,17 +619,17 @@
               }}
             >
               {#each existingBevillinger as bev}
-                <option value={bev.bevilling_id}>Bevilling #{bev.bevilling_id} — {bev.status_tekst ?? 'Ukendt status'}</option>
+                <option value={bev.bevilling_id}>{bevillingLabel(bev)} — {bev.status_tekst ?? 'Ukendt status'}</option>
               {/each}
             </select>
           </label>
           {/if}
 
           <label class="text-sm font-medium text-gray-700 col-span-2">
-            Ansøgningstype <span class="text-red-500">*</span>
+            Kørsel <span class="text-red-500">*</span>
             <select class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningstype} on:change={onAnsoegningstypeChange}>
-              <option value="">Vælg ansøgningstype</option>
-              <option value="Kørsel">Kørsel</option>
+              <option value="">Vælg</option>
+              <option value="Fast kørsel">Fast kørsel</option>
               <option value="Midlertidig kørsel">Midlertidig kørsel</option>
             </select>
           </label>
@@ -668,7 +690,13 @@
                   adresseId={newBevilling.adresse_id}
                   adresseTekst={newBevilling.adresse_tekst}
                   onSelect={(result) => {
-                    newBevilling = { ...newBevilling, adresse_id: result?.adresse_id ?? null, adresse_tekst: result?.adresse_tekst ?? "" };
+                    newBevilling = {
+                      ...newBevilling,
+                      adresse_id: result?.adresse_id ?? null,
+                      adresse_tekst: result?.adresse_tekst ?? "",
+                      adresse_lat: result?.latitude ?? null,
+                      adresse_lon: result?.longitude ?? null,
+                    };
                   }}
                 />
               </div>
@@ -697,13 +725,13 @@
 
             <label class="text-sm font-medium text-gray-700">
               Revurdering
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
             </label>
 
             {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Befordringsudvalg
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
             </label>
             {/if}
 
@@ -736,7 +764,7 @@
 
             <label class="text-sm font-medium text-gray-700">
               Sagsbehandlingsdato
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
             </label>
 
             <label class="text-sm font-medium text-gray-700">
@@ -750,14 +778,14 @@
             </label>
 
             <label class="text-sm font-medium text-gray-700">
-              Dato for første kørsel
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
+              Dato for første kørsel <span class="text-red-500">*</span>
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
             </label>
 
             {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie dato
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
               {#if beregnetDato}
                 <span class="mt-1 block text-[11px] font-normal text-gray-500">
                   Beregnet ud fra elevens klassetrin — kan rettes
@@ -897,22 +925,41 @@
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørselsgodtgørelse modtager *</span>
                   <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
-                    value={krs.koerselsgodtgoerelse_modtager_id ?? ""}
-                    on:change={(e) => { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
+                    value={krs.koerselsgodtgoerelse_modtager_id ? `p:${krs.koerselsgodtgoerelse_modtager_id}` : krs.koerselsgodtgoerelse_modtager_cpr ? `f:${krs.koerselsgodtgoerelse_modtager_cpr}` : ""}
+                    on:change={(e) => {
+                      const v = e.currentTarget.value;
+                      if (!v) { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = ""; modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_cpr = ""; }
+                      else if (v.startsWith("p:")) { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = Number(v.slice(2)); modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_cpr = ""; }
+                      else if (v.startsWith("f:")) { modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_id = ""; modalKoerselList[i].koersel.koerselsgodtgoerelse_modtager_cpr = v.slice(2); }
+                      modalKoerselList = modalKoerselList;
+                    }}>
                     <option value="">Vælg</option>
-                    {#each parter as p}<option value={p.part_id}>{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+                    {#if parter.some((r: any) => r.type === 'foraelder')}
+                      <optgroup label="Forældre">
+                        {#each parter.filter((r: any) => r.type === 'foraelder') as r}
+                          <option value="f:{r.cpr_foraelder}">{r.fulde_navn ?? r.cpr_foraelder}{r.relation ? ` (${r.relation})` : ""}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
+                    {#if parter.some((r: any) => r.type === 'part')}
+                      <optgroup label="Øvrige parter">
+                        {#each parter.filter((r: any) => r.type === 'part') as r}
+                          <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
                   </select>
                 </label>
                 <div></div><div></div>
                 <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>
@@ -976,12 +1023,12 @@
                 <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>
@@ -1008,12 +1055,12 @@
                 <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>
@@ -1028,12 +1075,12 @@
                 <!-- Default (Skolebus, Gåbus, etc.): Row 2: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>

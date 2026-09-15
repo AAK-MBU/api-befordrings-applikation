@@ -4,7 +4,7 @@
    NOTE: Revurdering is a FLAG on Bevilling (revurdering bit), not a
    status. The reassessment test cases (Rikke, Rasmus, Thomas) are
    seeded as Aktiv bevillinger with revurdering = 1 (see the UPDATE
-   after the Bevilling inserts). Requires migrations 0005–0007 applied.
+   after the Bevilling inserts). Requires migrations 0005–014 applied.
 
    Runs inside a transaction that ROLLBACKs by default — change the
    final ROLLBACK to COMMIT once the previewed data looks correct.
@@ -20,6 +20,12 @@ BEGIN TRANSACTION;
 DELETE FROM [befordring].[Koersel_KoerselstypeTillaeg_LINK];
 DELETE FROM [befordring].[Koersel_Ugedag_LINK];
 DELETE FROM [befordring].[Bevilling_Hjaelpemiddel_LINK];
+
+-- Brev (migration 014) has an FK to Bevilling, so it has to clear first.
+-- Guarded rather than assumed, so the seed still runs against a database where
+-- 014 has not been applied yet.
+IF OBJECT_ID('[befordring].[Brev]', 'U') IS NOT NULL
+    DELETE FROM [befordring].[Brev];
 
 DELETE FROM [befordring].[Koersel];
 
@@ -187,9 +193,10 @@ VALUES
     ('§ 26, stk. 1 afstand',               '', 1),
     ('§ 26, stk. 2 sygdom',                '', 1),
     ('§ 26, stk. 1 og 2',                  '', 1),
+    ('§ 33, stk. 3 (ungdomsskolen)',	   '', 1),
     ('§ 36, stk. 3 frit skolevalg',		   '', 1),
     ('§ 36, stk. 4 retten til at forblive','', 1),
-    ('§ 9,  stk. 4 UngiAarhus',             '', 1),
+    ('§ 9,  stk. 4 UngiAarhus',            '', 1),
     ('§ 10 (brækket ben)',				   '', 1);
 
 
@@ -310,6 +317,40 @@ DECLARE @matrikel_11 int = (SELECT TOP 1 matrikel_id FROM [befordring].[Skolemat
 DECLARE @matrikel_12 int = (SELECT TOP 1 matrikel_id FROM [befordring].[Skolematrikel] WHERE matrikel_navn = 'Højvangskolen'                 ORDER BY matrikel_id DESC);
 DECLARE @matrikel_13 int = (SELECT TOP 1 matrikel_id FROM [befordring].[Skolematrikel] WHERE matrikel_navn = 'Holme Skole'                   ORDER BY matrikel_id DESC);
 
+/* ============================================================
+   Datoankre
+   ------------------------------------------------------------
+   Every date below is derived from GETDATE() rather than written
+   as a literal.
+
+   The seeded scenarios (Aktiv, Kommende, Udløbet, revurdering,
+   genbehandling) are not stored — usp_recalculate_bevilling_status
+   computes them by comparing kørselsperioder against today. Fixed
+   dates therefore decay: this file was written in May 2026, and by
+   September Sofie's "Kommende" bevilling had silently become Aktiv
+   because her kørsel start had passed.
+
+   Anchoring to GETDATE() means the scenarios hold whenever the seed
+   is run.
+
+   Skoleåret i Danmark løber august–juni. @skoleaar is the calendar
+   year the CURRENT school year started in — before August that is
+   last year.
+============================================================ */
+DECLARE @i_dag date = CAST(GETDATE() AS date);
+DECLARE @nu    datetime2 = CAST(CAST(GETDATE() AS date) AS datetime2);
+
+DECLARE @skoleaar int =
+    CASE WHEN MONTH(@i_dag) >= 8 THEN YEAR(@i_dag) ELSE YEAR(@i_dag) - 1 END;
+
+DECLARE @start_i_aar  date = DATEFROMPARTS(@skoleaar,     8, 10);   -- indeværende skoleår
+DECLARE @slut_i_aar   date = DATEFROMPARTS(@skoleaar + 1, 6, 30);
+DECLARE @start_sidste date = DATEFROMPARTS(@skoleaar - 1, 8, 10);   -- forrige skoleår
+DECLARE @slut_sidste  date = DATEFROMPARTS(@skoleaar,     6, 30);
+DECLARE @start_naeste date = DATEFROMPARTS(@skoleaar + 1, 8, 10);   -- næste skoleår
+DECLARE @slut_naeste  date = DATEFROMPARTS(@skoleaar + 2, 6, 30);
+
+
 -- Ungdomsuddannelser
 DECLARE @ungdomsuddannelse_1 int = (SELECT TOP 1 ungdomsuddannelse_id FROM [befordring].[Ungdomsuddannelse] WHERE ungdomsuddannelse_navn = 'Egå Gymnasium'                             ORDER BY ungdomsuddannelse_id DESC);
 DECLARE @ungdomsuddannelse_2 int = (SELECT TOP 1 ungdomsuddannelse_id FROM [befordring].[Ungdomsuddannelse] WHERE ungdomsuddannelse_navn = 'Diakonhøjskolen, Social- og Sundhedsudd.' ORDER BY ungdomsuddannelse_id DESC);
@@ -394,7 +435,7 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
 INSERT INTO [befordring].[Elev]
     (cpr, adresseringsnavn, navne_adresse_beskyttelse, adresse_id,
      skoleafstand, klasseart, elevklassetrin, klassebetegnelse,
-     sfo, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
+     institution, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
 VALUES
 (
     '0101101234', 'Kasper Søndergaard', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
@@ -530,11 +571,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '0101101234', '000021C5-E9EE-411D-B2D8-EC9161780CCD', @status_aktiv, @matrikel_1, NULL,
-    @hjemmel_1, @afgoerelsesbrev_6, '2027-06-30', '2027-06-20',
+    @hjemmel_1, @afgoerelsesbrev_6, @slut_i_aar, DATEADD(DAY, -10, @i_dag),
     'ESDH-TEST-001', @sagsbehandler_1, @ppr_1,
-    '2026-01-01', NULL, 'Forældremyndighed',
-    '2026-02-01', 'Kørsel',
-    '2027-06-30', 3,
+    DATEADD(MONTH, -7, @i_dag), NULL, 'Forældremyndighed',
+    @start_i_aar, 'Fast kørsel',
+    @slut_i_aar, 3,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_1 int = SCOPE_IDENTITY();
@@ -552,11 +593,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '0202101234', '00002732-733C-433A-A5DA-A7D428A980CF', @status_aktiv, @matrikel_2, NULL,
-    @hjemmel_2, @afgoerelsesbrev_8, '2027-06-30', '2027-06-20',
+    @hjemmel_2, @afgoerelsesbrev_8, @slut_i_aar, DATEADD(DAY, -10, @i_dag),
     'ESDH-TEST-002', @sagsbehandler_2, @ppr_2,
-    '2026-02-01', NULL, 'Forældremyndighed',
-    '2026-03-01', 'Kørsel',
-    '2027-06-30', 3,
+    DATEADD(MONTH, -6, @i_dag), NULL, 'Forældremyndighed',
+    @start_i_aar, 'Fast kørsel',
+    @slut_i_aar, 3,
     'Farlig trafikvej', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_2 int = SCOPE_IDENTITY();
@@ -574,11 +615,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '0303101234', '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0', @status_aktiv, @matrikel_3,
-    @hjemmel_3, @afgoerelsesbrev_7, '2026-05-30', '2026-05-15',
+    @hjemmel_3, @afgoerelsesbrev_7, DATEADD(MONTH, 1, @i_dag), DATEADD(DAY, -25, @i_dag),
     'ESDH-TEST-003', @sagsbehandler_1, @ppr_1,
-    '2025-06-01', NULL, 'Forældremyndighed',
-    '2025-08-01', 'Kørsel',
-    '2026-06-30', 6,
+    DATEADD(MONTH, -14, @i_dag), NULL, 'Forældremyndighed',
+    @start_sidste, 'Fast kørsel',
+    @slut_i_aar, 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_3 int = SCOPE_IDENTITY();
@@ -596,11 +637,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '0404101234', '000059B7-1FE6-4ED2-8386-D9578B2A8859', @status_aktiv, @matrikel_4, NULL,
-    @hjemmel_4, @afgoerelsesbrev_4, '2026-06-30', '2026-06-15',
+    @hjemmel_4, @afgoerelsesbrev_4, DATEADD(DAY, 45, @i_dag), DATEADD(DAY, -40, @i_dag),
     'ESDH-TEST-004', @sagsbehandler_2, @ppr_2,
-    '2025-12-01', NULL, 'Værge',
-    '2026-01-01', 'Kørsel',
-    '2026-06-30', 9,
+    DATEADD(MONTH, -9, @i_dag), NULL, 'Værge',
+    @start_i_aar, 'Fast kørsel',
+    @slut_i_aar, 9,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_4 int = SCOPE_IDENTITY();
@@ -620,8 +661,8 @@ VALUES
     '0505101234', '0000670C-4F89-4C07-B77B-F9B82AF01C80', @status_ny, @matrikel_5, NULL,
     NULL, NULL, NULL, NULL,
     'ESDH-TEST-005', NULL, NULL,
-    '2026-05-10', NULL, 'Forældremyndighed',
-    '2026-08-01', 'Kørsel',
+    DATEADD(DAY, -6, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 21, @i_dag), 'Fast kørsel',
     NULL, NULL,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -641,8 +682,8 @@ VALUES
     '0606101234', '00009B67-504C-4FE0-B1D1-39126722DF0F', @status_ny, NULL, @ungdomsuddannelse_1,
     NULL, NULL, NULL, NULL,
     'ESDH-TEST-006', NULL, NULL,
-    '2026-05-25', NULL, 'Forældremyndighed',
-    '2026-06-01', 'Midlertidig kørsel',
+    DATEADD(DAY, -2, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 7, @i_dag), 'Midlertidig kørsel',
     NULL, NULL,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
@@ -660,11 +701,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '0707101234', '00009E24-9877-4F17-8020-04A0B29E704F', @status_paabegundt, @matrikel_7, NULL,
-    @hjemmel_1, NULL, '2027-06-30', NULL,
+    @hjemmel_1, NULL, @slut_i_aar, NULL,
     'ESDH-TEST-007', @sagsbehandler_1, @ppr_1,
-    '2026-05-01', NULL, 'Mor',
-    '2026-08-01', 'Kørsel',
-    '2027-06-30', 10,
+    DATEADD(DAY, -24, @i_dag), NULL, 'Mor',
+    DATEADD(DAY, 14, @i_dag), 'Fast kørsel',
+    @slut_i_aar, 10,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 
@@ -683,8 +724,8 @@ VALUES
     '0808101234', '0000BF23-21F1-4FBB-85AE-3089BC6CF623', @status_afslag, @matrikel_8, NULL,
     @hjemmel_1, @afgoerelsesbrev_2, NULL, NULL,
     'ESDH-TEST-008', @sagsbehandler_2, @ppr_1,
-    '2025-11-01', NULL, 'Far',
-    NULL, 'Kørsel',
+    DATEADD(MONTH, -3, @i_dag), NULL, 'Far',
+    NULL, 'Fast kørsel',
     NULL, 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
@@ -702,11 +743,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '0909101234', '0000C127-AB48-48C7-9770-EDA49D39EB5A', @status_kommende, @matrikel_9, NULL,
-    @hjemmel_1, @afgoerelsesbrev_6, '2027-06-30', NULL,
+    @hjemmel_1, @afgoerelsesbrev_6, @slut_naeste, NULL,
     'ESDH-TEST-009', @sagsbehandler_1, @ppr_2,
-    '2026-04-15', NULL, 'Mor',
-    '2026-08-10', 'Kørsel',
-    '2027-06-30', 3,
+    DATEADD(MONTH, -1, @i_dag), NULL, 'Mor',
+    @start_naeste, 'Fast kørsel',
+    @slut_naeste, 3,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_9 int = SCOPE_IDENTITY();
@@ -724,11 +765,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '1010101234', '0000E92C-BB46-4745-A0AE-90950142AF79', @status_udloebet, @matrikel_10, NULL,
-    @hjemmel_2, @afgoerelsesbrev_8, '2025-06-30', '2025-06-10',
+    @hjemmel_2, @afgoerelsesbrev_8, @slut_sidste, DATEADD(DAY, -20, @slut_sidste),
     'ESDH-TEST-010', @sagsbehandler_2, @ppr_1,
-    '2024-05-01', NULL, 'Far',
-    '2024-08-01', 'Kørsel',
-    '2025-06-30', 7,
+    DATEADD(MONTH, -16, @i_dag), NULL, 'Far',
+    @start_sidste, 'Fast kørsel',
+    @slut_sidste, 7,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_10 int = SCOPE_IDENTITY();
@@ -748,8 +789,8 @@ VALUES
     '1111101234', '0000EE38-A966-4A72-9C34-19B0A32AD367', @status_fejlet, @matrikel_11, NULL,
     @hjemmel_2, NULL, NULL, NULL,
     'ESDH-TEST-011', @sagsbehandler_1, NULL,
-    '2026-04-01', NULL, 'Mor',
-    '2026-05-01', 'Kørsel',
+    DATEADD(MONTH, -4, @i_dag), NULL, 'Mor',
+    DATEADD(MONTH, -3, @i_dag), 'Fast kørsel',
     NULL, 10,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
@@ -767,11 +808,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '1212101234', '0000F131-D663-4434-A585-D30CA601B571', @status_ophoert, @matrikel_12, NULL,
-    @hjemmel_1, @afgoerelsesbrev_6, '2025-06-30', NULL,
+    @hjemmel_1, @afgoerelsesbrev_6, @slut_sidste, NULL,
     'ESDH-TEST-012', @sagsbehandler_2, @ppr_2,
-    '2023-08-01', NULL, 'Far',
-    '2023-08-15', 'Kørsel',
-    '2025-06-30', 7,
+    DATEADD(MONTH, -20, @i_dag), NULL, 'Far',
+    @start_sidste, 'Fast kørsel',
+    @slut_sidste, 7,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_12 int = SCOPE_IDENTITY();
@@ -789,11 +830,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '1313101234', '0000F5F4-9278-43A5-9BA8-24C21D76610C', @status_aktiv, NULL, @ungdomsuddannelse_2,
-    @hjemmel_2, @afgoerelsesbrev_8, '2027-06-30', NULL,
+    @hjemmel_2, @afgoerelsesbrev_8, @slut_i_aar, NULL,
     'ESDH-TEST-013', @sagsbehandler_1, @ppr_2,
-    '2025-12-01', NULL, 'Mor',
-    '2026-02-01', 'Midlertidig kørsel',
-    '2027-06-30', 10,
+    DATEADD(MONTH, -8, @i_dag), NULL, 'Mor',
+    @start_i_aar, 'Midlertidig kørsel',
+    @slut_i_aar, 10,
     'Sygdom', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_13 int = SCOPE_IDENTITY();
@@ -811,11 +852,11 @@ INSERT INTO [befordring].[Bevilling]
 VALUES
 (
     '1414101234', '0000AAF0-826F-4458-B26F-4317AD2A4979', @status_aktiv, @matrikel_13, NULL,
-    @hjemmel_1, @afgoerelsesbrev_6, '2026-05-31', '2026-05-20',
+    @hjemmel_1, @afgoerelsesbrev_6, DATEADD(DAY, 30, @i_dag), DATEADD(DAY, -15, @i_dag),
     'ESDH-TEST-014', @sagsbehandler_2, @ppr_1,
-    '2025-03-01', NULL, 'Far',
-    '2025-04-01', 'Kørsel',
-    '2026-06-30', 6,
+    DATEADD(MONTH, -18, @i_dag), NULL, 'Far',
+    @start_sidste, 'Fast kørsel',
+    @slut_i_aar, 6,
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_14 int = SCOPE_IDENTITY();
@@ -832,6 +873,12 @@ DECLARE @bevilling_14 int = SCOPE_IDENTITY();
 UPDATE [befordring].[Bevilling]
 SET revurdering = 1
 WHERE cpr_elev IN ('0303101234', '0404101234', '1414101234');
+
+-- Genbehandling: Kristian has a skolekode mismatch (test case)
+UPDATE [befordring].[Bevilling]
+SET genbehandling = 1,
+    genbehandling_bemaerkning = N'Skolekode på bevilling matcher ikke elevens aktuelle skolekode'
+WHERE cpr_elev = '0202101234';
 
 
 /* ============================================================
@@ -862,63 +909,63 @@ VALUES
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_1, '2026-02-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-001', 'Rutekørsel begge tidspunkter.', 1, @rutetype_skole);
+VALUES (@bevilling_1, @start_i_aar, @slut_i_aar, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-001', 'Rutekørsel begge tidspunkter.', 1, @rutetype_skole);
 DECLARE @koersel_1 int = SCOPE_IDENTITY();
 
 -- Kristian: aktiv skånekørsel begge tidspunkter
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_2, '2026-03-01', '2027-07-01', @tidspunkt_begge, @befordringstype_skaane, NULL, 'TAXA-002', 'Skånekørsel begge tidspunkter.', 1, @rutetype_klub);
+VALUES (@bevilling_2, @start_i_aar, @slut_i_aar, @tidspunkt_begge, @befordringstype_skaane, NULL, 'TAXA-002', 'Skånekørsel begge tidspunkter.', 1, @rutetype_klub);
 DECLARE @koersel_2 int = SCOPE_IDENTITY();
 
 -- Rikke: egenbefordring begge tidspunkter (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_3, '2025-08-01', '2027-07-01', @tidspunkt_begge, @befordringstype_egen, 6.1, NULL, 'Egen befordring begge tidspunkter.', 0, @rutetype_skole);
+VALUES (@bevilling_3, @start_sidste, @slut_i_aar, @tidspunkt_begge, @befordringstype_egen, 6.1, NULL, 'Egen befordring begge tidspunkter.', 0, @rutetype_skole);
 DECLARE @koersel_3 int = SCOPE_IDENTITY();
 
 -- Rasmus: rutekørsel alle dage (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_4, '2026-01-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-003', 'Rutekørsel alle dage.', 0, @rutetype_skole);
+VALUES (@bevilling_4, @start_i_aar, @slut_i_aar, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-003', 'Rutekørsel alle dage.', 0, @rutetype_skole);
 DECLARE @koersel_4 int = SCOPE_IDENTITY();
 
 -- Sofie: kommende skolerejsekort (starter næste skoleår, ikke finaliseret endnu)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_9, '2026-08-10', '2027-07-01', @tidspunkt_morgen, @befordringstype_rejsekort, NULL, NULL, 'Skolerejsekort morgen.', 0, @rutetype_skole);
+VALUES (@bevilling_9, @start_naeste, @slut_naeste, @tidspunkt_morgen, @befordringstype_rejsekort, NULL, NULL, 'Skolerejsekort morgen.', 0, @rutetype_skole);
 DECLARE @koersel_9 int = SCOPE_IDENTITY();
 
 -- Peter: udløbet rutekørsel (forrige skoleår)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_10, '2024-08-01', '2025-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-010', 'Udløbet rutekørsel.', 1, @rutetype_skole);
+VALUES (@bevilling_10, @start_sidste, @slut_sidste, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-010', 'Udløbet rutekørsel.', 1, @rutetype_skole);
 DECLARE @koersel_10 int = SCOPE_IDENTITY();
 
 -- Anders: ophørt rutekørsel (afsluttet da eleven skiftede distrikt)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_12, '2023-08-15', '2025-01-15', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-012', 'Ophørt rutekørsel.', 1, @rutetype_skole);
+VALUES (@bevilling_12, @start_sidste, DATEADD(MONTH, 5, @start_sidste), @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-012', 'Ophørt rutekørsel.', 1, @rutetype_skole);
 DECLARE @koersel_12 int = SCOPE_IDENTITY();
 
 -- Mette: aktiv egenbefordring til ungdomsuddannelse
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_13, '2026-02-01', '2027-07-01', @tidspunkt_morgen, @befordringstype_egen, 12.1, NULL, 'Egen befordring morgen til Diakonhøjskolen.', 1, @rutetype_skole);
+VALUES (@bevilling_13, @start_i_aar, @slut_i_aar, @tidspunkt_morgen, @befordringstype_egen, 12.1, NULL, 'Egen befordring morgen til Diakonhøjskolen.', 1, @rutetype_skole);
 DECLARE @koersel_13 int = SCOPE_IDENTITY();
 
 -- Thomas: rutekørsel (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
     (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_14, '2025-04-01', '2027-07-01', @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-014', 'Rutekørsel begge tidspunkter — bevilling under revurdering.', 0, @rutetype_skole);
+VALUES (@bevilling_14, @start_sidste, @slut_i_aar, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-014', 'Rutekørsel begge tidspunkter — bevilling under revurdering.', 0, @rutetype_skole);
 DECLARE @koersel_14 int = SCOPE_IDENTITY();
 
 
@@ -998,51 +1045,51 @@ INSERT INTO [befordring].[Sagsaktivitet]
     (cpr, aktivitetstype, kommentar, udfoert_af, oprettet_tidspunkt, relateret_bevilling_id)
 VALUES
 -- Kasper (Aktiv) — full happy-path lifecycle
-('0101101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_1, ' — Status: Ny'), 'System', '2026-01-01T09:15:00', @bevilling_1),
-('0101101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  '2026-01-10T10:00:00', @bevilling_1),
-('0101101234', 'PPR ansvarlig opdateret',  'PPR ansvarlig sat til Hans',                'Sofie',  '2026-01-10T10:05:00', @bevilling_1),
-('0101101234', 'Status sat til Påbegyndt', 'Sagsbehandler tilføjet',                    'System', '2026-01-10T10:05:30', @bevilling_1),
-('0101101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', '2026-02-01T06:00:00', @bevilling_1),
-('0101101234', 'Kommentar',                'Forælder har bekræftet taxaordningen.',     'Sofie',  '2026-02-15T13:20:00', @bevilling_1),
+('0101101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_1, ' — Status: Ny'), 'System', DATEADD(MINUTE, 555, DATEADD(DAY, -215, @nu)), @bevilling_1),
+('0101101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  DATEADD(MINUTE, 600, DATEADD(DAY, -206, @nu)), @bevilling_1),
+('0101101234', 'PPR ansvarlig opdateret',  'PPR ansvarlig sat til Hans',                'Sofie',  DATEADD(MINUTE, 605, DATEADD(DAY, -206, @nu)), @bevilling_1),
+('0101101234', 'Status sat til Påbegyndt', 'Sagsbehandler tilføjet',                    'System', DATEADD(MINUTE, 606, DATEADD(DAY, -206, @nu)), @bevilling_1),
+('0101101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', DATEADD(MINUTE, 360, DATEADD(DAY, -185, @nu)), @bevilling_1),
+('0101101234', 'Kommentar',                'Forælder har bekræftet taxaordningen.',     'Sofie',  DATEADD(MINUTE, 800, DATEADD(DAY, -171, @nu)), @bevilling_1),
 
 -- Laura (Påbegyndt)
-('0707101234', 'Bevilling oprettet',       'Bevilling oprettet fra ansøgning.',         'System', '2026-05-01T08:30:00', (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0707101234' ORDER BY bevilling_id DESC)),
-('0707101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  '2026-05-15T09:00:00', (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0707101234' ORDER BY bevilling_id DESC)),
-('0707101234', 'Status sat til Påbegyndt', 'Sagsbehandler tilføjet',                    'System', '2026-05-15T09:00:30', (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0707101234' ORDER BY bevilling_id DESC)),
+('0707101234', 'Bevilling oprettet',       'Bevilling oprettet fra ansøgning.',         'System', DATEADD(MINUTE, 510, DATEADD(DAY, -24, @nu)), (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0707101234' ORDER BY bevilling_id DESC)),
+('0707101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  DATEADD(MINUTE, 540, DATEADD(DAY, -10, @nu)), (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0707101234' ORDER BY bevilling_id DESC)),
+('0707101234', 'Status sat til Påbegyndt', 'Sagsbehandler tilføjet',                    'System', DATEADD(MINUTE, 541, DATEADD(DAY, -10, @nu)), (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0707101234' ORDER BY bevilling_id DESC)),
 
 -- Sofie Lund (Kommende)
-('0909101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_9, ' — Status: Ny'), 'System', '2026-04-15T11:00:00', @bevilling_9),
-('0909101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  '2026-05-01T09:30:00', @bevilling_9),
-('0909101234', 'Status sat til Kommende',  'Bevillingsperioden er endnu ikke startet',  'System', '2026-05-01T09:30:30', @bevilling_9),
+('0909101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_9, ' — Status: Ny'), 'System', DATEADD(MINUTE, 660, DATEADD(DAY, -30, @nu)), @bevilling_9),
+('0909101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  DATEADD(MINUTE, 570, DATEADD(DAY, -20, @nu)), @bevilling_9),
+('0909101234', 'Status sat til Kommende',  'Bevillingsperioden er endnu ikke startet',  'System', DATEADD(MINUTE, 571, DATEADD(DAY, -20, @nu)), @bevilling_9),
 
 -- Rikke (revurdering) — PPR reviewed, awaiting BR
-('0303101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_3, ' — Status: Ny'), 'System', '2025-06-01T08:00:00', @bevilling_3),
-('0303101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  '2025-06-10T10:00:00', @bevilling_3),
-('0303101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', '2025-08-01T06:00:00', @bevilling_3),
-('0303101234', 'PPR Revurderet',           NULL,                                        'Sofie',  '2026-05-02T14:00:00', @bevilling_3),
-('0303101234', 'Kommentar',                'Afventer BR-gennemgang pga. adressebeskyttelse.', 'Sofie', '2026-05-15T15:10:00', @bevilling_3),
+('0303101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_3, ' — Status: Ny'), 'System', DATEADD(MINUTE, 480, DATEADD(DAY, -430, @nu)), @bevilling_3),
+('0303101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Sofie',               'Sofie',  DATEADD(MINUTE, 600, DATEADD(DAY, -420, @nu)), @bevilling_3),
+('0303101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', DATEADD(MINUTE, 360, DATEADD(DAY, -400, @nu)), @bevilling_3),
+('0303101234', 'PPR Revurderet',           NULL,                                        'Sofie',  DATEADD(MINUTE, 840, DATEADD(DAY, -26, @nu)), @bevilling_3),
+('0303101234', 'Kommentar',                'Afventer BR-gennemgang pga. adressebeskyttelse.', 'Sofie', DATEADD(MINUTE, 910, DATEADD(DAY, -12, @nu)), @bevilling_3),
 
 -- Rasmus (revurdering)
-('0404101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_4, ' — Status: Ny'), 'System', '2025-12-01T09:00:00', @bevilling_4),
-('0404101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Nina',                'Nina',   '2025-12-10T10:30:00', @bevilling_4),
-('0404101234', 'PPR Revurderet',           NULL,                                        'Nina',   '2026-06-15T13:45:00', @bevilling_4),
+('0404101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_4, ' — Status: Ny'), 'System', DATEADD(MINUTE, 540, DATEADD(DAY, -280, @nu)), @bevilling_4),
+('0404101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Nina',                'Nina',   DATEADD(MINUTE, 630, DATEADD(DAY, -271, @nu)), @bevilling_4),
+('0404101234', 'PPR Revurderet',           NULL,                                        'Nina',   DATEADD(MINUTE, 825, DATEADD(DAY, -40, @nu)), @bevilling_4),
 
 -- Thomas (revurdering) — PPR done, forwarded to BR
-('1414101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_14, ' — Status: Ny'), 'System', '2025-03-01T08:15:00', @bevilling_14),
-('1414101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Nina',                'Nina',   '2025-03-15T11:00:00', @bevilling_14),
-('1414101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', '2025-04-01T06:00:00', @bevilling_14),
-('1414101234', 'PPR Revurderet',           NULL,                                        'Nina',   '2026-05-20T14:20:00', @bevilling_14),
-('1414101234', 'Kommentar',                'PPR har vurderet sagen; videresendt til BR.', 'Nina', '2026-05-21T09:05:00', @bevilling_14),
+('1414101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_14, ' — Status: Ny'), 'System', DATEADD(MINUTE, 495, DATEADD(DAY, -548, @nu)), @bevilling_14),
+('1414101234', 'Sagsbehandler opdateret',  'Sagsbehandler sat til Nina',                'Nina',   DATEADD(MINUTE, 660, DATEADD(DAY, -534, @nu)), @bevilling_14),
+('1414101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', DATEADD(MINUTE, 360, DATEADD(DAY, -400, @nu)), @bevilling_14),
+('1414101234', 'PPR Revurderet',           NULL,                                        'Nina',   DATEADD(MINUTE, 860, DATEADD(DAY, -18, @nu)), @bevilling_14),
+('1414101234', 'Kommentar',                'PPR har vurderet sagen; videresendt til BR.', 'Nina', DATEADD(MINUTE, 545, DATEADD(DAY, -17, @nu)), @bevilling_14),
 
 -- Martin (Afslag) — with letter
-('0808101234', 'Bevilling oprettet',       'Bevilling oprettet fra ansøgning.',         'System', '2025-11-01T08:00:00', (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0808101234' ORDER BY bevilling_id DESC)),
-('0808101234', 'Status sat til Afslag',    'Afstandskriterie ikke opfyldt.',            'Nina',   '2025-11-20T13:00:00', (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0808101234' ORDER BY bevilling_id DESC)),
-('0808101234', 'Brev oprettet',            'Afslag: § 26, stk. 1, nr. 1 (afstand)',     'Nina',   '2025-11-21T10:30:00', (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0808101234' ORDER BY bevilling_id DESC)),
+('0808101234', 'Bevilling oprettet',       'Bevilling oprettet fra ansøgning.',         'System', DATEADD(MINUTE, 480, DATEADD(DAY, -92, @nu)), (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0808101234' ORDER BY bevilling_id DESC)),
+('0808101234', 'Status sat til Afslag',    'Afstandskriterie ikke opfyldt.',            'Nina',   DATEADD(MINUTE, 780, DATEADD(DAY, -80, @nu)), (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0808101234' ORDER BY bevilling_id DESC)),
+('0808101234', 'Brev oprettet',            'Afslag: § 26, stk. 1, nr. 1 (afstand)',     'Nina',   DATEADD(MINUTE, 630, DATEADD(DAY, -79, @nu)), (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0808101234' ORDER BY bevilling_id DESC)),
 
 -- Peter (Udløbet) — historical lifecycle
-('1010101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_10, ' — Status: Ny'), 'System', '2024-05-01T08:00:00', @bevilling_10),
-('1010101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', '2024-08-01T06:00:00', @bevilling_10),
-('1010101234', 'Status sat til Udløbet',   'Bevillingsperioden er udløbet',             'System', '2025-07-01T06:00:00', @bevilling_10);
+('1010101234', 'Bevilling oprettet',       CONCAT('Bevilling ID: ', @bevilling_10, ' — Status: Ny'), 'System', DATEADD(MINUTE, 480, DATEADD(DAY, -500, @nu)), @bevilling_10),
+('1010101234', 'Status sat til Aktiv',     'Bevillingsperioden er startet',             'System', DATEADD(MINUTE, 360, DATEADD(DAY, -400, @nu)), @bevilling_10),
+('1010101234', 'Status sat til Udløbet',   'Bevillingsperioden er udløbet',             'System', DATEADD(MINUTE, 360, DATEADD(DAY, -76, @nu)), @bevilling_10);
 
 
 /* ============================================================
@@ -1060,14 +1107,14 @@ VALUES
 INSERT INTO [befordring].[Sagsaktivitet]
     (cpr, aktivitetstype, kommentar, udfoert_af, oprettet_tidspunkt, relateret_bevilling_id)
 VALUES
-('0101101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Sofie', '2026-01-15T11:00:00', @bevilling_1),
-('0202101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  '2026-02-10T10:30:00', @bevilling_2),
-('0303101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)',    'Sofie', '2025-06-20T13:15:00', @bevilling_3),
-('0404101234', 'Brev oprettet', 'Afslag: § 26, stk. 6, § 36, stk. 3 (frit skolevalg)', 'Nina',  '2025-12-20T09:45:00', @bevilling_4),
-('1010101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  '2024-06-01T09:30:00', @bevilling_10),
-('1212101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  '2023-08-05T08:30:00', @bevilling_12),
-('1313101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Sofie', '2025-12-20T14:00:00', @bevilling_13),
-('1414101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  '2025-03-20T10:00:00', @bevilling_14);
+('0101101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Sofie', DATEADD(MINUTE, 660, DATEADD(DAY, -200, @nu)), @bevilling_1),
+('0202101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  DATEADD(MINUTE, 630, DATEADD(DAY, -176, @nu)), @bevilling_2),
+('0303101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)',    'Sofie', DATEADD(MINUTE, 795, DATEADD(DAY, -405, @nu)), @bevilling_3),
+('0404101234', 'Brev oprettet', 'Afslag: § 26, stk. 6, § 36, stk. 3 (frit skolevalg)', 'Nina',  DATEADD(MINUTE, 585, DATEADD(DAY, -227, @nu)), @bevilling_4),
+('1010101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Nina',  DATEADD(MINUTE, 570, DATEADD(DAY, -410, @nu)), @bevilling_10),
+('1212101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  DATEADD(MINUTE, 510, DATEADD(DAY, -400, @nu)), @bevilling_12),
+('1313101234', 'Brev oprettet', 'Bevilling: § 26, stk. 2 (sygdom)',                    'Sofie', DATEADD(MINUTE, 840, DATEADD(DAY, -226, @nu)), @bevilling_13),
+('1414101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  DATEADD(MINUTE, 600, DATEADD(DAY, -420, @nu)), @bevilling_14);
 
 
 /* ============================================================
@@ -1105,6 +1152,7 @@ SELECT * FROM [befordring].[view_Bevilling_Koerselsraekker];
 SELECT * FROM [befordring].[view_All_Active_Bevillinger];
 SELECT * FROM [befordring].[view_New_Applications];
 SELECT * FROM [befordring].[view_Revurderinger];
+SELECT * FROM [befordring].[view_Genbehandling];
 SELECT * FROM [befordring].[Sagsaktivitet] ORDER BY cpr, oprettet_tidspunkt;
 
 PRINT '';

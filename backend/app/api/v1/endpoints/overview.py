@@ -15,8 +15,14 @@ def get_alle_bevillinger(db: DbSession):
 
 
 @router.get("/search")
-def search_bevillinger(db: DbSession, q: str = Query(default="", min_length=0)):
-    return OverviewService(db=db).search_bevillinger(q)
+def search_elever(db: DbSession, q: str = Query(default="", min_length=0)):
+    """Global search box: find a student by CPR or name.
+
+    Not gated by RequireEdit — anyone with access to the system may look a
+    student up; only writing is restricted.
+    """
+
+    return OverviewService(db=db).search_elever(q)
 
 
 @router.get("/aktive_bevillinger")
@@ -32,6 +38,22 @@ def get_fejlede_bevillinger(db: DbSession):
 @router.get("/revurderinger")
 def get_revurderinger(db: DbSession):
     return OverviewService(db=db).get_revurderinger()
+
+
+@router.get("/genbehandlinger")
+def get_genbehandlinger(db: DbSession):
+    return OverviewService(db=db).get_genbehandlinger()
+
+
+@router.get("/koerselsgodtgoerelse_modtagere")
+def get_koerselsgodtgoerelse_modtagere(db: DbSession):
+    """Recipients of kørselsgodtgørelse for currently active egenbefordring.
+
+    Backs the monthly list on the Links page. Returns JSON; the CSV the
+    caseworker downloads is formatted by the frontend so this stays reusable.
+    """
+
+    return OverviewService(db=db).get_koerselsgodtgoerelse_modtagere()
 
 
 @router.get("/new_applications")
