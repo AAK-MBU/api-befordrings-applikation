@@ -11,7 +11,7 @@
   import { createEventDispatcher } from "svelte";
 
   import { backendFetch } from "$lib/client/backendFetch";
-  import { firstInvalidDate } from "$lib/dates";
+  import { MIN_DATE, MAX_DATE, firstInvalidDate, firstOutOfRangeDate } from "$lib/dates";
   import { bevillingLabel } from "$lib/bevillingLabel";
 
   export let open = false;
@@ -28,6 +28,15 @@
   let tidligereAfgoerelseDato = "";
   let ophoersdato = "";
   let creatingLetter = false;
+
+  // Shown as a red bar above the fields instead of a browser alert, so the
+  // message sits next to the form it is about and the modal stays put.
+  let errorMessage: string | null = null;
+
+  // Non-null once the letter is queued. The form is then replaced by a
+  // confirmation panel — see handleCreateLetter for why the modal does not
+  // just close.
+  let successReference: string | null = null;
 
   $: selectedBevilling = (bevillinger ?? []).find(
     (bevilling: any) => String(bevilling.bevilling_id) === selectedLetterBevillingId
@@ -73,6 +82,8 @@
     tidligereAfgoerelseDato = "";
     ophoersdato = "";
     prefilledStartdatoFor = "";
+    errorMessage = null;
+    successReference = null;
   }
 
   // Clear on the way *in*, so a modal reopened after a cancel never shows the
@@ -116,16 +127,36 @@
 
     if (invalidDate) return "Angiv en gyldig dato (åååå-mm-dd).";
 
+    // Separate from the check above: a mistyped year like 2071 is a perfectly
+    // real calendar date, so isValidDate accepts it. The min/max attributes
+    // bound the picker but do not stop a typed or pasted value being read via
+    // bind:value — this is what actually blocks it.
+    const outOfRange = firstOutOfRangeDate(
+      {
+        koersel_startdato: koerselStartdato,
+        dato_for_seneste_bevilling: datoForSenesteBevilling,
+        dato_for_tidligere_afgoerelse: tidligereAfgoerelseDato,
+        ophoersdato,
+      },
+      [
+        "koersel_startdato",
+        "dato_for_seneste_bevilling",
+        "dato_for_tidligere_afgoerelse",
+        "ophoersdato",
+      ],
+    );
+
+    if (outOfRange) {
+      return `Dato er ugyldig — kontrollér årstallet (skal være mellem ${MIN_DATE.slice(0, 4)} og ${MAX_DATE.slice(0, 4)}).`;
+    }
+
     return null;
   }
 
   async function handleCreateLetter() {
-    const validationError = firstValidationError();
+    errorMessage = firstValidationError();
 
-    if (validationError) {
-      alert(validationError);
-      return;
-    }
+    if (errorMessage) return;
 
     creatingLetter = true;
 
@@ -158,14 +189,11 @@
           // Keep fallback message
         }
 
-        alert(message);
+        errorMessage = message;
         return;
       }
 
       const result = await response.json();
-
-      alert(`Brev er sat i kø. Reference: ${result.reference}`);
-
       const bevillingId = Number(selectedLetterBevillingId);
 
       await backendFetch(`/aktivitet/${cpr}`, {
@@ -179,8 +207,12 @@
         }),
       });
 
-      close();
-      dispatch("created", { cpr, bevillingId });
+      // Deliberately not close(): the ATS reference appears nowhere else in the
+      // app, so closing on success would throw away the only chance to read it.
+      // The body swaps to a confirmation panel and Luk does the closing.
+      successReference = result.reference;
+
+      dispatch("created", { cpr, bevillingId, reference: result.reference });
     } finally {
       creatingLetter = false;
     }
@@ -208,10 +240,47 @@
 
       <div class="px-8 py-5 border-b border-gray-200 rounded-t-lg" style="background-color: #6d28d9;">
         <h2 class="text-lg font-bold text-white">Opret brev</h2>
-        <p class="mt-0.5 text-sm" style="color: rgba(255,255,255,0.7);">Vælg bevilling og brevtype</p>
+        <p class="mt-0.5 text-sm" style="color: rgba(255,255,255,0.7);">
+          {successReference ? "Brevet er oprettet" : "Vælg bevilling og brevtype"}
+        </p>
       </div>
 
+      {#if successReference}
+        <div class="p-8">
+          <div class="flex gap-3 rounded border border-green-200 bg-green-50 px-4 py-3" role="status">
+            <svg class="mt-0.5 h-5 w-5 shrink-0 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p class="text-sm font-medium text-green-900">Brevet er sat i kø</p>
+              <p class="mt-1 text-sm text-green-800">
+                Det står nu under Forsendelse, indtil det markeres som afsendt.
+              </p>
+              <p class="mt-2 text-xs text-green-700">
+                Reference
+                <span class="ml-1 font-mono select-all">{successReference}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end border-t border-gray-200 px-8 py-5 bg-gray-50 rounded-b-lg">
+          <button
+            type="button"
+            class="px-5 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
+            on:click={close}
+          >
+            Luk
+          </button>
+        </div>
+      {:else}
       <div class="p-8 space-y-5">
+        {#if errorMessage}
+          <div class="px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded" role="alert">
+            {errorMessage}
+          </div>
+        {/if}
+
         <label class={labelClass}>
           Vælg bevilling *
           <select class={fieldClass} bind:value={selectedLetterBevillingId}>
@@ -236,7 +305,7 @@
 
         <label class={labelClass}>
           Startdato for kørsel *
-          <input type="date" max="9999-12-31" class={fieldClass} bind:value={koerselStartdato} />
+          <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={koerselStartdato} />
           <span class="mt-1 block text-xs font-normal text-gray-500">
             Udfyldes automatisk med den tidligste "gyldig fra" på bevillingens kørselsrækker.
           </span>
@@ -244,7 +313,7 @@
 
         <label class={labelClass}>
           Dato for seneste bevilling
-          <input type="date" max="9999-12-31" class={fieldClass} bind:value={datoForSenesteBevilling} />
+          <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={datoForSenesteBevilling} />
         </label>
 
         {#if harBefordringsudvalg}
@@ -258,14 +327,14 @@
           </label>
           <label class={labelClass}>
             Dato for tidligere afgørelse *
-            <input type="date" max="9999-12-31" class={fieldClass} bind:value={tidligereAfgoerelseDato} />
+            <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={tidligereAfgoerelseDato} />
           </label>
         {/if}
 
         {#if erOphoert}
           <label class={labelClass}>
             Ophørsdato *
-            <input type="date" max="9999-12-31" class={fieldClass} bind:value={ophoersdato} />
+            <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={ophoersdato} />
           </label>
         {/if}
       </div>
@@ -287,6 +356,7 @@
           {creatingLetter ? "Opretter..." : "Opret brev"}
         </button>
       </div>
+      {/if}
 
     </div>
   </div>

@@ -45,6 +45,17 @@ def get_genbehandlinger(db: DbSession):
     return OverviewService(db=db).get_genbehandlinger()
 
 
+@router.get("/koerselsgodtgoerelse_modtagere")
+def get_koerselsgodtgoerelse_modtagere(db: DbSession):
+    """Recipients of kørselsgodtgørelse for currently active egenbefordring.
+
+    Backs the monthly list on the Links page. Returns JSON; the CSV the
+    caseworker downloads is formatted by the frontend so this stays reusable.
+    """
+
+    return OverviewService(db=db).get_koerselsgodtgoerelse_modtagere()
+
+
 @router.get("/new_applications")
 def get_new_applications(db: DbSession):
     return OverviewService(db=db).get_new_applications()

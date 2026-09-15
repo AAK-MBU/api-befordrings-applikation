@@ -306,6 +306,34 @@ class OverviewService:
         return self._rows_to_dicts(result)
 
 
+    def get_koerselsgodtgoerelse_modtagere(self):
+        """Everyone currently receiving kørselsgodtgørelse for egenbefordring.
+
+        The monthly list a caseworker messages. One row per person — the same
+        parent can receive for several children, and they only need telling
+        once — with the children they receive for aggregated alongside.
+
+        "Currently" is evaluated in the view against today's date, so the list
+        reflects whoever is receiving at the moment it is generated.
+
+        Returns:
+            A list of dicts, sorted by name.
+        """
+
+        sql = text("""
+            SELECT
+                *
+            FROM
+                [befordring].[view_Koerselsgodtgoerelse_Modtagere]
+            ORDER BY
+                modtager_navn
+        """)
+
+        result = self.db.execute(sql)
+
+        return self._rows_to_dicts(result)
+
+
     def get_revurderinger(self):
         """Get bevillinger with status Revurdering, with nested koerselsraekker.
 

@@ -1,9 +1,21 @@
+# Production deployment, behind the edge proxy.
+#
+# Identical to docker-compose_dev.yml except for the container names and the
+# network aliases. Both stacks join the same external `edge` network, where a
+# name can only belong to one container — reusing the dev names here would make
+# the prod hostname serve the dev containers.
+#
+# The nginx block for mbu-befordringssystemet.adm.aarhuskommune.dk must point
+# its two `set` directives at the aliases below.
+#
+# Selected per directory via COMPOSE_FILE in .env — see .env.example.
+
 services:
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: befordringssystemet-api
+    container_name: befordringssystemet-prod-api
     environment:
       API_KEY: ${API_KEY}
       API_KEY_HASHES: ${API_KEY_HASHES}
@@ -41,13 +53,13 @@ services:
     networks:
       edge:
         aliases:
-          - befordringssystemet-api
+          - befordringssystemet-prod-api
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: befordringssystemet-frontend
+    container_name: befordringssystemet-prod-frontend
     environment:
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
       # Browser-facing URL that starts the OIDC login flow. Defaults to the
@@ -69,7 +81,7 @@ services:
     networks:
       edge:
         aliases:
-          - befordringssystemet-frontend
+          - befordringssystemet-prod-frontend
 
 networks:
   edge:

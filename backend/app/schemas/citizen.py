@@ -25,7 +25,7 @@ class ElevCreateRequest(BaseModel):
     klasseart: str = ""
     elevklassetrin: str = ""
     klassebetegnelse: str = ""
-    sfo: str = ""
+    institution: str = ""
     bopaelsdistrikt: str = ""
     skoleafstand: float | None = None
     skolekode: int = 0

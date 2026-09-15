@@ -2,6 +2,7 @@
     import { onMount, createEventDispatcher } from "svelte";
     import { backendFetch } from "$lib/client/backendFetch";
     import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+    import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
     import {
       AFSTANDSKRITERIE_KLASSETRIN,
       beregnAfstandskriterieDato,
@@ -15,7 +16,7 @@
       isSkolerejsekort as typeIsSkolerejsekort,
       isTaxaType as typeIsTaxa,
     } from "$lib/koerselstype";
-    import { afstandFraAdresse } from "$lib/client/afstand";
+    import { afstandFraKoordinater } from "$lib/client/afstand";
     import { bevillingLabel } from "$lib/bevillingLabel";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
@@ -38,12 +39,6 @@
     function emptyToNull(value: any) { return value === "" ? null : value; }
     function numberOrNull(value: any) { return value === "" ? null : Number(value); }
     
-    const minDate = new Date(new Date().getFullYear() - 10, 0, 1).toISOString().slice(0, 10);
-    const maxDate = new Date(new Date().getFullYear() + 10, 11, 31).toISOString().slice(0, 10);
-    
-    function isDateOutOfRange(value: string): boolean {
-      return !!value && (value < minDate || value > maxDate);
-    }
 
     function validateBevillingDates(): boolean {
       const fields: [string, string][] = [
@@ -166,6 +161,10 @@
       return {
         adresse_id: null as string | null,
         adresse_tekst: "",
+        // Carried alongside the id so the distance can be calculated without
+        // geocoding the text back into the coordinates we were just handed.
+        adresse_lat: null as number | null,
+        adresse_lon: null as number | null,
         matrikel_id: "",
         ungdomsuddannelse_id: "",
         hjemmel_id: "",
@@ -194,10 +193,23 @@
       begrundelseSelectValue = "";
     }
 
+    // Step 1's "Dato for første kørsel" seeds step 2's "Gyldig fra".
+    //
+    // Seed-once: only ever fills a gyldig_fra that is still empty, never
+    // overwrites one the caseworker typed. Going back to step 1 and changing
+    // the date therefore does not rewrite rows that already have a value —
+    // a stale date is recoverable, a silently rewritten one is not.
+    //
+    // foerste_koersel_dato is nullable, so an empty step 1 simply seeds
+    // nothing and step 2 behaves exactly as before.
+    function seedGyldigFra(): string {
+      return newBevilling.foerste_koersel_dato || "";
+    }
+
     function makeEmptyModalEntry(): any {
       return {
         koersel: { tidspunkt_id: "", befordringstype_id: "", bevilget_koereafstand_pr_vej: "",
-          gyldig_fra: "", gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
+          gyldig_fra: seedGyldigFra(), gyldig_til: "", taxa_id: "", kommentar: "", rutetype_id: "",
           koersel_til_institution: "", max_minutter_i_transport: "",
           koerselsgodtgoerelse_modtager_id: "", koerselsgodtgoerelse_modtager_cpr: "", transporttid_i_bus: "", skift_med_bus: "" },
         dagIds: [] as number[],
@@ -211,7 +223,7 @@
 
     function makeModalEntryCopy(src: any): any {
       return {
-        koersel: { ...src.koersel, gyldig_fra: "", gyldig_til: "" },
+        koersel: { ...src.koersel, gyldig_fra: src.koersel.gyldig_fra || seedGyldigFra(), gyldig_til: "" },
         dagIds: [...src.dagIds],
         tillaegIds: [...src.tillaegIds],
         dagSelectValue: "",
@@ -236,7 +248,9 @@
               tidspunkt_id: src.tidspunkt_id ?? "",
               befordringstype_id: src.befordringstype_id ?? "",
               bevilget_koereafstand_pr_vej: src.bevilget_koereafstand_pr_vej != null ? String(src.bevilget_koereafstand_pr_vej) : "",
-              gyldig_fra: "",
+              // Dates are NOT inherited from the copied bevilling — they come
+              // from step 1, or are typed in step 2.
+              gyldig_fra: seedGyldigFra(),
               gyldig_til: "",
               taxa_id: src.taxa_id ?? "",
               kommentar: src.kommentar ?? "",
@@ -285,8 +299,9 @@
       modalKoerselList = modalKoerselList;
 
       try {
-        const { km, error } = await afstandFraAdresse(
-          newBevilling.adresse_tekst,
+        const { km, error } = await afstandFraKoordinater(
+          newBevilling.adresse_lat,
+          newBevilling.adresse_lon,
           newBevilling.matrikel_id
         );
 
@@ -317,6 +332,31 @@
       if (!newBevilling.hjemmel_id)         { modalError = "Hjemmel skal udfyldes"; return; }
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
+
+      // Required in this form only — NOT in BevillingCreateRequest or the
+      // database column, both of which stay nullable because OS2Forms submits
+      // through the same create path and a citizen's application may legitimately
+      // arrive without the field. Tightening it there would reject the
+      // submission outright.
+      //
+      // Here it guards the seeding below: without a date, gyldig_fra on step 2
+      // is seeded with nothing and the caseworker is left wondering why.
+      if (!newBevilling.foerste_koersel_dato) { modalError = "Dato for første kørsel skal udfyldes"; return; }
+
+      // The first kørselsrække is built in onMount, before step 1 has been
+      // filled in, so it cannot be seeded at construction. Fill it here on the
+      // way into step 2 — still seed-once, so any row already carrying a date
+      // keeps it.
+      const seeded = seedGyldigFra();
+
+      if (seeded) {
+        modalKoerselList = modalKoerselList.map((entry: any) =>
+          entry.koersel.gyldig_fra
+            ? entry
+            : { ...entry, koersel: { ...entry.koersel, gyldig_fra: seeded } }
+        );
+      }
+
       createBevillingStep = 2; 
     }
 
@@ -328,6 +368,8 @@
       newBevilling = {
         adresse_id:                  source.adresse_id ?? null,
         adresse_tekst:               source.adresse_for_bevilling ?? "",
+        adresse_lat:                 source.adresse_latitude ?? null,
+        adresse_lon:                 source.adresse_longitude ?? null,
         matrikel_id:                 source.matrikel_id != null ? String(source.matrikel_id) : "",
         ungdomsuddannelse_id:        source.ungdomsuddannelse_id != null ? String(source.ungdomsuddannelse_id) : "",
         hjemmel_id:                  source.hjemmel_id != null ? String(source.hjemmel_id) : "",
@@ -648,7 +690,13 @@
                   adresseId={newBevilling.adresse_id}
                   adresseTekst={newBevilling.adresse_tekst}
                   onSelect={(result) => {
-                    newBevilling = { ...newBevilling, adresse_id: result?.adresse_id ?? null, adresse_tekst: result?.adresse_tekst ?? "" };
+                    newBevilling = {
+                      ...newBevilling,
+                      adresse_id: result?.adresse_id ?? null,
+                      adresse_tekst: result?.adresse_tekst ?? "",
+                      adresse_lat: result?.latitude ?? null,
+                      adresse_lon: result?.longitude ?? null,
+                    };
                   }}
                 />
               </div>
@@ -677,13 +725,13 @@
 
             <label class="text-sm font-medium text-gray-700">
               Revurdering
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.revurderingsdato} />
             </label>
 
             {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Befordringsudvalg
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.befordringsudvalg} />
             </label>
             {/if}
 
@@ -716,7 +764,7 @@
 
             <label class="text-sm font-medium text-gray-700">
               Sagsbehandlingsdato
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.sagsbehandlingsdato} />
             </label>
 
             <label class="text-sm font-medium text-gray-700">
@@ -730,14 +778,14 @@
             </label>
 
             <label class="text-sm font-medium text-gray-700">
-              Dato for første kørsel
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
+              Dato for første kørsel <span class="text-red-500">*</span>
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.foerste_koersel_dato} />
             </label>
 
             {#if !isMidlertidig}
             <label class="text-sm font-medium text-gray-700">
               Afstandskriterie dato
-              <input type="date" min={minDate} max={maxDate} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.afstandskriterie_dato} />
               {#if beregnetDato}
                 <span class="mt-1 block text-[11px] font-normal text-gray-500">
                   Beregnet ud fra elevens klassetrin — kan rettes
@@ -906,12 +954,12 @@
                 <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>
@@ -975,12 +1023,12 @@
                 <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>
@@ -1007,12 +1055,12 @@
                 <!-- Row 3: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>
@@ -1027,12 +1075,12 @@
                 <!-- Default (Skolebus, Gåbus, etc.): Row 2: Gyldig fra | Gyldig til | empty | empty -->
                 <label class="block md:col-start-1">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig fra *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_fra ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_fra = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Gyldig til *</span>
-                  <input type="date" min={minDate} max={maxDate} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  <input type="date" min={MIN_DATE} max={MAX_DATE} class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                     value={krs.gyldig_til ?? ""} on:change={(e) => { modalKoerselList[i].koersel.gyldig_til = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
                 </label>
                 <div></div><div></div>

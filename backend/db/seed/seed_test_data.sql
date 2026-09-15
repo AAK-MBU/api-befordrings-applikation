@@ -4,7 +4,7 @@
    NOTE: Revurdering is a FLAG on Bevilling (revurdering bit), not a
    status. The reassessment test cases (Rikke, Rasmus, Thomas) are
    seeded as Aktiv bevillinger with revurdering = 1 (see the UPDATE
-   after the Bevilling inserts). Requires migrations 0005–0007 applied.
+   after the Bevilling inserts). Requires migrations 0005–014 applied.
 
    Runs inside a transaction that ROLLBACKs by default — change the
    final ROLLBACK to COMMIT once the previewed data looks correct.
@@ -20,6 +20,12 @@ BEGIN TRANSACTION;
 DELETE FROM [befordring].[Koersel_KoerselstypeTillaeg_LINK];
 DELETE FROM [befordring].[Koersel_Ugedag_LINK];
 DELETE FROM [befordring].[Bevilling_Hjaelpemiddel_LINK];
+
+-- Brev (migration 014) has an FK to Bevilling, so it has to clear first.
+-- Guarded rather than assumed, so the seed still runs against a database where
+-- 014 has not been applied yet.
+IF OBJECT_ID('[befordring].[Brev]', 'U') IS NOT NULL
+    DELETE FROM [befordring].[Brev];
 
 DELETE FROM [befordring].[Koersel];
 
@@ -429,7 +435,7 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
 INSERT INTO [befordring].[Elev]
     (cpr, adresseringsnavn, navne_adresse_beskyttelse, adresse_id,
      skoleafstand, klasseart, elevklassetrin, klassebetegnelse,
-     sfo, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
+     institution, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
 VALUES
 (
     '0101101234', 'Kasper Søndergaard', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',

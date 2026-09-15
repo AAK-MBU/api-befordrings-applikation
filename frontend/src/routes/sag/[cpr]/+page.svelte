@@ -122,6 +122,7 @@
 
   let nyKommentar = "";
   let savingKommentar = false;
+  let kommentarError: string | null = null;
 
   async function saveKommentar() {
     if (!nyKommentar.trim()) {
@@ -129,6 +130,7 @@
     }
 
     savingKommentar = true;
+    kommentarError = null;
 
     try {
       const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
@@ -144,7 +146,7 @@
       });
 
       if (!response.ok) {
-        alert("Kunne ikke gemme kommentar");
+        kommentarError = "Kunne ikke gemme kommentar";
         return;
       }
 
@@ -240,12 +242,33 @@
     return   { border: "border-l-gray-300",  icon: "gear",     badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
   }
 
+  // "14.09.2026, 10.05" — the default da-DK toLocaleString appends seconds
+  // ("10.05.00"), which is noise in a feed and widens the metadata row for no
+  // information. An unparseable value is returned as-is rather than rendered
+  // as "Invalid Date".
+  function formatAktivitetTidspunkt(value: string | null | undefined): string {
+    if (!value) return "";
+
+    const parsed = new Date(value);
+
+    if (Number.isNaN(parsed.getTime())) return String(value);
+
+    return parsed.toLocaleString("da-DK", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   // Feed filters
   let filterTypes: string[] = [];
   let filterFra = "";
   let filterTil = "";
   let filterUdfoertAf: string[] = [];
-  let openDropdown: "type" | "sender" | null = null;
+  let filterBevillingIds: number[] = [];
+  let openDropdown: "type" | "sender" | "bevilling" | null = null;
   let sortAsc = false;
 
   const feedMinDate = new Date(new Date().getFullYear() - 10, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
@@ -253,7 +276,24 @@
 
   $: uniqueCategories = [...new Set<string>((aktiviteter ?? []).map((a: any) => getCategory(a.aktivitetstype ?? "")))].sort((a: string, b: string) => a.localeCompare(b, "da"));
   $: uniqueSenders = [...new Set<string>((aktiviteter ?? []).map((a: any) => a.udfoert_af ?? "").filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, "da"));
-  $: feedHasActiveFilters = filterTypes.length > 0 || filterFra !== "" || filterTil !== "" || filterUdfoertAf.length > 0;
+  // Bevillinger referenced by at least one activity, newest first. Built from
+  // the feed rather than from `bevillinger` so the dropdown never offers a
+  // bevilling that would filter the list down to nothing.
+  //
+  // Labelled with bevillingLabelById (the same "Bevilling 2" the badge shows),
+  // falling back to the system id for a bevilling that has since been deleted
+  // but whose activities remain.
+  $: bevillingFilterOptions = [
+    ...new Set<number>(
+      (aktiviteter ?? [])
+        .map((a: any) => a.relateret_bevilling_id)
+        .filter((id: any): id is number => id !== null && id !== undefined)
+    ),
+  ]
+    .sort((a, b) => b - a)
+    .map((id) => ({ id, label: bevillingLabelById.get(id) ?? `Bevilling #${id}` }));
+
+  $: feedHasActiveFilters = filterTypes.length > 0 || filterFra !== "" || filterTil !== "" || filterUdfoertAf.length > 0 || filterBevillingIds.length > 0;
 
   $: filteredAktiviteter = (() => {
     const list = (aktiviteter ?? []).filter((a: any) => {
@@ -270,6 +310,7 @@
         if (ts > til) return false;
       }
       if (filterUdfoertAf.length > 0 && !filterUdfoertAf.includes(a.udfoert_af ?? "")) return false;
+      if (filterBevillingIds.length > 0 && !filterBevillingIds.includes(a.relateret_bevilling_id)) return false;
       return true;
     });
     return sortAsc ? [...list].reverse() : list;
@@ -280,6 +321,7 @@
     filterFra = "";
     filterTil = "";
     filterUdfoertAf = [];
+    filterBevillingIds = [];
   }
 
 
@@ -329,25 +371,6 @@
   // -----------------------------
   // Small helpers
   // -----------------------------
-
-  function getStatusReason(result: any) {
-    return (
-      result?.status?.status_reason ??
-      result?.status_reason ??
-      null
-    );
-  }
-
-
-  function showStatusReasonIfAny(result: any) {
-    const statusReason = getStatusReason(result);
-
-    if (!statusReason) {
-      return;
-    }
-
-    alert(statusReason);
-  }
 
   function emptyToNull(value: any) {
     if (value === "") {
@@ -399,8 +422,6 @@
       return message;
     }
 
-    const bevillingResult = await bevillingResponse.json();
-
     const hjaelpemidlerResponse = await backendFetch(
       `/bevilling/${bevillingId}/hjaelpemidler`,
       {
@@ -417,8 +438,6 @@
     if (!hjaelpemidlerResponse.ok) {
       return "Bevilling blev gemt, men hjælpemidler kunne ikke gemmes";
     }
-
-    showStatusReasonIfAny(bevillingResult);
 
     await invalidateAll();
 
@@ -462,10 +481,6 @@
       } catch { /* keep fallback */ }
       return message;
     }
-
-    const result = await response.json();
-
-    showStatusReasonIfAny(result);
 
     await invalidateAll();
 
@@ -556,8 +571,6 @@
       return message;
     }
 
-    const koerselsraekkeResult = await response.json();
-
     const tillaegResponse = await backendFetch(
       `/bevilling/koerselsraekke/${koerselId}/tillaeg`,
       {
@@ -591,8 +604,6 @@
     if (!dageResponse.ok) {
       return "Kørselsrække blev gemt, men dage kunne ikke gemmes";
     }
-
-    showStatusReasonIfAny(koerselsraekkeResult);
 
     await invalidateAll();
 
@@ -831,10 +842,10 @@
           <p class="text-sm text-gray-800">{stamdata?.elevklassetrin ?? "—"}</p>
         </div>
 
-        <!-- SFO -->
+        <!-- Institution (SFO / klub) -->
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">SFO</p>
-          <p class="text-sm text-gray-800">{stamdata?.sfo ?? "—"}</p>
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Institution</p>
+          <p class="text-sm text-gray-800">{stamdata?.institution ?? "—"}</p>
         </div>
 
         <!-- BOPÆLSDISTRIKT -->
@@ -1001,6 +1012,12 @@
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
       <h2 class="font-semibold text-gray-800 mb-3">Tilføj kommentar</h2>
 
+      {#if kommentarError}
+        <div class="mb-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded" role="alert">
+          {kommentarError}
+        </div>
+      {/if}
+
       <textarea
         bind:value={nyKommentar}
         rows="3"
@@ -1083,6 +1100,43 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </div>
 
 
+        <!-- Bevilling dropdown -->
+        {#if bevillingFilterOptions.length > 0}
+          <div class="relative feed-filter-dropdown">
+            <button
+              type="button"
+              class="relative min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 bg-white hover:border-gray-400 text-left"
+              on:click|stopPropagation={() => openDropdown = openDropdown === "bevilling" ? null : "bevilling"}
+            >
+              {filterBevillingIds.length > 0
+                ? bevillingFilterOptions.filter((o) => filterBevillingIds.includes(o.id)).map((o) => o.label).join(", ")
+                : "Alle bevillinger"}
+              <svg class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            {#if openDropdown === "bevilling"}
+              <div class="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded shadow-lg min-w-[190px] py-1">
+                {#each bevillingFilterOptions as option}
+                  <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={filterBevillingIds.includes(option.id)}
+                      on:change={() => {
+                        filterBevillingIds = filterBevillingIds.includes(option.id)
+                          ? filterBevillingIds.filter((id) => id !== option.id)
+                          : [...filterBevillingIds, option.id];
+                      }}
+                      class="rounded border-gray-300 text-blue-500"
+                    />
+                    {option.label}
+                    <span class="ml-auto font-mono text-[10px] text-gray-400">#{option.id}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+
+
         <!-- Udført af dropdown -->
         <div class="relative feed-filter-dropdown">
           <button
@@ -1156,7 +1210,12 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             <div class="border-l-4 {style.border} {style.cardBg} border border-gray-100 rounded-r-lg px-4 py-3">
               <div class="flex items-start justify-between gap-2">
 
-                <!-- Left: icon + badge + bevilling pill -->
+                <!-- All information sits left, in two rows: what happened, then
+                     when and by whom. The right side carries only the action, so
+                     a destructive button is never mixed in among metadata. -->
+                <div class="min-w-0">
+
+                <!-- Row 1: icon + type badge + bevilling pill -->
                 <div class="flex items-center gap-2 flex-wrap">
                   {#if style.icon === "check"}
                     <svg class="w-3.5 h-3.5 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -1192,27 +1251,31 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                   {/if}
                 </div>
 
-                <!-- Right: timestamp + sender + delete -->
-                <div class="flex flex-col items-end shrink-0 text-right gap-0.5">
-                  <span class="text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(aktivitet.oprettet_tidspunkt).toLocaleString("da-DK")}
-                  </span>
+                <!-- Row 2: when + by whom. Muted and smaller so the badge above
+                     stays the anchor the eye lands on when scanning the feed. -->
+                <div class="mt-1 flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500">
+                  <span class="whitespace-nowrap">{formatAktivitetTidspunkt(aktivitet.oprettet_tidspunkt)}</span>
                   {#if aktivitet.udfoert_af}
+                    <span class="text-gray-300" aria-hidden="true">·</span>
                     {#if aktivitet.udfoert_af === "System"}
-                      <span class="text-xs italic text-gray-500">System</span>
+                      <span class="italic">System</span>
                     {:else}
-                      <span class="text-xs font-medium text-gray-700">{aktivitet.udfoert_af}</span>
+                      <span class="font-medium text-gray-600">{aktivitet.udfoert_af}</span>
                     {/if}
                   {/if}
+                </div>
 
-                  <!-- Only comments can be deleted. System-written entries are
-                       the case history, and the backend refuses them too. -->
+                </div>
+
+                <!-- Right: action only. Only comments can be deleted — system
+                     entries are the case history, and the backend refuses them. -->
+                <div class="shrink-0">
                   {#if aktivitet.aktivitetstype === "Kommentar"}
                     <button
                       type="button"
                       title="Slet kommentar"
                       disabled={!canEdit}
-                      class="mt-1 p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      class="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       on:click={() => { confirmingDeleteAktivitetId = aktivitet.aktivitet_id; deleteAktivitetError = null; }}
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

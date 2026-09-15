@@ -302,3 +302,61 @@ class KoerselUgedagLink(Base):
         ForeignKey(f"{DB_SCHEMA}.Ugedag.dag_id"),
         primary_key=True,
     )
+
+
+class Brev(Base):
+    """One decision letter that was created for a bevilling.
+
+    Creating a letter queues an ATS work item; it does NOT post anything to the
+    parents. This table is what separates the two: a row appears when the letter
+    is generated, and `afsendt` is set when a caseworker has actually sent it.
+    The Forsendelse page is the worklist of rows where afsendt = 0.
+
+    A bevilling has many of these over time — a påtænkt afslag followed by the
+    final afslag, or a bevilling followed by an ophør letter — which is why this
+    is its own table rather than a pair of columns on Bevilling.
+    """
+
+    __tablename__ = "Brev"
+    __table_args__ = {"schema": DB_SCHEMA}
+
+    brev_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    bevilling_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.Bevilling.bevilling_id"),
+        nullable=False,
+    )
+
+    cpr_elev: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    # ATS work-item reference, e.g. "0101101234_2026-09-15_14_30_05". Nothing
+    # reads it yet — stored so the page can later surface whether the RPA
+    # actually produced the document.
+    reference: Mapped[str | None] = mapped_column(Unicode(100), nullable=True)
+
+    # Snapshots, deliberately not foreign keys: the letter said what it said.
+    # Editing the bevilling afterwards must not rewrite history.
+    afgoerelsesbrev_tekst: Mapped[str | None] = mapped_column(Unicode(500), nullable=True)
+    brev_i_forbindelse_med: Mapped[str | None] = mapped_column(Unicode(100), nullable=True)
+
+    oprettet_tidspunkt: Mapped[datetime] = mapped_column(
+        DATETIME2,
+        nullable=False,
+        server_default=text("sysdatetime()"),
+    )
+    oprettet_af: Mapped[str | None] = mapped_column(Unicode(200), nullable=True)
+
+    afsendt: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("0"),
+    )
+    afsendt_tidspunkt: Mapped[datetime | None] = mapped_column(DATETIME2, nullable=True)
+    afsendt_af: Mapped[str | None] = mapped_column(Unicode(200), nullable=True)
+
+    aktiv: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("1"),
+    )
