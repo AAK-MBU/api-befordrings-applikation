@@ -332,8 +332,8 @@
   async function recalculateEgenbefordringRows(
     bevillingId: number,
     koerselsraekker: any[],
-    lat1: number,
-    lon1: number,
+    lat1: number | null,
+    lon1: number | null,
     matrikel: number
   ) {
     const egenRows = koerselsraekker.filter(
@@ -341,8 +341,8 @@
     );
     if (egenRows.length === 0) return;
 
-    // The address is already geocoded by the caller, so this skips straight to
-    // the school lookup.
+    // Coordinates come straight off the address row (LOIS sync), so this is
+    // just the school lookup plus the distance call.
     const { km: distance_km, error } = await afstandFraKoordinater(lat1, lon1, matrikel);
 
     const nyAfstand = error === null ? distance_km : null;
@@ -633,7 +633,14 @@
     if (error) {
       editError = error;
     } else {
-      if ((addressChanged || schoolChanged) && newMatrikelId && adresseLat && adresseLon) {
+      // Missing coordinates are no longer a reason to skip: afstandFraKoordinater
+      // reports them, which clears the now-wrong distance and shows the bar,
+      // rather than leaving a distance measured to the old school in place.
+      //
+      // newMatrikelId still guards, because a bevilling on an ungdomsuddannelse
+      // legitimately has no matrikel — there is nothing to measure to, and
+      // firing here would clear those distances against a false error.
+      if ((addressChanged || schoolChanged) && newMatrikelId) {
         await recalculateEgenbefordringRows(
           bevilling.bevilling_id, koerselsraekker, adresseLat, adresseLon, newMatrikelId
         );
@@ -1168,7 +1175,8 @@
               <KoerselsraekkeTable
                 rows={bevilling.koerselsraekker ?? []}
                 lookupOptions={lookupOptions}
-                adresseForBevilling={bevilling.adresse_for_bevilling ?? ""}
+                adresseLat={bevilling.adresse_latitude ?? null}
+                adresseLon={bevilling.adresse_longitude ?? null}
                 matrikelId={bevilling.matrikel_id ?? null}
                 readonly={readonlyKoerselsraekker}
                 onSaveKoerselsraekke={onSaveKoerselsraekke}

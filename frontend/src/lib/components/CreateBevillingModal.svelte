@@ -16,7 +16,7 @@
       isSkolerejsekort as typeIsSkolerejsekort,
       isTaxaType as typeIsTaxa,
     } from "$lib/koerselstype";
-    import { afstandFraAdresse } from "$lib/client/afstand";
+    import { afstandFraKoordinater } from "$lib/client/afstand";
     import { bevillingLabel } from "$lib/bevillingLabel";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
@@ -161,6 +161,10 @@
       return {
         adresse_id: null as string | null,
         adresse_tekst: "",
+        // Carried alongside the id so the distance can be calculated without
+        // geocoding the text back into the coordinates we were just handed.
+        adresse_lat: null as number | null,
+        adresse_lon: null as number | null,
         matrikel_id: "",
         ungdomsuddannelse_id: "",
         hjemmel_id: "",
@@ -295,8 +299,9 @@
       modalKoerselList = modalKoerselList;
 
       try {
-        const { km, error } = await afstandFraAdresse(
-          newBevilling.adresse_tekst,
+        const { km, error } = await afstandFraKoordinater(
+          newBevilling.adresse_lat,
+          newBevilling.adresse_lon,
           newBevilling.matrikel_id
         );
 
@@ -363,6 +368,8 @@
       newBevilling = {
         adresse_id:                  source.adresse_id ?? null,
         adresse_tekst:               source.adresse_for_bevilling ?? "",
+        adresse_lat:                 source.adresse_latitude ?? null,
+        adresse_lon:                 source.adresse_longitude ?? null,
         matrikel_id:                 source.matrikel_id != null ? String(source.matrikel_id) : "",
         ungdomsuddannelse_id:        source.ungdomsuddannelse_id != null ? String(source.ungdomsuddannelse_id) : "",
         hjemmel_id:                  source.hjemmel_id != null ? String(source.hjemmel_id) : "",
@@ -683,7 +690,13 @@
                   adresseId={newBevilling.adresse_id}
                   adresseTekst={newBevilling.adresse_tekst}
                   onSelect={(result) => {
-                    newBevilling = { ...newBevilling, adresse_id: result?.adresse_id ?? null, adresse_tekst: result?.adresse_tekst ?? "" };
+                    newBevilling = {
+                      ...newBevilling,
+                      adresse_id: result?.adresse_id ?? null,
+                      adresse_tekst: result?.adresse_tekst ?? "",
+                      adresse_lat: result?.latitude ?? null,
+                      adresse_lon: result?.longitude ?? null,
+                    };
                   }}
                 />
               </div>

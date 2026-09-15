@@ -14,7 +14,7 @@
     labelIsSkolerejsekort,
     labelIsTaxa,
   } from "$lib/koerselstype";
-  import { afstandFraAdresse } from "$lib/client/afstand";
+  import { afstandFraKoordinater } from "$lib/client/afstand";
 
 
   // -----------------------------
@@ -44,7 +44,10 @@
     koerselId: number
   ) => Promise<string | null>;
 
-  export let adresseForBevilling: string = "";
+  // Coordinates rather than the address text: they come from the LOIS sync on
+  // the address itself, so there is nothing to geocode. See $lib/client/afstand.
+  export let adresseLat: number | null = null;
+  export let adresseLon: number | null = null;
   export let matrikelId: number | null = null;
   export let readonly: boolean = false;
 
@@ -106,7 +109,7 @@
     distanceErrorFrom = null;
 
     try {
-      const { km, error } = await afstandFraAdresse(adresseForBevilling, matrikelId);
+      const { km, error } = await afstandFraKoordinater(adresseLat, adresseLon, matrikelId);
 
       if (error !== null) {
         distanceError = error;
