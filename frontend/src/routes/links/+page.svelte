@@ -65,4 +65,27 @@
 
     <UpdateTemplateButton class="px-4 py-2 text-sm" />
   </section>
+
+  <section class="mt-10 border-t border-gray-200 pt-6">
+    <h2 class="text-base font-semibold text-gray-800">Kørselsgodtgørelse</h2>
+    <p class="text-sm text-gray-500 mt-1 mb-4">
+      Liste over alle, der på nuværende tidspunkt modtager kørselsgodtgørelse for
+      egen befordring — én linje pr. modtager, uanset hvor mange kørselsrækker
+      eller børn det drejer sig om. Listen dannes ud fra dagens dato.
+    </p>
+
+    <!-- A plain link, not a fetch: the browser sends the session cookie and
+         owns the save dialog. data-sveltekit-reload keeps the client router
+         from intercepting it and trying to render a CSV as a page. -->
+    <a
+      href="/links/modtagere.csv"
+      data-sveltekit-reload
+      class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#032A42] text-white rounded hover:bg-[#04374f] transition-colors"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+      </svg>
+      Hent modtagerliste (CSV)
+    </a>
+  </section>
 </div>
