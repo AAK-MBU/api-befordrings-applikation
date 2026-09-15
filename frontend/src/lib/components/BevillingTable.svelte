@@ -97,6 +97,13 @@
   let editableBevilling: any = {};
   let editError: string | null = null;
 
+  // Distance-recalculation failures outlive the edit row: saveEdit calls
+  // cancelEdit() on success, so editError (gated on isEditing) would vanish
+  // before it could be read. Keyed by bevilling so the bar lands on the right
+  // card, mirroring distanceError/distanceErrorFrom in KoerselsraekkeTable.
+  let recalcError: string | null = null;
+  let recalcErrorFor: number | null = null;
+
   // From $page rather than a prop: this component is nested and a module-level
   // store would be shared across concurrent SSR requests. See ReadOnlyNotice.
   $: canEdit = $page.data.user?.can_edit ?? false;
@@ -310,27 +317,43 @@
     return raw.split(',').map(Number).filter(n => !isNaN(n));
   }
 
+  // Egenbefordring is reimbursed per kilometre, and that kilometre figure is
+  // stored on the kørselsrække rather than recomputed on read — so changing the
+  // school or the address invalidates it.
+  //
+  // Failures used to return silently, which left a distance measured to the OLD
+  // school in place and payable. The row is cleared instead: an empty field
+  // shows as "—", fails validateKoerselstypeFields the next time the række is
+  // edited, and is named in the bar on the card. A blank the caseworker is told
+  // to fill beats a stale number nobody knows is wrong.
+  //
+  // Final (locked) rækker are skipped. They are a closed period, and clearing a
+  // distance there would destroy a historical figure with no way to recover it.
   async function recalculateEgenbefordringRows(
+    bevillingId: number,
     koerselsraekker: any[],
     lat1: number,
     lon1: number,
     matrikel: number
   ) {
-    const egenRows = koerselsraekker.filter(k => isEgenbefordringType(k.befordringstype_id));
+    const egenRows = koerselsraekker.filter(
+      k => isEgenbefordringType(k.befordringstype_id) && !k.final
+    );
     if (egenRows.length === 0) return;
 
     // The address is already geocoded by the caller, so this skips straight to
-    // the school lookup. Failures stay silent here on purpose: the bevilling
-    // itself saved fine, and this is a best-effort follow-up.
+    // the school lookup.
     const { km: distance_km, error } = await afstandFraKoordinater(lat1, lon1, matrikel);
-    if (error !== null) return;
 
-    // Update each egenbefordring row
+    const nyAfstand = error === null ? distance_km : null;
+
+    let fejlede = 0;
+
     for (const koersel of egenRows) {
-      await onSaveKoerselsraekke(koersel.koersel_id, {
+      const rowError = await onSaveKoerselsraekke(koersel.koersel_id, {
         tidspunkt_id: koersel.tidspunkt_id,
         befordringstype_id: koersel.befordringstype_id,
-        bevilget_koereafstand_pr_vej: distance_km,
+        bevilget_koereafstand_pr_vej: nyAfstand,
         gyldig_fra: koersel.gyldig_fra,
         gyldig_til: koersel.gyldig_til,
         taxa_id: koersel.taxa_id,
@@ -338,6 +361,33 @@
         tillaeg_ids: parseIds(koersel.tillaeg_ids),
         dag_ids: parseIds(koersel.dag_ids)
       });
+
+      if (rowError) fejlede += 1;
+    }
+
+    const raekker = (n: number) => `${n} ${n === 1 ? "kørselsrække" : "kørselsrækker"}`;
+    const beskeder: string[] = [];
+
+    if (error !== null) {
+      const ryddet = egenRows.length - fejlede;
+
+      beskeder.push(
+        `Køreafstanden kunne ikke beregnes automatisk: ${error}.` +
+        (ryddet > 0
+          ? ` Afstanden er nulstillet på ${raekker(ryddet)} — slå den op manuelt og indtast den på hver enkelt kørselsrække.`
+          : "")
+      );
+    }
+
+    if (fejlede > 0) {
+      beskeder.push(
+        `Køreafstanden kunne ikke gemmes på ${raekker(fejlede)}, som derfor stadig står med den gamle afstand. Kontrollér dem manuelt.`
+      );
+    }
+
+    if (beskeder.length > 0) {
+      recalcError = beskeder.join(" ");
+      recalcErrorFor = bevillingId;
     }
   }
 
@@ -527,6 +577,8 @@
 
   async function saveEdit(bevilling: any) {
     editError = null;
+    recalcError = null;
+    recalcErrorFor = null;
     const dateFields: [string | null | undefined, string][] = [
       [editableBevilling.sagsbehandlingsdato,   'Sagsbehandlingsdato'],
       [editableBevilling.afstandskriterie_dato,  'Afstandskriterie dato'],
@@ -582,7 +634,9 @@
       editError = error;
     } else {
       if ((addressChanged || schoolChanged) && newMatrikelId && adresseLat && adresseLon) {
-        await recalculateEgenbefordringRows(koerselsraekker, adresseLat, adresseLon, newMatrikelId);
+        await recalculateEgenbefordringRows(
+          bevilling.bevilling_id, koerselsraekker, adresseLat, adresseLon, newMatrikelId
+        );
       }
       cancelEdit();
     }
@@ -1079,6 +1133,25 @@
         {#if isEditing && editError}
           <div class="mx-4 md:mx-6 mb-4 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
             {editError}
+          </div>
+        {/if}
+
+        <!-- Deliberately not gated on isEditing: the edit row has already closed
+             by the time this is set. Dismissible, because nothing else clears it
+             until the bevilling is saved again. -->
+        {#if recalcError && recalcErrorFor === bevilling.bevilling_id}
+          <div
+            class="mx-4 md:mx-6 mb-4 flex items-start gap-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded"
+            role="alert"
+          >
+            <p class="flex-1">{recalcError}</p>
+            <button
+              type="button"
+              class="shrink-0 font-medium hover:underline"
+              on:click={() => { recalcError = null; recalcErrorFor = null; }}
+            >
+              Luk
+            </button>
           </div>
         {/if}
 

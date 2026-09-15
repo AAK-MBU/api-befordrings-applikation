@@ -122,6 +122,7 @@
 
   let nyKommentar = "";
   let savingKommentar = false;
+  let kommentarError: string | null = null;
 
   async function saveKommentar() {
     if (!nyKommentar.trim()) {
@@ -129,6 +130,7 @@
     }
 
     savingKommentar = true;
+    kommentarError = null;
 
     try {
       const response = await backendFetch(`/aktivitet/${stamdata.cpr}`, {
@@ -144,7 +146,7 @@
       });
 
       if (!response.ok) {
-        alert("Kunne ikke gemme kommentar");
+        kommentarError = "Kunne ikke gemme kommentar";
         return;
       }
 
@@ -370,25 +372,6 @@
   // Small helpers
   // -----------------------------
 
-  function getStatusReason(result: any) {
-    return (
-      result?.status?.status_reason ??
-      result?.status_reason ??
-      null
-    );
-  }
-
-
-  function showStatusReasonIfAny(result: any) {
-    const statusReason = getStatusReason(result);
-
-    if (!statusReason) {
-      return;
-    }
-
-    alert(statusReason);
-  }
-
   function emptyToNull(value: any) {
     if (value === "") {
       return null;
@@ -439,8 +422,6 @@
       return message;
     }
 
-    const bevillingResult = await bevillingResponse.json();
-
     const hjaelpemidlerResponse = await backendFetch(
       `/bevilling/${bevillingId}/hjaelpemidler`,
       {
@@ -457,8 +438,6 @@
     if (!hjaelpemidlerResponse.ok) {
       return "Bevilling blev gemt, men hjælpemidler kunne ikke gemmes";
     }
-
-    showStatusReasonIfAny(bevillingResult);
 
     await invalidateAll();
 
@@ -502,10 +481,6 @@
       } catch { /* keep fallback */ }
       return message;
     }
-
-    const result = await response.json();
-
-    showStatusReasonIfAny(result);
 
     await invalidateAll();
 
@@ -596,8 +571,6 @@
       return message;
     }
 
-    const koerselsraekkeResult = await response.json();
-
     const tillaegResponse = await backendFetch(
       `/bevilling/koerselsraekke/${koerselId}/tillaeg`,
       {
@@ -631,8 +604,6 @@
     if (!dageResponse.ok) {
       return "Kørselsrække blev gemt, men dage kunne ikke gemmes";
     }
-
-    showStatusReasonIfAny(koerselsraekkeResult);
 
     await invalidateAll();
 
@@ -1040,6 +1011,12 @@
     <!-- Ny kommentar -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
       <h2 class="font-semibold text-gray-800 mb-3">Tilføj kommentar</h2>
+
+      {#if kommentarError}
+        <div class="mb-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded" role="alert">
+          {kommentarError}
+        </div>
+      {/if}
 
       <textarea
         bind:value={nyKommentar}

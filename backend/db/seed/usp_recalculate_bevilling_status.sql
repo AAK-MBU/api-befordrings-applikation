@@ -335,25 +335,18 @@ BEGIN
     SET needs_revurdering = 0, needs_genbehandling = 0
     WHERE calculated_status_text = N'Fejlet';
 
-    /* Revurdering reason — skolekode mismatch. */
-    UPDATE cs
-    SET cs.status_reason = N'Skolekode på bevilling matcher ikke elevens aktuelle skolekode'
-    FROM #calculated_statuses cs
-    WHERE
-        cs.skolekode_mismatch = 1
-        AND cs.needs_revurdering = 1
-        AND cs.status_reason IS NULL;
+    /* Revurdering reason — approaching revurderingsdato.
 
-    /* Revurdering reason — address mismatch. */
-    UPDATE cs
-    SET cs.status_reason = N'Elevens adresse matcher ikke adressen på bevillingen'
-    FROM #calculated_statuses cs
-    WHERE
-        cs.adresse_mismatch = 1
-        AND cs.needs_revurdering = 1
-        AND cs.status_reason IS NULL;
+       Revurdering is date-driven only (see needs_revurdering above); skolekode
+       and adresse drift are genbehandling and are written to
+       genbehandling_bemaerkning further down.
 
-    /* Revurdering reason — approaching revurderingsdato. */
+       Those two mismatches used to be assigned here as well, left over from
+       before the split. Because every block is guarded on status_reason IS NULL
+       the first one to match claims the column, and the mismatches sat first —
+       so a bevilling on the revurdering list *for its date* that also had
+       school-code drift showed the genbehandling reason on the revurdering
+       page, and its own reason was never written at all. */
     UPDATE cs
     SET cs.status_reason = N'Bevillingen nærmer sig revurderingsdato'
     FROM #calculated_statuses cs
@@ -362,6 +355,23 @@ BEGIN
         cs.needs_revurdering = 1
         AND b.revurderingsdato IS NOT NULL
         AND @today >= DATEADD(MONTH, -2, CONVERT(DATE, b.revurderingsdato))
+        AND cs.status_reason IS NULL;
+
+    /* Revurdering reason — already under way.
+
+       needs_revurdering has a "stay" branch that holds the flag at 1 until BR
+       signs off, which outlives the date window above and survives
+       revurderingsdato being changed or cleared. Without this block those rows
+       would carry no reason at all, and the card would render a blank space.
+
+       It also distinguishes the two states on the page: waiting to be picked up
+       versus waiting for BR. Deliberately last, so it only catches what the
+       date block did not. */
+    UPDATE cs
+    SET cs.status_reason = N'Afventer sagsbehandling af revurdering'
+    FROM #calculated_statuses cs
+    WHERE
+        cs.needs_revurdering = 1
         AND cs.status_reason IS NULL;
 
     /* Genbehandling reason — skolekode mismatch. */
