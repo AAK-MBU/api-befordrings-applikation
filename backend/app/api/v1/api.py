@@ -20,7 +20,7 @@ single api_router instead of importing every endpoint router individually.
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import require_auth
-from app.api.v1.endpoints import adresse, aktivitet, bevilling, citizen, lookup, overview, os2forms, part
+from app.api.v1.endpoints import adresse, aktivitet, bevilling, brev, citizen, lookup, overview, os2forms, part
 # 🔥 TEMPORARY - remove together with endpoints/mock_templates_handler.py when api-skabelonmotor is live
 from app.api.v1.endpoints import mock_templates_handler
 from app.core.security import verify_api_key
@@ -66,6 +66,12 @@ api_router.include_router(
 # Register bevilling routes.
 api_router.include_router(
     bevilling.router,
+    dependencies=human_dependencies,
+)
+
+# Forsendelse: the worklist of letters created but not yet sent.
+api_router.include_router(
+    brev.router,
     dependencies=human_dependencies,
 )
 

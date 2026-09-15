@@ -15,12 +15,14 @@
   const nyeCount = $derived(data.counts?.nye ?? 0);
   const revCount = $derived(data.counts?.revurderinger ?? 0);
   const genbehandlingCount = $derived(data.counts?.genbehandlinger ?? 0);
+  const forsendelseCount = $derived(data.counts?.forsendelser ?? 0);
 
   const tabs = [
     { href: '/', label: 'Overblik' },
     { href: '/nye-ansoegninger', label: 'Nye ansøgninger' },
     { href: '/revurdering', label: 'Revurdering' },
     { href: '/genbehandling', label: 'Genbehandling' },
+    { href: '/forsendelse', label: 'Forsendelse' },
     { href: '/links', label: 'Links' },
   ];
 
@@ -169,7 +171,7 @@
     <ul class="flex flex-wrap">
       {#each tabs as tab}
         {@const active = isActive(tab)}
-        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : tab.href === '/genbehandling' ? genbehandlingCount : 0}
+        {@const count = tab.href === '/nye-ansoegninger' ? nyeCount : tab.href === '/revurdering' ? revCount : tab.href === '/genbehandling' ? genbehandlingCount : tab.href === '/forsendelse' ? forsendelseCount : 0}
         <li>
           <a
             href={tab.href}

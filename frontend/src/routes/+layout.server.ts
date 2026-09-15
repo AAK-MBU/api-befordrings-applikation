@@ -22,6 +22,7 @@ async function loadCounts(event: Parameters<LayoutServerLoad>[0]) {
     nye: "/overview/new_applications",
     revurderinger: "/overview/revurderinger",
     genbehandlinger: "/overview/genbehandlinger",
+    forsendelser: "/brev/forsendelse",
   } as const;
 
   const entries = await Promise.all(

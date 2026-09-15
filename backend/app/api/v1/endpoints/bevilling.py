@@ -33,6 +33,7 @@ from app.schemas.bevilling import (
     LetterCreateRequest,
 )
 from app.services.bevilling_service import BevillingService
+from app.services.brev_service import BrevService
 from app.utils.ats import fetch_workqueue
 from app.utils.distance import driving_distance, walking_distance
 from app.utils.geocoding import geocode_address
@@ -466,6 +467,7 @@ def create_letter(
     cpr: str,
     bevilling_id: int,
     letter_data: LetterCreateRequest,
+    oprettet_af: CurrentUser,
     db: DbSession,
 ):
     """Create and queue a letter-generation work item.
@@ -566,12 +568,29 @@ def create_letter(
     # date; locking has no such requirement, and ATS being unreachable is the
     # likeliest failure here — locking first would leave the rows marked
     # settled for a letter that was never queued.
+    # Record the letter now that it is genuinely queued. Generating a letter is
+    # not the same as posting it to the parents, so this row is what the
+    # Forsendelse page later marks as sent.
+    #
+    # Deliberately after the enqueue: a failed enqueue must not leave a row
+    # claiming a letter exists. The afgørelsesbrev text is snapshotted rather
+    # than referenced — see app/models/bevilling.py::Brev.
+    brev = BrevService(db=db).create_brev(
+        bevilling_id=bevilling_id,
+        cpr_elev=cpr.replace("-", ""),
+        reference=reference,
+        afgoerelsesbrev_tekst=(bevilling_data or {}).get("afgoerelsesbrev"),
+        brev_i_forbindelse_med=(letter_data.model_extra or {}).get("brev_i_forbindelse_med"),
+        oprettet_af=oprettet_af,
+    )
+
     locked_count = bevilling_service.lock_koerselsraekker(bevilling_id=bevilling_id)
     locked_bevilling = bevilling_service.lock_bevilling(bevilling_id=bevilling_id)
 
     return {
         "status": "queued",
         "reference": reference,
+        "brev_id": brev.brev_id,
         "locked_koerselsraekker": locked_count,
         "locked_bevilling": locked_bevilling,
     }
