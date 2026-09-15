@@ -7,6 +7,7 @@
     { label: "Elevbefordring (oversigt) Standardrapport", href: "https://lismbu.adm.aarhuskommune.dk/SASStoredProcess/do?_program=/Aarhus/MBU/LIS/System/LIS&lisaction=rapframe&indk=001993470574233&org=819718&pertype=REGNSKABSAAR&periode=2026&min_id=866388" },
     { label: "Elevbefordring (taxa og minibus) Standardrapport", href: "https://lismbu.adm.aarhuskommune.dk/SASStoredProcess/do?_program=/Aarhus/MBU/LIS/System/LIS&lisaction=rapframe&indk=001894629216178&org=819718&pertype=REGNSKABSAAR&periode=2026&min_id=866388" },
     { label: "Elevbefordring (buskort) Standardrapport", href: "https://lismbu.adm.aarhuskommune.dk/SASStoredProcess/do?_program=/Aarhus/MBU/LIS/System/LIS&lisaction=rapframe&indk=001991385148085&org=819718&pertype=REGNSKABSAAR&periode=2026&min_id=866388" },
+    { label: "Optiruns rapport", href: "https://aarhus-office.optiruns.dk/app/report" },
   ];
 
   // The source workbook the "Opdater skabelondata" button imports from. Kept
