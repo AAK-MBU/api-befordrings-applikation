@@ -79,6 +79,14 @@ elev_adresse_stg = Table(
     Column("load_id", UNIQUEIDENTIFIER, nullable=False),
     Column("cpr", String(10), nullable=False),
     Column("adresse_id", Unicode(36), nullable=False),
+    # Added by migration 022 so a load that failed part-way can be swept by
+    # age. UTC, matching Adresse_STG.loaded_at.
+    Column(
+        "loaded_at",
+        DATETIME2(precision=0),
+        nullable=False,
+        server_default=text("sysutcdatetime()"),
+    ),
     schema=DB_SCHEMA,
 )
 

@@ -11,7 +11,11 @@ GO
 
 CREATE OR ALTER PROCEDURE [befordring].[usp_upsert_adresser_from_stg]
     @load_id UNIQUEIDENTIFIER,
-    @clear_stage_afterwards BIT = 1
+    @clear_stage_afterwards BIT = 1,
+    -- How long a staged load may survive before it is treated as debris from
+    -- a failed run. One day: the job runs nightly, so anything older than that
+    -- belongs to a run that never finished.
+    @stale_after_days INT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -20,9 +24,28 @@ BEGIN
     DECLARE @updated_rows INT = 0;
     DECLARE @inserted_rows INT = 0;
     DECLARE @staged_rows INT = 0;
+    DECLARE @orphans_swept INT = 0;
 
     BEGIN TRY
         BEGIN TRANSACTION;
+
+            /* Sweep orphaned loads.
+
+               A run that fails while staging never reaches this procedure, so
+               its rows are never deleted by the load_id clear below. They are
+               invisible to every consumer — all of which filter on load_id —
+               but they accumulate, and Adresse_STG stages every address in
+               the municipality.
+
+               Bounded by age rather than "anything that is not this load", so
+               two runs overlapping cannot delete each other's rows mid-flight.
+               Never touches the current load: its rows were staged moments
+               ago. */
+            DELETE FROM [befordring].[Adresse_STG]
+            WHERE load_id <> @load_id
+            AND   loaded_at < DATEADD(DAY, -@stale_after_days, SYSUTCDATETIME());
+
+            SET @orphans_swept = @@ROWCOUNT;
 
             ;WITH SourceRows AS
             (
@@ -115,7 +138,8 @@ BEGIN
         SELECT
             @staged_rows AS staged_rows,
             @updated_rows AS updated_rows,
-            @inserted_rows AS inserted_rows;
+            @inserted_rows AS inserted_rows,
+            @orphans_swept AS orphan_rows_swept;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0

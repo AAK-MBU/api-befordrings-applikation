@@ -38,19 +38,40 @@ GO
 
 CREATE OR ALTER PROCEDURE [befordring].[usp_upsert_adresse_ids_from_stg]
     @load_id                UNIQUEIDENTIFIER,
-    @clear_stage_afterwards BIT = 1
+    @clear_stage_afterwards BIT = 1,
+    -- See usp_upsert_adresser_from_stg: one nightly run, so a load older than
+    -- a day belongs to a run that never finished.
+    @stale_after_days       INT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
     DECLARE @staged_rows       INT = 0;
+    DECLARE @orphans_swept     INT = 0;
     DECLARE @unknown_adresse   INT = 0;
     DECLARE @elev_updated      INT = 0;
     DECLARE @foraelder_updated INT = 0;
 
     BEGIN TRY
         BEGIN TRANSACTION;
+
+            /* Sweep orphaned loads.
+
+               A run that fails while staging never reaches this procedure, so
+               its rows are never deleted by the load_id clear below. They are
+               invisible to every consumer — all of which filter on load_id —
+               but they accumulate, and nothing else ever reaps them.
+
+               Bounded by age rather than "anything that is not this load", so
+               two runs overlapping cannot delete each other's rows mid-flight.
+               Never touches the current load: its rows were staged moments
+               ago. */
+            DELETE FROM [befordring].[Elev_Adresse_STG]
+            WHERE load_id <> @load_id
+            AND   loaded_at < DATEADD(DAY, -@stale_after_days, SYSUTCDATETIME());
+
+            SET @orphans_swept = @@ROWCOUNT;
 
             /* One row per cpr for this load. A person appears once in
                PersonGeoView, but the stage has no key to enforce it. */
@@ -135,7 +156,8 @@ BEGIN
             @staged_rows       AS staged_rows,
             @unknown_adresse   AS skipped_unknown_adresse,
             @elev_updated      AS elev_updated,
-            @foraelder_updated AS foraelder_updated;
+            @foraelder_updated AS foraelder_updated,
+            @orphans_swept     AS orphan_rows_swept;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
