@@ -10,7 +10,7 @@ GO
 
 
 /* ---------- view_Revurderinger: filter on the flag ---------- */
-ALTER VIEW [befordring].[view_Revurderinger] AS
+CREATE OR ALTER VIEW [befordring].[view_Revurderinger] AS
 SELECT
     b.bevilling_id,
     b.cpr_elev,

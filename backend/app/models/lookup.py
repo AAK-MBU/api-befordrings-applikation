@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Float, Integer, String, Unicode
+from sqlalchemy import Boolean, Float, Integer, String, Unicode, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -161,6 +161,18 @@ class Rutetype(Base):
     __table_args__ = {"schema": DB_SCHEMA}
 
     rutetype_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    rutetype_tekst: Mapped[str] = mapped_column(String, nullable=False)
-    beskrivelse: Mapped[str | None] = mapped_column(String, nullable=True)
-    aktiv: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    # Bounded Unicode, unlike the unbounded String on the other lookup tables:
+    # Rutetype was created by migration 003 rather than in the base schema, and
+    # that migration declared NVARCHAR(255) / NVARCHAR(1000). See migration 020,
+    # which brings older databases up to the same shape.
+    rutetype_tekst: Mapped[str] = mapped_column(Unicode(255), nullable=False)
+    beskrivelse: Mapped[str | None] = mapped_column(Unicode(1000), nullable=True)
+
+    # Also from 003: the only lookup table whose aktiv carries a database
+    # default (DF_Rutetype_aktiv). Mirrored here so the model matches the table.
+    aktiv: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("1"),
+    )

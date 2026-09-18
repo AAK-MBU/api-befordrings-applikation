@@ -12,6 +12,10 @@
 --   log, foreign keys, support conversations — keeps using it. loebenummer is
 --   a display identifier only.
 --
+--   Existing rows are left without a number on purpose: the UI falls back to
+--   "Bevilling #<bevilling_id>" when loebenummer is NULL, and back-filling
+--   would invent numbers nobody has ever referenced.
+--
 --   Rules that make it trustworthy:
 --     * assigned once, at creation, and NEVER reassigned
 --     * soft-deleted rows keep their number, so the gap stays visible
@@ -28,7 +32,7 @@ USE [Befordringssystemet];   -- adjust database name if different in your enviro
 GO
 
 -- -----------------------------------------------------------------------
--- 1. Add the column (nullable for now — step 2 fills it)
+-- 1. Add the column
 -- -----------------------------------------------------------------------
 IF NOT EXISTS (
     SELECT 1
@@ -49,36 +53,7 @@ END
 GO
 
 -- -----------------------------------------------------------------------
--- 2. Back-fill existing rows
---
---    Ordered by created_at, tie-broken by bevilling_id so the result is
---    deterministic even for rows created in the same instant.
---
---    Soft-deleted rows are numbered too. Leaving them out would hand their
---    number to a later bevilling, and an undelete would then collide.
---
---    Only touches rows where loebenummer IS NULL, so re-running never
---    renumbers anything already assigned.
--- -----------------------------------------------------------------------
-WITH Nummereret AS (
-    SELECT
-        b.bevilling_id,
-        b.loebenummer,
-        ROW_NUMBER() OVER (
-            PARTITION BY b.cpr_elev
-            ORDER BY     b.created_at, b.bevilling_id
-        ) AS nyt_nummer
-    FROM [befordring].[Bevilling] b
-)
-UPDATE Nummereret
-SET    loebenummer = nyt_nummer
-WHERE  loebenummer IS NULL;
-
-PRINT CONCAT('Back-filled ', @@ROWCOUNT, ' bevilling row(s) with a loebenummer.');
-GO
-
--- -----------------------------------------------------------------------
--- 3. Enforce uniqueness within the child
+-- 2. Enforce uniqueness within the child
 --
 --    This is the backstop behind the application's assignment logic: if two
 --    bevillinger for the same child ever race to the same number, the second
@@ -107,21 +82,23 @@ END
 GO
 
 -- -----------------------------------------------------------------------
--- 4. Verify
+-- 3. Verify
 -- -----------------------------------------------------------------------
 
--- 4a. Any row still missing a number? Should return nothing.
+-- 3a. Rows without a number. Existing rows are NOT back-filled — they keep
+--     the "Bevilling #<id>" fallback in the UI until they are next saved, and
+--     the unique index below is filtered so NULLs never collide.
 SELECT bevilling_id, cpr_elev, created_at
 FROM   [befordring].[Bevilling]
 WHERE  loebenummer IS NULL;
 
--- 4b. Any child with a duplicate number? Should return nothing.
+-- 3b. Any child with a duplicate number? Should return nothing.
 SELECT   cpr_elev, loebenummer, COUNT(*) AS antal
 FROM     [befordring].[Bevilling]
 GROUP BY cpr_elev, loebenummer
 HAVING   COUNT(*) > 1;
 
--- 4c. Spot-check the children with the most bevillinger.
+-- 3c. Spot-check the children with the most bevillinger.
 SELECT TOP 20
     b.cpr_elev,
     COUNT(*)              AS antal_bevillinger,

@@ -9,7 +9,7 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 
-ALTER VIEW [befordring].[view_ParentData]
+CREATE OR ALTER VIEW [befordring].[view_ParentData]
 AS
 SELECT
     f.cpr_elev,

@@ -11,7 +11,7 @@ GO
 
 
 
-ALTER VIEW [befordring].[view_All_Active_Bevillinger]
+CREATE OR ALTER VIEW [befordring].[view_All_Active_Bevillinger]
 AS
 
 SELECT

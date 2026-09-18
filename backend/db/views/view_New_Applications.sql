@@ -8,7 +8,7 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-ALTER VIEW [befordring].[view_New_Applications]
+CREATE OR ALTER VIEW [befordring].[view_New_Applications]
 AS
 SELECT
     b.bevilling_id,
