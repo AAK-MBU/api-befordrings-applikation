@@ -26,32 +26,28 @@
    with a different beskrivelse or coordinate, it is left alone — changing
    reference data under a live system is a migration, not a seed.
 
-   ALL OR NOTHING. The inserts run in one transaction, so a failure part-way
-   through leaves the database exactly as it was rather than half-seeded with
-   some lookup tables populated and others empty. To preview without writing,
-   change COMMIT TRANSACTION near the bottom to ROLLBACK TRANSACTION: the
-   PRINTed counts still tell you what would have been inserted.
+   Runs inside a transaction that ROLLBACKs by default — change the
+   final ROLLBACK to COMMIT once the previewed counts look correct. The
+   verification selects at the bottom run BEFORE that decision, so they show
+   what the commit would leave behind.
 
-   Requires migrations 001-019 (Rutetype arrives in 003).
-============================================================ */
+   Requires migrations 001-022 (Rutetype arrives in 003).
+   ============================================================ */
 
-USE [Befordringssystemet];   -- adjust database name if different in your environment
-GO
+USE [Befordringssystemet];
 
 SET NOCOUNT ON;
 
--- Any error aborts the batch and rolls back, rather than leaving a doomed
--- transaction open for the CATCH to inherit.
+-- Any error aborts the batch and rolls the transaction back, so a failure
+-- part-way cannot leave some lookup tables populated and others empty.
 SET XACT_ABORT ON;
-GO
+
+BEGIN TRANSACTION;
+
 
 PRINT 'Seeding lookup data...';
 PRINT '';
-GO
 
-
-BEGIN TRY
-    BEGIN TRANSACTION;
 
 -- Status  (8 rows)
 INSERT INTO [befordring].[Status] (status_tekst, beskrivelse, aktiv)
@@ -344,24 +340,6 @@ WHERE NOT EXISTS (
 );
 PRINT CONCAT('Ugedag: ', @@ROWCOUNT, ' row(s) inserted.');
 
-    COMMIT TRANSACTION;
-
-    PRINT '';
-    PRINT 'Lookup seed committed.';
-END TRY
-BEGIN CATCH
-    IF @@TRANCOUNT > 0
-        ROLLBACK TRANSACTION;
-
-    PRINT '';
-    PRINT 'Lookup seed FAILED and was rolled back — nothing was written.';
-
-    -- Re-raise with the original error number, severity and line, so the
-    -- caller sees the real cause rather than a generic failure.
-    THROW;
-END CATCH
-GO
-
 
 /* ============================================================
    Verify — row counts per lookup table
@@ -381,7 +359,6 @@ UNION ALL SELECT 'Tidspunkt',           COUNT(*) FROM [befordring].[Tidspunkt]
 UNION ALL SELECT 'Rutetype',            COUNT(*) FROM [befordring].[Rutetype]
 UNION ALL SELECT 'Ugedag',              COUNT(*) FROM [befordring].[Ugedag]
 ORDER BY lookup_table;
-GO
 
 
 /* ============================================================
@@ -408,8 +385,9 @@ UNION ALL SELECT 'Befordringstype',     LTRIM(RTRIM(befordringstype_tekst)),   C
 UNION ALL SELECT 'Tidspunkt',           LTRIM(RTRIM(tidspunkt_tekst)),         COUNT(*) FROM [befordring].[Tidspunkt]           GROUP BY LTRIM(RTRIM(tidspunkt_tekst))         HAVING COUNT(*) > 1
 UNION ALL SELECT 'Rutetype',            LTRIM(RTRIM(rutetype_tekst)),          COUNT(*) FROM [befordring].[Rutetype]            GROUP BY LTRIM(RTRIM(rutetype_tekst))          HAVING COUNT(*) > 1
 UNION ALL SELECT 'Ugedag',              LTRIM(RTRIM(dag_tekst)),               COUNT(*) FROM [befordring].[Ugedag]              GROUP BY LTRIM(RTRIM(dag_tekst))               HAVING COUNT(*) > 1;
-GO
 
 PRINT '';
-PRINT 'Lookup seed complete.';
-GO
+PRINT 'ROLLBACK is active. Change to COMMIT when the counts look correct.';
+PRINT '';
+
+ROLLBACK TRANSACTION;
