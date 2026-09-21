@@ -13,7 +13,7 @@ GO
 
 
 
-ALTER VIEW [befordring].[view_Student_Bevillinger]
+CREATE OR ALTER VIEW [befordring].[view_Student_Bevillinger]
 AS
 SELECT
     b.bevilling_id,

@@ -9,7 +9,7 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 
-ALTER VIEW [befordring].[view_Applications]
+CREATE OR ALTER VIEW [befordring].[view_Applications]
 AS
 SELECT
     form_id,

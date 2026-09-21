@@ -9,7 +9,7 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 
-ALTER PROCEDURE [befordring].[usp_recalculate_bevilling_status]
+CREATE OR ALTER PROCEDURE [befordring].[usp_recalculate_bevilling_status]
     @bevilling_id INT = NULL,
     @today DATE = NULL,
     @dry_run BIT = 0

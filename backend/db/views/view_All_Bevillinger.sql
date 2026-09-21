@@ -12,7 +12,7 @@ GO
 
 
 /* ---------- view_All_Bevillinger: expose the flag ---------- */
-ALTER VIEW [befordring].[view_All_Bevillinger]
+CREATE OR ALTER VIEW [befordring].[view_All_Bevillinger]
 AS
 SELECT
     b.bevilling_id,

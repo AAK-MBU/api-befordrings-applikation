@@ -8,7 +8,7 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-ALTER VIEW [befordring].[view_Stamdata]
+CREATE OR ALTER VIEW [befordring].[view_Stamdata]
 AS
 
 WITH PrioritizedBevilling AS (

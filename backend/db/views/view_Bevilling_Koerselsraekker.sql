@@ -9,7 +9,7 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 
-ALTER VIEW [befordring].[view_Bevilling_Koerselsraekker]
+CREATE OR ALTER VIEW [befordring].[view_Bevilling_Koerselsraekker]
 AS
     SELECT
         k.koersel_id,
