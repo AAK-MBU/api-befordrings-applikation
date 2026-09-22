@@ -26,6 +26,14 @@
    with a different beskrivelse or coordinate, it is left alone — changing
    reference data under a live system is a migration, not a seed.
 
+   NOT SEEDED: Sagsbehandler and PPR_Sagsbehandler. Those are real people, not
+   reference data — they are created and retired as staff come and go, and a
+   hardcoded list here would quietly reintroduce someone who had left, or make
+   a fresh database look correct while naming the wrong caseworkers. Both are
+   still counted by the verification at the bottom, because an empty
+   Sagsbehandler table is a working database the conversion bot cannot run
+   against. A table marked * there is one this script does not manage.
+
    Runs inside a transaction that ROLLBACKs by default — change the
    final ROLLBACK to COMMIT once the previewed counts look correct. The
    verification selects at the bottom run BEFORE that decision, so they show
@@ -67,34 +75,6 @@ WHERE NOT EXISTS (
     WHERE LTRIM(RTRIM(t.status_tekst)) = LTRIM(RTRIM(v.status_tekst))
 );
 PRINT CONCAT('Status: ', @@ROWCOUNT, ' row(s) inserted.');
-
-
--- Sagsbehandler  (2 rows)
-INSERT INTO [befordring].[Sagsbehandler] (sagsbehandler_tekst, beskrivelse, aktiv)
-SELECT v.sagsbehandler_tekst, v.beskrivelse, v.aktiv
-FROM (VALUES
-    ('Sofie', '', 1),
-    ('Nina',  '', 1)
-) AS v (sagsbehandler_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Sagsbehandler] t
-    WHERE LTRIM(RTRIM(t.sagsbehandler_tekst)) = LTRIM(RTRIM(v.sagsbehandler_tekst))
-);
-PRINT CONCAT('Sagsbehandler: ', @@ROWCOUNT, ' row(s) inserted.');
-
-
--- PPR_Sagsbehandler  (2 rows)
-INSERT INTO [befordring].[PPR_Sagsbehandler] (ppr_sagsbehandler_tekst, beskrivelse, aktiv)
-SELECT v.ppr_sagsbehandler_tekst, v.beskrivelse, v.aktiv
-FROM (VALUES
-    ('Hans',    '', 1),
-    ('Kirsten', '', 1)
-) AS v (ppr_sagsbehandler_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[PPR_Sagsbehandler] t
-    WHERE LTRIM(RTRIM(t.ppr_sagsbehandler_tekst)) = LTRIM(RTRIM(v.ppr_sagsbehandler_tekst))
-);
-PRINT CONCAT('PPR_Sagsbehandler: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
 -- Skolematrikel  (55 rows)
@@ -346,8 +326,10 @@ PRINT CONCAT('Ugedag: ', @@ROWCOUNT, ' row(s) inserted.');
 ============================================================ */
 
 SELECT 'Status'              AS lookup_table, COUNT(*) AS antal_rows FROM [befordring].[Status]
-UNION ALL SELECT 'Sagsbehandler',       COUNT(*) FROM [befordring].[Sagsbehandler]
-UNION ALL SELECT 'PPR_Sagsbehandler',   COUNT(*) FROM [befordring].[PPR_Sagsbehandler]
+-- Not seeded here (see the header), but counted: an empty Sagsbehandler table
+-- is a working database that the conversion bot cannot run against.
+UNION ALL SELECT 'Sagsbehandler *',     COUNT(*) FROM [befordring].[Sagsbehandler]
+UNION ALL SELECT 'PPR_Sagsbehandler *', COUNT(*) FROM [befordring].[PPR_Sagsbehandler]
 UNION ALL SELECT 'Skolematrikel',       COUNT(*) FROM [befordring].[Skolematrikel]
 UNION ALL SELECT 'Ungdomsuddannelse',   COUNT(*) FROM [befordring].[Ungdomsuddannelse]
 UNION ALL SELECT 'Hjaelpemiddel',       COUNT(*) FROM [befordring].[Hjaelpemiddel]
@@ -373,8 +355,8 @@ ORDER BY lookup_table;
 
 SELECT 'Status' AS lookup_table, LTRIM(RTRIM(status_tekst)) AS value, COUNT(*) AS antal
 FROM [befordring].[Status] GROUP BY LTRIM(RTRIM(status_tekst)) HAVING COUNT(*) > 1
-UNION ALL SELECT 'Sagsbehandler',       LTRIM(RTRIM(sagsbehandler_tekst)),     COUNT(*) FROM [befordring].[Sagsbehandler]       GROUP BY LTRIM(RTRIM(sagsbehandler_tekst))     HAVING COUNT(*) > 1
-UNION ALL SELECT 'PPR_Sagsbehandler',   LTRIM(RTRIM(ppr_sagsbehandler_tekst)), COUNT(*) FROM [befordring].[PPR_Sagsbehandler]   GROUP BY LTRIM(RTRIM(ppr_sagsbehandler_tekst)) HAVING COUNT(*) > 1
+UNION ALL SELECT 'Sagsbehandler *',     LTRIM(RTRIM(sagsbehandler_tekst)),     COUNT(*) FROM [befordring].[Sagsbehandler]       GROUP BY LTRIM(RTRIM(sagsbehandler_tekst))     HAVING COUNT(*) > 1
+UNION ALL SELECT 'PPR_Sagsbehandler *', LTRIM(RTRIM(ppr_sagsbehandler_tekst)), COUNT(*) FROM [befordring].[PPR_Sagsbehandler]   GROUP BY LTRIM(RTRIM(ppr_sagsbehandler_tekst)) HAVING COUNT(*) > 1
 UNION ALL SELECT 'Skolematrikel',       LTRIM(RTRIM(matrikel_navn)),           COUNT(*) FROM [befordring].[Skolematrikel]       GROUP BY LTRIM(RTRIM(matrikel_navn))           HAVING COUNT(*) > 1
 UNION ALL SELECT 'Ungdomsuddannelse',   LTRIM(RTRIM(ungdomsuddannelse_navn)),  COUNT(*) FROM [befordring].[Ungdomsuddannelse]   GROUP BY LTRIM(RTRIM(ungdomsuddannelse_navn))  HAVING COUNT(*) > 1
 UNION ALL SELECT 'Hjaelpemiddel',       LTRIM(RTRIM(hjaelpemiddel_tekst)),     COUNT(*) FROM [befordring].[Hjaelpemiddel]       GROUP BY LTRIM(RTRIM(hjaelpemiddel_tekst))     HAVING COUNT(*) > 1

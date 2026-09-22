@@ -33,6 +33,11 @@ from app.models.bevilling import (
 )
 from app.models.citizen import Elev, Sagsaktivitet
 from app.models.lookup import PPRSagsbehandler, Sagsbehandler, Status
+from app.utils.afstandskriterie import (
+    MIDLERTIDIG_KOERSEL,
+    beregn_afstandskriterie_dato,
+    beregn_afstandskriterie_klassetrin,
+)
 
 
 class BevillingService:
@@ -510,6 +515,53 @@ class BevillingService:
         return (highest or 0) + 1
 
 
+    def _apply_afstandskriterie_defaults(
+        self,
+        cpr: str,
+        new_bevilling_data: dict,
+    ) -> None:
+        """Fill in afstandskriterie_dato / _klassetrin where the caller sent none.
+
+        Both are derived from the student's elevklassetrin — see
+        app/utils/afstandskriterie.py, which mirrors the TypeScript the create
+        and edit forms use. Mutates new_bevilling_data in place.
+
+        Silent no-op in three cases, all of them correct rather than a failure:
+        the caller supplied the field (their value wins), the bevilling is
+        midlertidig kørsel (granted on a different basis, so the fields do not
+        apply and the form hides them), or the student has no klassetrin that
+        maps to a band — an ungdomsuddannelse elev, or an Elev row the nightly
+        import has not filled in yet.
+        """
+
+        if new_bevilling_data.get("ansoegningstype") == MIDLERTIDIG_KOERSEL:
+            return
+
+        has_dato = new_bevilling_data.get("afstandskriterie_dato") is not None
+        has_klassetrin = (
+            new_bevilling_data.get("afstandskriterie_klassetrin") is not None
+        )
+
+        if has_dato and has_klassetrin:
+            return
+
+        elev = self.db.get(Elev, cpr)
+
+        if elev is None:
+            return
+
+        if not has_klassetrin:
+            klassetrin = beregn_afstandskriterie_klassetrin(elev.elevklassetrin)
+
+            if klassetrin is not None:
+                new_bevilling_data["afstandskriterie_klassetrin"] = klassetrin
+
+        if not has_dato:
+            dato = beregn_afstandskriterie_dato(elev.elevklassetrin)
+
+            if dato is not None:
+                new_bevilling_data["afstandskriterie_dato"] = dato
+
     def create_bevilling(
         self,
         cpr: str,
@@ -569,6 +621,19 @@ class BevillingService:
                     "message": f"Udfyld venligst følgende felter: {', '.join(missing)}",
                 },
             )
+
+        # Derive the afstandskriterie fields the caller did not send.
+        #
+        # The create/edit form derives these in the browser so a caseworker can
+        # see and override the suggestion before saving, which covers every
+        # bevilling made through the UI. A bevilling posted straight to the API
+        # — the conversion RPA does exactly that — passes through no form, and
+        # both fields were left NULL until someone opened the bevilling for
+        # editing and saved it again.
+        #
+        # Only fills what is absent: a value the caller sent was chosen
+        # deliberately and is never overwritten.
+        self._apply_afstandskriterie_defaults(cpr, new_bevilling_data)
 
         try:
             bevilling = Bevilling(
