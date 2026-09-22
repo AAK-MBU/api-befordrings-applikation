@@ -2,7 +2,9 @@
 
 Endpoints:
 
-- GET  /adresse/search?q=        Frontend combobox — LIKE search, capped at 15 results.
+- GET  /adresse/search?q=        Frontend combobox — prefix LIKE search.
+                                  Optional postnummer= narrows to one postcode,
+                                  limit= caps the rows (default 100).
 - GET  /adresse/{adresse_id}     RPA / internal — look up a single address by GUID PK.
 - GET  /adresse/by-tekst?tekst=  RPA / testing — exact-match lookup by full address string.
 - POST /adresse/create           RPA — idempotently create an address record
@@ -28,30 +30,72 @@ router = APIRouter(prefix="/adresse", tags=["Adresse"])
 def search_adresser(
     db: DbSession,
     q: str = Query(..., min_length=2, description="Search term — minimum 2 characters"),
+    postnummer: str | None = Query(
+        None,
+        min_length=4,
+        max_length=4,
+        description="Narrow the search to one postcode. Recommended for any "
+                    "non-interactive caller — see the note on truncation.",
+    ),
+    limit: int = Query(100, ge=1, le=200, description="Maximum rows to return"),
 ):
     """Search addresses by prefix (starts-with) match.
 
-    Performs a LIKE 'q%' query against adresse_tekst and returns up to 15
-    matches ordered alphabetically.
+    Performs a LIKE 'q%' query against adresse_tekst, ordered alphabetically.
 
     IMPORTANT: this deliberately uses a prefix match ('q%'), NOT a contains
     match ('%q%'). The Adresse table holds ~4 million rows with a supporting
     index (IX_Adresse_adresse_tekst); a leading-wildcard/contains query cannot
     use that index and forces a full scan on every keystroke. Keep it as 'q%'.
 
+    TRUNCATION, and why postnummer exists:
+
+    The table is the whole of Denmark — the nightly import reads
+    LOIS.DAR.AdresseDkGeoView with no municipality filter — so a street name
+    that exists in several towns has a row per town. Ordering is alphabetical
+    on a string whose next characters are the POSTCODE, so the rows that fall
+    off the end of the limit are the ones with the HIGHEST postcodes. For a
+    caller in Aarhus that is precisely the rows it wanted: "Bøgebakken 2,"
+    returns Greve, Roskilde and Køge, and 8462 Harlev J never appears.
+
+    A human typing in the combobox notices an address missing and types more.
+    A robot does not — it records "no match" and moves on. Any non-interactive
+    caller should therefore pass postnummer.
+
+    The filter is a contains match, but it runs on top of the prefix seek, so
+    it only touches rows the index already narrowed to.
+
     Args:
         q:
             The search string. Must be at least 2 characters.
+
+        postnummer:
+            Optional four-digit postcode. Only addresses in it are returned.
+
+        limit:
+            Maximum rows to return.
+
+            Raised from 15 to 100 after "Bøgebakken 2," was found to have 26
+            rows nationally, with the wanted Aarhus one 21st. 15 returned
+            nothing but Lejre, Gilleleje and Kalundborg. A street name common
+            across Denmark needs far more headroom than a combobox suggests,
+            and a truncated result is indistinguishable from an absent one.
 
     Returns:
         A list of matching addresses with their adresse_id and adresse_tekst.
     """
 
+    query = db.query(Adresse).filter(Adresse.adresse_tekst.like(f"{q}%"))
+
+    if postnummer:
+        # The postcode always follows ", " — it is the last component of
+        # adresse_tekst, after street and any floor or place name.
+        query = query.filter(Adresse.adresse_tekst.like(f"%, {postnummer} %"))
+
     return (
-        db.query(Adresse)
-        .filter(Adresse.adresse_tekst.like(f"{q}%"))
+        query
         .order_by(Adresse.adresse_tekst)
-        .limit(15)
+        .limit(limit)
         .all()
     )
 
