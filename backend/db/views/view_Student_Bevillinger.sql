@@ -47,6 +47,11 @@ SELECT
     ba.longitude                                                  AS adresse_longitude,
     b.ansoegningstype,
     b.ansoegningsdato,
+    -- The date the bevilling's kørsel starts. Exposed so the PPR conversion
+    -- bot can tell its own bevillinger apart: every bevilling it creates for
+    -- one case carries the same esdh_noegle (the PPR case id), so that alone
+    -- cannot answer "has this one been created already?" on a re-run.
+    b.foerste_koersel_dato,
 
     b.matrikel_id,
     sk.matrikel_navn,
@@ -107,6 +112,11 @@ GROUP BY
     ba.longitude,
     b.ansoegningstype,
     b.ansoegningsdato,
+    -- The date the bevilling's kørsel starts. Exposed so the PPR conversion
+    -- bot can tell its own bevillinger apart: every bevilling it creates for
+    -- one case carries the same esdh_noegle (the PPR case id), so that alone
+    -- cannot answer "has this one been created already?" on a re-run.
+    b.foerste_koersel_dato,
     b.matrikel_id, sk.matrikel_navn,
     b.ungdomsuddannelse_id, uu.ungdomsuddannelse_navn,
     e.skoleafstand,
