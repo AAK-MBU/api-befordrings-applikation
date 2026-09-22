@@ -227,6 +227,14 @@
   // -----------------------------
 
   const inputClass = "border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0 bg-white";
+
+  // Kommentar is the one free-text field that can hold more than a line. The
+  // conversion writes a multi-line note onto kørselsrækker it could not fully
+  // interpret (see _klub_note in the conversion RPA), and an <input> would
+  // both hide the extra lines and strip them on save — HTML sanitises CR/LF
+  // out of a text input's value, so opening the row for editing and saving it
+  // unchanged would silently destroy the note.
+  const textareaClass = inputClass + " leading-snug resize-y";
   const selectClass = "border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0 bg-white";
 
 
@@ -660,7 +668,7 @@
           <!-- Row 4: Kommentar full width -->
           <label class="block md:col-start-1 md:col-span-4">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+            <textarea class={textareaClass} rows="3" value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)}></textarea>
           </label>
 
         {:else if isTaxaType(newKoerselsraekke.befordringstype_id)}
@@ -698,7 +706,7 @@
           <!-- Row 4: Kommentar -->
           <label class="block md:col-start-1 md:col-span-4">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+            <textarea class={textareaClass} rows="3" value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)}></textarea>
           </label>
 
         {:else if isSkolerejsekort(newKoerselsraekke.befordringstype_id)}
@@ -725,7 +733,7 @@
           <!-- Row 4: Kommentar -->
           <label class="block md:col-start-1 md:col-span-4">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+            <textarea class={textareaClass} rows="3" value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)}></textarea>
           </label>
 
         {:else}
@@ -742,7 +750,7 @@
           <!-- Row 3: Kommentar -->
           <label class="block md:col-start-1 md:col-span-4">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-            <input class={inputClass} value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)} />
+            <textarea class={textareaClass} rows="3" value={newKoerselsraekke.kommentar ?? ""} on:change={(e) => updateNewField("kommentar", e.currentTarget.value)}></textarea>
           </label>
         {/if}
 
@@ -949,7 +957,7 @@
             <!-- Row 4: Kommentar -->
             <label class="block md:col-start-1 md:col-span-4">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+              <textarea class={textareaClass} rows="3" value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)}></textarea>
             </label>
 
           {:else if isTaxaType(editableKoerselsraekke.befordringstype_id)}
@@ -987,7 +995,7 @@
             <!-- Row 4: Kommentar -->
             <label class="block md:col-start-1 md:col-span-4">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+              <textarea class={textareaClass} rows="3" value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)}></textarea>
             </label>
 
           {:else if isSkolerejsekort(editableKoerselsraekke.befordringstype_id)}
@@ -1014,7 +1022,7 @@
             <!-- Row 4: Kommentar -->
             <label class="block md:col-start-1 md:col-span-4">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+              <textarea class={textareaClass} rows="3" value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)}></textarea>
             </label>
 
           {:else}
@@ -1031,7 +1039,7 @@
             <!-- Row 3: Kommentar -->
             <label class="block md:col-start-1 md:col-span-4">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-              <input class={inputClass} value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)} />
+              <textarea class={textareaClass} rows="3" value={editableKoerselsraekke.kommentar ?? ""} on:change={(e) => updateField("kommentar", e.currentTarget.value)}></textarea>
             </label>
           {/if}
 
@@ -1108,7 +1116,7 @@
               <!-- Row 4: Kommentar -->
               <div class="md:col-span-4">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
-                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+                <p class="text-sm text-gray-800 italic break-words whitespace-pre-line">{row.kommentar ?? "—"}</p>
               </div>
 
             {:else if isTxa}
@@ -1142,7 +1150,7 @@
               <!-- Row 4: Kommentar -->
               <div class="md:col-span-4">         
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
-                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+                <p class="text-sm text-gray-800 italic break-words whitespace-pre-line">{row.kommentar ?? "—"}</p>
               </div>
 
             {:else if isSRK}
@@ -1169,7 +1177,7 @@
               <!-- Row 4: Kommentar -->
               <div class="md:col-span-4">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
-                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+                <p class="text-sm text-gray-800 italic break-words whitespace-pre-line">{row.kommentar ?? "—"}</p>
               </div>
 
             {:else}
@@ -1186,7 +1194,7 @@
               <!-- Row 3: Kommentar -->
               <div class="md:col-span-4">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kommentar</p>
-                <p class="text-sm text-gray-800 italic break-words">{row.kommentar ?? "—"}</p>
+                <p class="text-sm text-gray-800 italic break-words whitespace-pre-line">{row.kommentar ?? "—"}</p>
               </div>
             {/if}
 
