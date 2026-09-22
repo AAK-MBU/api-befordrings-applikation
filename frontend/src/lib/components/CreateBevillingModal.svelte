@@ -78,6 +78,13 @@
     let begrundelseSelectValue = "";
     const begrundelseOptions = ["Sygdom", "Afstand", "Farlig skolevej"];
 
+    // Kommentar is a textarea, not an input: "Kopiér" seeds it from an
+    // existing kørselsrække, whose comment may be multi-line — the conversion
+    // writes such notes onto rows it could not fully interpret. A text input
+    // strips CR/LF from its value, so copying one would silently flatten it.
+    const kommentarClass =
+      "border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0 leading-snug resize-y";
+
     $: koerselstyper       = lookupOptions.koerselstyper       ?? [];
     $: tidspunkter         = lookupOptions.tidspunkter         ?? [];
     $: koerselstypeTillaeg = lookupOptions.koerselstypeTillaeg ?? [];
@@ -966,8 +973,8 @@
                 <!-- Row 4: Kommentar -->
                 <label class="block md:col-start-1 md:col-span-4">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
-                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                  <textarea class={kommentarClass} rows="3"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }}></textarea>
                 </label>
 
               {:else if isTxa}
@@ -1035,8 +1042,8 @@
                 <!-- Row 4: Kommentar -->
                 <label class="block md:col-start-1 md:col-span-4">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
-                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                  <textarea class={kommentarClass} rows="3"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }}></textarea>
                 </label>
 
               {:else if isSRK}
@@ -1067,8 +1074,8 @@
                 <!-- Row 4: Kommentar -->
                 <label class="block md:col-start-1 md:col-span-4">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
-                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                  <textarea class={kommentarClass} rows="3"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }}></textarea>
                 </label>
 
               {:else}
@@ -1087,8 +1094,8 @@
                 <!-- Row 3: Kommentar -->
                 <label class="block md:col-start-1 md:col-span-4">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kommentar</span>
-                  <input class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
-                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }} />
+                  <textarea class={kommentarClass} rows="3"
+                    value={krs.kommentar ?? ""} on:change={(e) => { modalKoerselList[i].koersel.kommentar = e.currentTarget.value; modalKoerselList = modalKoerselList; }}></textarea>
                 </label>
               {/if}
 
