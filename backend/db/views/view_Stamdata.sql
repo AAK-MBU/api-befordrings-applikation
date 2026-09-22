@@ -40,6 +40,12 @@ SELECT
     b.esdh_noegle,
     b.status_tekst,
 
+    -- Both the id and the text. The text is what the case page renders; the
+    -- id is what anything comparing addresses has to use, since two identical
+    -- strings are not a match and Bevilling.adresse_id holds an id. The
+    -- conversion RPA compares each legacy bevilling's address against this to
+    -- decide whether the student still lives where the bevilling was granted.
+    e.adresse_id,
     ad.adresse_tekst,
 
     e.matrikel_id,

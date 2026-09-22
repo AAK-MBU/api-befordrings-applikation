@@ -54,6 +54,16 @@
    Elev.skolekode is left alone too: it comes from the data worker, not from
    anything cleared here.
 
+   IDENTITY COUNTERS
+
+   Bevilling, Koersel and Brev are reseeded to 0, so a fresh conversion starts
+   at id 1. That happens AFTER the transaction and only for a table that is
+   genuinely empty — DBCC CHECKIDENT is not transactional, so a reseed inside
+   the transaction would outlive the ROLLBACK and collide with the rows that
+   came back. See the block at the bottom.
+
+   Sagsaktivitet is NOT reseeded: it keeps every row not tied to a bevilling.
+
    Runs inside a transaction that ROLLBACKs by default — change the final
    ROLLBACK to COMMIT once the previewed counts look correct.
    ============================================================ */
@@ -191,3 +201,71 @@ PRINT 'No re-seed needed — lookup data is untouched.';
 PRINT '';
 
 ROLLBACK TRANSACTION;
+
+
+/* ============================================================
+   Reset the identity counters so the next conversion starts at 1
+
+   Deliberately AFTER the transaction, and guarded on the table actually being
+   empty rather than on which keyword is above.
+
+   DBCC CHECKIDENT is not transactional. Run inside the transaction, a reseed
+   would survive the ROLLBACK while the deleted rows came back — leaving the
+   counter at 0 against a table whose highest id is in the thousands, so the
+   next insert would fail on the primary key. That hazard is why
+   reset_lookup_data.sql does not reseed at all.
+
+   Guarding on emptiness makes this correct either way, with nothing to
+   remember: after a ROLLBACK the rows are back, the guard fails and the
+   counters are left alone; after a COMMIT the tables are empty and the
+   counters go to 0. Changing the line above is still the only edit needed.
+
+   Only the three tables this script empties COMPLETELY:
+
+     Bevilling, Koersel, Brev   identity columns, every row deleted.
+
+     Sagsaktivitet              identity column, but it keeps every row not
+                                tied to a bevilling — reseeding would hand the
+                                next comment an id that is already taken.
+
+     the link tables            composite primary keys, no identity.
+
+   Built from sys.tables so Brev is simply absent on a database where
+   migration 014 has not been applied, matching the guarded DELETE above.
+
+   RESEED, 0 rather than a bare RESEED: the one-argument form only ever raises
+   a counter that has fallen BEHIND max(id), so on an emptied table it does
+   nothing at all.
+============================================================ */
+
+DECLARE @reseed_sql NVARCHAR(MAX);
+
+SELECT @reseed_sql = STRING_AGG(
+    CAST(
+        'IF NOT EXISTS (SELECT 1 FROM [befordring].' + QUOTENAME(t.name) + ') '
+        + 'BEGIN '
+        +   'DBCC CHECKIDENT(' + CHAR(39) + '[befordring].' + QUOTENAME(t.name)
+        +   CHAR(39) + ', RESEED, 0) WITH NO_INFOMSGS; '
+        +   'PRINT ' + CHAR(39) + 'Identity nulstillet: ' + t.name + CHAR(39) + '; '
+        + 'END '
+        + 'ELSE PRINT ' + CHAR(39) + 'Sprunget over (ikke tom): ' + t.name
+        + CHAR(39) + ';'
+        AS NVARCHAR(MAX)
+    ),
+    -- N'...' to match the nvarchar(max) expression, as above.
+    N' '
+)
+FROM      sys.tables  t
+JOIN      sys.schemas s ON s.schema_id = t.schema_id
+WHERE     s.name = N'befordring'
+AND       t.name IN (N'Bevilling', N'Koersel', N'Brev')
+AND       EXISTS (SELECT 1 FROM sys.identity_columns ic
+                  WHERE ic.object_id = t.object_id);
+
+IF @reseed_sql IS NOT NULL
+    EXEC sp_executesql @reseed_sql;
+
+PRINT '';
+PRINT 'Identity-tællere nulstilles kun for tomme tabeller — efter en ROLLBACK';
+PRINT 'er rækkerne tilbage, og tællerne står urørt.';
+PRINT '';
