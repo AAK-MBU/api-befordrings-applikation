@@ -817,7 +817,7 @@
           <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skolekode</p>
           <p class="text-sm text-gray-800">
             {stamdata?.skolekode || "—"}{#if stamdata?.skolekode && skolekodeNavn}
-              <span class="text-gray-500">({skolekodeNavn})</span>
+              <span class="text-gray-500"> ({skolekodeNavn})</span>
             {/if}
           </p>
         </div>
