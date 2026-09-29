@@ -7,35 +7,42 @@
    Koersel, Sagsaktivitet or Brev rows are created here — for those, see
    seed_test_data.sql, which is test data and is NOT for a real environment.
 
-   Use this to bring a fresh database (or a real one that is missing a lookup
-   table's rows) up to a working state.
+   DESTRUCTIVE, like seed_test_data.sql: it CLEARS every lookup table,
+   reseeds their identities and inserts the whole set. The file is therefore
+   the definition of what the lookups contain, not a list of additions to
+   them — what you read here is exactly what the database ends up with, and
+   a row deleted from this file disappears from the database on the next run.
 
-   Idempotent by design. Every insert is guarded by NOT EXISTS on the row's
-   natural key — the human-meaningful text, not the identity column, compared
-   with surrounding whitespace stripped from BOTH sides so a row already
-   stored as 'Egen befordring ' still counts as present. So:
-     * running it twice inserts nothing the second time
-     * running it against a populated database tops up only what is missing
-     * existing identity values are never disturbed, so foreign keys held by
-       Bevilling and Koersel keep pointing at the same rows
+   The previous version only ever added, guarded row by row on NOT EXISTS.
+   That kept identity values stable, but it also meant the file and the
+   database could disagree indefinitely: a corrected beskrivelse was ignored
+   because the natural key already existed, and a row removed here lived on.
+   Reading the file told you what a FRESH database would get, not what any
+   real one held.
 
-   That last point is why this script does NOT delete or reseed identities.
-   It only ever adds.
+   WHAT THIS COSTS: identity values change. Every lookup id is reassigned
+   from 1 in the order the rows appear below, so anything holding a foreign
+   key into these tables must be gone first. The guard below refuses to run
+   while such rows exist rather than letting the deletes fail half way
+   through with a foreign-key error that names no way forward.
 
-   It also does not UPDATE. If a row exists under the same natural key but
-   with a different beskrivelse or coordinate, it is left alone — changing
-   reference data under a live system is a migration, not a seed.
+   So this is for a fresh or reset database. To rebuild a populated one:
 
-   NOT SEEDED: Sagsbehandler and PPR_Sagsbehandler. Those are real people, not
-   reference data — they are created and retired as staff come and go, and a
-   hardcoded list here would quietly reintroduce someone who had left, or make
-   a fresh database look correct while naming the wrong caseworkers. Both are
-   still counted by the verification at the bottom, because an empty
+       1. reset_lookup_data.sql   clears application data and lookups
+       2. this script             reinserts the lookups
+       3. the nightly run         restores Elev.matrikel_id from the
+                                  bevillinger, if any survive
+
+   NOT SEEDED: Sagsbehandler and PPR_Sagsbehandler. Those are real people,
+   not reference data — they are created and retired as staff come and go,
+   and a hardcoded list here would quietly reintroduce someone who had left,
+   or make a fresh database look correct while naming the wrong caseworkers.
+   Both are still counted by the verification at the bottom, because an empty
    Sagsbehandler table is a working database the conversion bot cannot run
    against. A table marked * there is one this script does not manage.
 
-   Runs inside a transaction that ROLLBACKs by default — change the
-   final ROLLBACK to COMMIT once the previewed counts look correct. The
+   Runs inside a transaction that ROLLBACKs by default — change the final
+   ROLLBACK to COMMIT once the previewed counts look correct. The
    verification selects at the bottom run BEFORE that decision, so they show
    what the commit would leave behind.
 
@@ -51,6 +58,97 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 BEGIN TRANSACTION;
+
+
+/* ------------------------------------------------------------
+   0. Refuse to run while anything references the lookups
+
+   Reassigning every lookup id under a live Bevilling or Koersel would
+   silently repoint it at a different status, kørselstype or school. The
+   deletes below would fail on the foreign keys anyway — this just fails
+   first, and says what to do about it.
+------------------------------------------------------------ */
+
+DECLARE @blokerende NVARCHAR(MAX) = N'';
+
+SELECT @blokerende = STRING_AGG(x.tabel + N' (' + CAST(x.antal AS NVARCHAR(20)) + N')', N', ')
+FROM (
+    SELECT N'Bevilling' AS tabel, COUNT(*) AS antal FROM [befordring].[Bevilling]
+    UNION ALL SELECT N'Koersel',  COUNT(*) FROM [befordring].[Koersel]
+) x
+WHERE x.antal > 0;
+
+IF @blokerende <> N''
+BEGIN
+    ROLLBACK TRANSACTION;
+
+    RAISERROR(
+        N'Cannot reseed the lookup tables: %s still reference them. This script reassigns every lookup id from 1, which would repoint those rows at different statuses, koerselstyper and schools. Run reset_lookup_data.sql first, or use seed_test_data.sql if this is a dev database being rebuilt from scratch.',
+        16, 1, @blokerende
+    );
+
+    RETURN;
+END;
+
+
+/* ------------------------------------------------------------
+   1. Release Elev's references into the lookups about to be cleared
+
+   FK_Elev_Skolematrikel and FK_Elev_Ungdomsuddannelse would otherwise block
+   the deletes. NULL is the right value rather than something to preserve:
+   with no bevillinger left, usp_sync_elev_matrikel_from_bevilling would
+   clear both columns on its next run in any case. It derives them again once
+   bevillinger exist.
+------------------------------------------------------------ */
+
+UPDATE [befordring].[Elev]
+SET    matrikel_id          = NULL,
+       ungdomsuddannelse_id = NULL
+WHERE  matrikel_id IS NOT NULL
+OR     ungdomsuddannelse_id IS NOT NULL;
+
+PRINT CONCAT('Released school references on ', @@ROWCOUNT, ' elev(er).');
+
+
+/* ------------------------------------------------------------
+   2. Clear every lookup table, then restart their identities
+
+   Order does not matter among these — the lookups do not reference each
+   other — but they are listed alphabetically so a table added later has an
+   obvious place to go.
+------------------------------------------------------------ */
+
+DELETE FROM [befordring].[Afgoerelsesbrev];
+DELETE FROM [befordring].[Befordringstype];
+DELETE FROM [befordring].[Hjaelpemiddel];
+DELETE FROM [befordring].[Hjemmel];
+DELETE FROM [befordring].[KoerselstypeTillaeg];
+DELETE FROM [befordring].[Rutetype];
+DELETE FROM [befordring].[Skolematrikel];
+DELETE FROM [befordring].[Status];
+DELETE FROM [befordring].[Tidspunkt];
+DELETE FROM [befordring].[Ugedag];
+DELETE FROM [befordring].[Ungdomsuddannelse];
+
+PRINT 'Cleared lookup data.';
+
+/* RESEED, 0 rather than a bare RESEED: on an empty table a bare RESEED
+   leaves the current identity where it was, so the next insert would carry
+   on from the old numbering. The repair block after the transaction puts
+   every counter back in step with whatever the tables actually hold, which
+   matters because DBCC CHECKIDENT is NOT transactional — a ROLLBACK below
+   restores the rows but would leave these counters at 0. */
+DBCC CHECKIDENT ('[befordring].[Afgoerelsesbrev]',    RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Befordringstype]',    RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Hjaelpemiddel]',      RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Hjemmel]',            RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[KoerselstypeTillaeg]', RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Rutetype]',           RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Skolematrikel]',      RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Status]',             RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Tidspunkt]',          RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Ugedag]',             RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[Ungdomsuddannelse]',  RESEED, 0);
 
 
 PRINT 'Seeding lookup data...';
@@ -69,11 +167,7 @@ FROM (VALUES
     ('Udløbet',     'Udløbet',                       1),
     ('Fejlet',      'Fejlet',                        1),
     ('Ophørt',      'Ophørt',                        1)
-) AS v (status_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Status] t
-    WHERE LTRIM(RTRIM(t.status_tekst)) = LTRIM(RTRIM(v.status_tekst))
-);
+) AS v (status_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Status: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -137,11 +231,7 @@ FROM (VALUES
     ('Virupskolen',                         'Virupvej 75, 8530 Hjortshøj',                     751052, 1, 56.243340, 10.271937),
     ('Vorrevangskolen',                     'Vorregårds Allé 109, 8200 Aarhus N',              751053, 1, 56.185948, 10.199095),
     ('Åby Skole',                           'Åbyvej 80, 8230 Åbyhøj',                          751054, 1, 56.150634, 10.164975)
-) AS v (matrikel_navn, matrikel_adresse, skolekode, er_matrikel_hovedadresse, latitude, longitude)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Skolematrikel] t
-    WHERE LTRIM(RTRIM(t.matrikel_navn)) = LTRIM(RTRIM(v.matrikel_navn))
-);
+) AS v (matrikel_navn, matrikel_adresse, skolekode, er_matrikel_hovedadresse, latitude, longitude);
 PRINT CONCAT('Skolematrikel: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -154,11 +244,7 @@ FROM (VALUES
     ('Egå Gymnasium',                                   'Mejlbyvej 4, 8250 Egå',                  56.211969, 10.271199),
     ('Erhvervsgrunduddannelsen i Århus',                'Olof Palmes Allé 39, 8200 Aarhus N',     56.189424, 10.181944),
     ('International Training Academy ApS, Beauty & Style', 'Søndergade 45, 8000 Aarhus C',       56.153779, 10.206135)
-) AS v (ungdomsuddannelse_navn, ungdomsuddannelse_adresse, latitude, longitude)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Ungdomsuddannelse] t
-    WHERE LTRIM(RTRIM(t.ungdomsuddannelse_navn)) = LTRIM(RTRIM(v.ungdomsuddannelse_navn))
-);
+) AS v (ungdomsuddannelse_navn, ungdomsuddannelse_adresse, latitude, longitude);
 PRINT CONCAT('Ungdomsuddannelse: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -173,11 +259,7 @@ FROM (VALUES
     ('Krykker',     '', 1),
     ('Autostol',    '', 1),
     ('El-kørestol', '', 1)
-) AS v (hjaelpemiddel_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Hjaelpemiddel] t
-    WHERE LTRIM(RTRIM(t.hjaelpemiddel_tekst)) = LTRIM(RTRIM(v.hjaelpemiddel_tekst))
-);
+) AS v (hjaelpemiddel_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Hjaelpemiddel: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -193,11 +275,7 @@ FROM (VALUES
     ('§ 36, stk. 4 retten til at forblive','', 1),
     ('§ 9,  stk. 4 UngiAarhus',            '', 1),
     ('§ 10 (brækket ben)',				   '', 1)
-) AS v (hjemmel_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Hjemmel] t
-    WHERE LTRIM(RTRIM(t.hjemmel_tekst)) = LTRIM(RTRIM(v.hjemmel_tekst))
-);
+) AS v (hjemmel_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Hjemmel: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -223,11 +301,7 @@ FROM (VALUES
     ('Midlertidig kørsel afslag: § 26, stk. 2 (brækket ben folkeskole)',         '', 1),
     ('Midlertidig kørsel bevilling: § 10 (brækket ben ungdomssuddannelse)',      '', 1),
     ('Midlertidig kørsel afslag: § 10 (brækket ben ungdomssuddannelse)',         '', 1)
-) AS v (afgoerelsesbrev_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Afgoerelsesbrev] t
-    WHERE LTRIM(RTRIM(t.afgoerelsesbrev_tekst)) = LTRIM(RTRIM(v.afgoerelsesbrev_tekst))
-);
+) AS v (afgoerelsesbrev_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Afgoerelsesbrev: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -239,11 +313,7 @@ FROM (VALUES
     ('Co-driver',     '', 1),
     ('Egen ledsager', '', 1),
     ('Fast sæde',     '', 1)
-) AS v (tillaeg_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[KoerselstypeTillaeg] t
-    WHERE LTRIM(RTRIM(t.tillaeg_tekst)) = LTRIM(RTRIM(v.tillaeg_tekst))
-);
+) AS v (tillaeg_tekst, beskrivelse, aktiv);
 PRINT CONCAT('KoerselstypeTillaeg: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -260,11 +330,7 @@ FROM (VALUES
     ('Egen befordring',                  '', 1),
     ('Cykelbus',                         '', 1),
     ('Gåbus',                            '', 1)
-) AS v (befordringstype_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Befordringstype] t
-    WHERE LTRIM(RTRIM(t.befordringstype_tekst)) = LTRIM(RTRIM(v.befordringstype_tekst))
-);
+) AS v (befordringstype_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Befordringstype: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -275,11 +341,7 @@ FROM (VALUES
     ('Morgen',                '', 1),
     ('Eftermiddag',           '', 1),
     ('Morgen og eftermiddag', '', 1)
-) AS v (tidspunkt_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Tidspunkt] t
-    WHERE LTRIM(RTRIM(t.tidspunkt_tekst)) = LTRIM(RTRIM(v.tidspunkt_tekst))
-);
+) AS v (tidspunkt_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Tidspunkt: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -297,11 +359,7 @@ FROM (VALUES
     ('Skole til klub',          '', 1),
     ('Klub til hjem',           '', 1),
     ('Klub til skole',          '', 1)
-) AS v (rutetype_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Rutetype] t
-    WHERE LTRIM(RTRIM(t.rutetype_tekst)) = LTRIM(RTRIM(v.rutetype_tekst))
-);
+) AS v (rutetype_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Rutetype: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -315,11 +373,7 @@ FROM (VALUES
     ('Torsdag', NULL,            1),
     ('Fredag',  NULL,            1),
     ('Alle',    'Alle hverdage', 1)
-) AS v (dag_tekst, beskrivelse, aktiv)
-WHERE NOT EXISTS (
-    SELECT 1 FROM [befordring].[Ugedag] t
-    WHERE LTRIM(RTRIM(t.dag_tekst)) = LTRIM(RTRIM(v.dag_tekst))
-);
+) AS v (dag_tekst, beskrivelse, aktiv);
 PRINT CONCAT('Ugedag: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
@@ -375,3 +429,62 @@ PRINT 'ROLLBACK is active. Change to COMMIT when the counts look correct.';
 PRINT '';
 
 ROLLBACK TRANSACTION;
+
+
+/* ============================================================
+   Put the identity counters back in step with the rows
+
+   DBCC CHECKIDENT is NOT transactional. The RESEED, 0 above therefore
+   survives whichever way the transaction above ended, and the two cases need
+   opposite things:
+
+     COMMIT   — the tables hold exactly the rows seeded here, numbered from
+                1, and the counters already match. This is a no-op.
+     ROLLBACK — the rows are back as they were, but the counters are at 0, so
+                the next insert into any of these tables would collide with
+                an existing id. This is the repair that matters.
+
+   Setting each counter to the table's current MAX is right in both cases, and
+   needs no knowledge of which one happened. An empty table gets 0, so its
+   first insert is 1.
+
+   This runs OUTSIDE the transaction deliberately. Do not move it above the
+   ROLLBACK/COMMIT.
+============================================================ */
+
+DECLARE @naeste BIGINT;
+
+SET @naeste = (SELECT ISNULL(MAX([afgoerelsesbrev_id]), 0) FROM [befordring].[Afgoerelsesbrev]);
+DBCC CHECKIDENT ('[befordring].[Afgoerelsesbrev]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([befordringstype_id]), 0) FROM [befordring].[Befordringstype]);
+DBCC CHECKIDENT ('[befordring].[Befordringstype]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([hjaelpemiddel_id]), 0) FROM [befordring].[Hjaelpemiddel]);
+DBCC CHECKIDENT ('[befordring].[Hjaelpemiddel]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([hjemmel_id]), 0) FROM [befordring].[Hjemmel]);
+DBCC CHECKIDENT ('[befordring].[Hjemmel]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([tillaeg_id]), 0) FROM [befordring].[KoerselstypeTillaeg]);
+DBCC CHECKIDENT ('[befordring].[KoerselstypeTillaeg]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([rutetype_id]), 0) FROM [befordring].[Rutetype]);
+DBCC CHECKIDENT ('[befordring].[Rutetype]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([matrikel_id]), 0) FROM [befordring].[Skolematrikel]);
+DBCC CHECKIDENT ('[befordring].[Skolematrikel]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([status_id]), 0) FROM [befordring].[Status]);
+DBCC CHECKIDENT ('[befordring].[Status]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([tidspunkt_id]), 0) FROM [befordring].[Tidspunkt]);
+DBCC CHECKIDENT ('[befordring].[Tidspunkt]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([dag_id]), 0) FROM [befordring].[Ugedag]);
+DBCC CHECKIDENT ('[befordring].[Ugedag]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([ungdomsuddannelse_id]), 0) FROM [befordring].[Ungdomsuddannelse]);
+DBCC CHECKIDENT ('[befordring].[Ungdomsuddannelse]', RESEED, @naeste);
+
+PRINT 'Identity counters aligned with the current rows.';

@@ -46,6 +46,31 @@
     (bevillinger ?? []).map((b: any) => [b.bevilling_id, bevillingLabel(b)])
   );
 
+  // Skolekode -> school name, so the code on this page can be read without
+  // knowing all fifty by heart. It matters most on a genbehandling case:
+  // the flag says the bevilling's skolekode does not match the student's,
+  // and comparing a bare number against a school name is not a comparison
+  // anyone can make at a glance.
+  //
+  // Built from the skolematrikel lookup, whose labels carry the site in
+  // parentheses — "Kaløvigskolen (Sanatorievej)". The site is dropped: one
+  // skolekode covers every site of a school, so naming one of them here
+  // would be wrong for the students at the others.
+  //
+  // Same reason as the map above for being reactive rather than a helper
+  // function: Svelte cannot see a helper's read of lookupOptions, so the
+  // name would keep its first-render value after a reload.
+  $: skoleNavnByKode = new Map<string, string>(
+    (lookupOptions?.skolematrikler ?? [])
+      .filter((m: any) => m?.skolekode != null && m?.label)
+      .map((m: any) => [
+        String(m.skolekode).trim(),
+        String(m.label).split("(")[0].trim()
+      ])
+  );
+
+  $: skolekodeNavn = skoleNavnByKode.get(String(stamdata?.skolekode ?? "").trim());
+
   const initialHash = window.location.hash.slice(1);
   const validTabs = ["elev", "parter", "sagsforloeb"];
   let activeTab = validTabs.includes(initialHash) ? initialHash : "elev";
@@ -790,7 +815,11 @@
         <!-- SKOLEKODE -->
         <div>
           <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skolekode</p>
-          <p class="text-sm text-gray-800">{stamdata?.skolekode || "—"}</p>
+          <p class="text-sm text-gray-800">
+            {stamdata?.skolekode || "—"}{#if stamdata?.skolekode && skolekodeNavn}
+              <span class="text-gray-500">({skolekodeNavn})</span>
+            {/if}
+          </p>
         </div>
 
         <!-- SKOLE -->
