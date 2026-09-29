@@ -77,7 +77,7 @@ WHERE NOT EXISTS (
 PRINT CONCAT('Status: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
--- Skolematrikel  (55 rows)
+-- Skolematrikel  (56 rows)
 INSERT INTO [befordring].[Skolematrikel] (matrikel_navn, matrikel_adresse, skolekode, er_matrikel_hovedadresse, latitude, longitude)
 SELECT v.matrikel_navn, v.matrikel_adresse, v.skolekode, v.er_matrikel_hovedadresse, v.latitude, v.longitude
 FROM (VALUES
@@ -88,19 +88,20 @@ FROM (VALUES
     ('Ellevangskolen',                      'Jellebakken 17, 8240 Risskov',                    751003, 1, 56.202644, 10.218707),
     ('Elsted Skole',                        'Elsted Skolevej 6, 8520 Lystrup',                 751007, 1, 56.241526, 10.228948),
     ('Engdalskolen',                        'Hovedgaden 5, 8220 Brabrand',                     751008, 1, 56.152602, 10.109452),
-    ('Frederiksbjerg skole',                'Ingerslevs Boulevard 2, 8000 Aarhus C',            751027, 1, 56.145005, 10.197084),
+    ('Frederiksbjerg skole',                'Ingerslevs Boulevard 2, 8000 Aarhus C',           751027, 1, 56.145005, 10.197084),
     ('Gammelgaardsskolen',                  'Carit Etlars Vej 31, 8230 Åbyhøj',                751013, 1, 56.159329, 10.157079),
     ('Hasle Skole',                         'Herredsvej 15, 8210 Aarhus V',                    751015, 1, 56.169300, 10.163680),
     ('Holme Skole',                         'Mølleskovvej 11, 8270 Højbjerg',                  751017, 1, 56.116237, 10.178254),
     ('Højvangskolen',                       'Klokkeskovvej 1, 8260 Viby J',                    751018, 1, 56.129903, 10.115003),
     ('Hårup Skole',                         'Salonikivej 14, 8530 Hjortshøj',                  751046, 1, 56.288342, 10.216692),
-    ('Kaløvigskolen (Sanatorievej)',         'Sanatorievej 38, 8541 Skødstrup',                 751020, 1, 56.260172, 10.342974),
-    ('Kaløvigskolen (Skovager)',             'Skovager 4, 8530 Hjortshøj',                     751020, 0, 56.245661, 10.273222),
+    ('Kaløvigskolen (Bredevej)',            'Bredevej 2D, 8250 Egå',                           751020, 0, 56.229193, 10.295141),
+    ('Kaløvigskolen (Sanatorievej)',        'Sanatorievej 38, 8541 Skødstrup',                 751020, 1, 56.260172, 10.342974),
+    ('Kaløvigskolen (Skovager)',            'Skovager 4, 8530 Hjortshøj',                      751020, 0, 56.245661, 10.273222),
     ('Katrinebjergskolen',                  'Katrinebjergvej 60, 8200 Aarhus N',               751019, 1, 56.173827, 10.196322),
     ('Kløverskolen',                        'Karen Blixens Boulevard 59, 8220 Brabrand',       281401, 1, 56.153100, 10.105700),
     ('Kragelundskolen',                     'Aage Jedichs Vej 3, 8270 Højbjerg',               751021, 1, 56.114507, 10.200129),
-    ('Langagerskolen (Bøgeskov Høvej)',      'Bøgeskov Høvej 10, 8260 Viby J',                 751090, 1, 56.118367, 10.133548),
-    ('Langagerskolen (Kolt Østervej)',       'Kolt Østervej 45, 8361 Hasselager',              751090, 0, 56.109433, 10.075118),
+    ('Langagerskolen (Bøgeskov Høvej)',     'Bøgeskov Høvej 10, 8260 Viby J',                  751090, 1, 56.118367, 10.133548),
+    ('Langagerskolen (Kolt Østervej)',      'Kolt Østervej 45, 8361 Hasselager',               751090, 0, 56.109433, 10.075118),
     ('Lisbjergskolen',                      'Jørgen Clevins Gade 31, 8200 Aarhus N',           751022, 1, 56.218634, 10.157948),
     ('Lystrup Skole',                       'Lystrupvej 256, 8520 Lystrup',                    751066, 1, 56.237290, 10.229867),
     ('Læssøesgades skole',                  'Læssøesgade 24, 8000 Aarhus C',                   751023, 1, 56.146377, 10.188354),
@@ -120,18 +121,18 @@ FROM (VALUES
     ('Skødstrup Skole',                     'Rosenbakken 4, 8541 Skødstrup',                   751039, 1, 56.271534, 10.308426),
     ('Skåde Skole',                         'Mantziusvej 5, 8270 Højbjerg',                    751040, 1, 56.104037, 10.207346),
     ('Solbjergskolen',                      'Kærgårdsvej 4, 8355 Solbjerg',                    751041, 1, 56.042553, 10.084737),
-    ('Stensagerskolen (Janesvej)',           'Janesvej 2, 8220 Brabrand',                       751903, 1, 56.166770, 10.137611),
-    ('Stensagerskolen (Stensagervej)',       'Stensagervej 11, 8260 Viby J',                   751903, 0, 56.131239, 10.146707),
+    ('Stensagerskolen (Janesvej)',          'Janesvej 2, 8220 Brabrand',                       751903, 1, 56.166770, 10.137611),
+    ('Stensagerskolen (Stensagervej)',      'Stensagervej 11, 8260 Viby J',                    751903, 0, 56.131239, 10.146707),
     ('Strandskolen',                        'Nellikevej 1, 8240 Risskov',                      751042, 1, 56.200330, 10.245746),
     ('Sygehusundervisning',                 'Palle Juul-Jensens Boulevard 175, 8200 Aarhus N', 751107, 1, 56.190967, 10.165825),
     ('Sødalskolen',                         'Louisevej 29, 8220 Brabrand',                     751014, 1, 56.150375, 10.136786),
     ('Sølystskolen',                        'Egå Havvej 5, 8250 Egå',                          751043, 1, 56.212247, 10.281777),
     ('Søndervangskolen',                    'Søndervangs Allé 40, 8260 Viby J',                751044, 1, 56.111261, 10.149489),
     ('Tilst Skole',                         'Tåstumvænget 8, 8381 Tilst',                      751045, 1, 56.189515, 10.113195),
-    ('Tranbjergskolen (Grønløkke Allé)',     'Grønløkke Allé 9, 8310 Tranbjerg J',             280458, 1, 56.094176, 10.124531),
-    ('Tranbjergskolen (Kirketorvet)',        'Kirketorvet 22, 8310 Tranbjerg J',                280458, 0, 56.090076, 10.140480),
-    ('Vestergårdsskolen (Nordbyvej)',        'Nordbyvej 25, 8260 Viby J',                      751050, 1, 56.129377, 10.156499),
-    ('Vestergårdsskolen (Stensagervej)',     'Stensagervej 10, 8260 Viby J',                   751050, 0, 56.130530, 10.148991),
+    ('Tranbjergskolen (Grønløkke Allé)',    'Grønløkke Allé 9, 8310 Tranbjerg J',              280458, 1, 56.094176, 10.124531),
+    ('Tranbjergskolen (Kirketorvet)',       'Kirketorvet 22, 8310 Tranbjerg J',                280458, 0, 56.090076, 10.140480),
+    ('Vestergårdsskolen (Nordbyvej)',       'Nordbyvej 25, 8260 Viby J',                       751050, 1, 56.129377, 10.156499),
+    ('Vestergårdsskolen (Stensagervej)',    'Stensagervej 10, 8260 Viby J',                    751050, 0, 56.130530, 10.148991),
     ('Viby Skole',                          'Kirkevej 2, 8260 Viby J',                         751051, 1, 56.127557, 10.164857),
     ('Virupskolen',                         'Virupvej 75, 8530 Hjortshøj',                     751052, 1, 56.243340, 10.271937),
     ('Vorrevangskolen',                     'Vorregårds Allé 109, 8200 Aarhus N',              751053, 1, 56.185948, 10.199095),
@@ -161,7 +162,7 @@ WHERE NOT EXISTS (
 PRINT CONCAT('Ungdomsuddannelse: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
--- Hjaelpemiddel  (6 rows)
+-- Hjaelpemiddel  (7 rows)
 INSERT INTO [befordring].[Hjaelpemiddel] (hjaelpemiddel_tekst, beskrivelse, aktiv)
 SELECT v.hjaelpemiddel_tekst, v.beskrivelse, v.aktiv
 FROM (VALUES
@@ -170,7 +171,8 @@ FROM (VALUES
     ('Krampeplan',  '', 1),
     ('Kørestol',    '', 1),
     ('Krykker',     '', 1),
-    ('Autostol',    '', 1)
+    ('Autostol',    '', 1),
+    ('El-kørestol', '', 1)
 ) AS v (hjaelpemiddel_tekst, beskrivelse, aktiv)
 WHERE NOT EXISTS (
     SELECT 1 FROM [befordring].[Hjaelpemiddel] t

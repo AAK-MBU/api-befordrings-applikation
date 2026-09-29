@@ -18,7 +18,8 @@ GO
     Which bevilling:
 
         * the student's ACTIVE bevilling, if they have a qualifying one
-        * otherwise their most recently created qualifying bevilling
+        * otherwise the qualifying bevilling that runs LONGEST — the latest
+          gyldig_til across its kørselsrækker
 
     Soft-deleted bevillinger (aktiv = 0) are ignored throughout.
 
@@ -93,9 +94,21 @@ BEGIN
                     b.ungdomsuddannelse_id,
                     b.created_at,
                     b.bevilling_id,
-                    CASE WHEN s.status_tekst = N'Aktiv' THEN 0 ELSE 1 END AS status_rank
+                    CASE WHEN s.status_tekst = N'Aktiv' THEN 0 ELSE 1 END AS status_rank,
+                    kr.seneste_gyldig_til
                 FROM       [befordring].[Bevilling]      b
                 LEFT JOIN  [befordring].[Status]         s  ON s.status_id   = b.status_id
+                /* The last day this bevilling covers anyone. A bevilling is a
+                   container; its kørselsrækker carry the dates, so "which
+                   bevilling runs longest" can only be asked of them. Soft-
+                   deleted rækker are excluded for the same reason
+                   soft-deleted bevillinger are. */
+                OUTER APPLY (
+                    SELECT MAX(k.gyldig_til) AS seneste_gyldig_til
+                    FROM   [befordring].[Koersel] k
+                    WHERE  k.bevilling_id = b.bevilling_id
+                    AND    k.aktiv = 1
+                ) kr
                 INNER JOIN [befordring].[Elev]           e  ON e.cpr         = b.cpr_elev
                 LEFT JOIN  [befordring].[Skolematrikel]  sm ON sm.matrikel_id = b.matrikel_id
                 WHERE b.aktiv = 1
@@ -116,8 +129,21 @@ BEGIN
                     )
             ),
             /* rank 0 sorts before 1, so an Aktiv bevilling wins regardless of
-               age; within a rank, newest first. bevilling_id breaks a tie on
-               identical created_at, so the choice is stable from one night to
+               anything else. That is the whole rule where a student has one:
+               the school they are being driven to today is the school they
+               attend.
+
+               Where none is Aktiv, the one running LONGEST wins — the latest
+               gyldig_til across its kørselsrækker. That used to be created_at
+               DESC, which asked when the row was typed rather than what it
+               describes: a bevilling entered last week for a period that
+               ended two years ago outranked one still running next term, and
+               the student was derived to the school they have already left.
+
+               A bevilling with no kørselsrækker at all has no period, so it
+               sorts last of the non-Aktiv ones and only supplies a school
+               when nothing else can. created_at and bevilling_id then break
+               the remaining ties, so the choice is stable from one night to
                the next rather than arbitrary. */
             Ranked AS
             (
@@ -127,7 +153,11 @@ BEGIN
                     ungdomsuddannelse_id,
                     ROW_NUMBER() OVER (
                         PARTITION BY cpr_elev
-                        ORDER BY     status_rank, created_at DESC, bevilling_id DESC
+                        ORDER BY     status_rank,
+                                     CASE WHEN seneste_gyldig_til IS NULL THEN 1 ELSE 0 END,
+                                     seneste_gyldig_til DESC,
+                                     created_at DESC,
+                                     bevilling_id DESC
                     ) AS rn
                 FROM Qualifying
             )
@@ -155,7 +185,23 @@ BEGIN
             INTO      #Delta
             FROM      [befordring].[Elev] e
             LEFT JOIN #Chosen c ON c.cpr_elev = e.cpr
-            WHERE EXISTS (
+            /* Only students who could possibly change: they have a
+               qualifying bevilling, or they carry a school that may now need
+               clearing. A student with neither has NULL on both sides, the
+               EXCEPT below yields nothing, and the row can never reach
+               #Delta — so excluding it here changes no result.
+
+               It matters because Elev now holds every student in the
+               municipality, not only those with a bevilling. The vast
+               majority fall in that third group, and without this the delta
+               is computed across the whole table every night to produce
+               nothing for them. */
+            WHERE (
+                      c.cpr_elev             IS NOT NULL
+                   OR e.matrikel_id          IS NOT NULL
+                   OR e.ungdomsuddannelse_id IS NOT NULL
+                  )
+              AND EXISTS (
                       SELECT e.matrikel_id, e.ungdomsuddannelse_id
                       EXCEPT
                       SELECT c.matrikel_id, c.ungdomsuddannelse_id

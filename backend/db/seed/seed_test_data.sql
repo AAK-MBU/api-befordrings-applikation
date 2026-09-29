@@ -116,19 +116,20 @@ VALUES
     ('Ellevangskolen',                      'Jellebakken 17, 8240 Risskov',                    751003, 1, 56.202644, 10.218707),
     ('Elsted Skole',                        'Elsted Skolevej 6, 8520 Lystrup',                 751007, 1, 56.241526, 10.228948),
     ('Engdalskolen',                        'Hovedgaden 5, 8220 Brabrand',                     751008, 1, 56.152602, 10.109452),
-    ('Frederiksbjerg skole',                'Ingerslevs Boulevard 2, 8000 Aarhus C',            751027, 1, 56.145005, 10.197084),
+    ('Frederiksbjerg skole',                'Ingerslevs Boulevard 2, 8000 Aarhus C',           751027, 1, 56.145005, 10.197084),
     ('Gammelgaardsskolen',                  'Carit Etlars Vej 31, 8230 Åbyhøj',                751013, 1, 56.159329, 10.157079),
     ('Hasle Skole',                         'Herredsvej 15, 8210 Aarhus V',                    751015, 1, 56.169300, 10.163680),
     ('Holme Skole',                         'Mølleskovvej 11, 8270 Højbjerg',                  751017, 1, 56.116237, 10.178254),
     ('Højvangskolen',                       'Klokkeskovvej 1, 8260 Viby J',                    751018, 1, 56.129903, 10.115003),
     ('Hårup Skole',                         'Salonikivej 14, 8530 Hjortshøj',                  751046, 1, 56.288342, 10.216692),
-    ('Kaløvigskolen (Sanatorievej)',         'Sanatorievej 38, 8541 Skødstrup',                 751020, 1, 56.260172, 10.342974),
-    ('Kaløvigskolen (Skovager)',             'Skovager 4, 8530 Hjortshøj',                     751020, 0, 56.245661, 10.273222),
+    ('Kaløvigskolen (Bredevej)',            'Bredevej 2D, 8250 Egå',                           751020, 0, 56.229193, 10.295141),
+    ('Kaløvigskolen (Sanatorievej)',        'Sanatorievej 38, 8541 Skødstrup',                 751020, 1, 56.260172, 10.342974),
+    ('Kaløvigskolen (Skovager)',            'Skovager 4, 8530 Hjortshøj',                      751020, 0, 56.245661, 10.273222),
     ('Katrinebjergskolen',                  'Katrinebjergvej 60, 8200 Aarhus N',               751019, 1, 56.173827, 10.196322),
     ('Kløverskolen',                        'Karen Blixens Boulevard 59, 8220 Brabrand',       281401, 1, 56.153100, 10.105700),
     ('Kragelundskolen',                     'Aage Jedichs Vej 3, 8270 Højbjerg',               751021, 1, 56.114507, 10.200129),
-    ('Langagerskolen (Bøgeskov Høvej)',      'Bøgeskov Høvej 10, 8260 Viby J',                 751090, 1, 56.118367, 10.133548),
-    ('Langagerskolen (Kolt Østervej)',       'Kolt Østervej 45, 8361 Hasselager',              751090, 0, 56.109433, 10.075118),
+    ('Langagerskolen (Bøgeskov Høvej)',     'Bøgeskov Høvej 10, 8260 Viby J',                  751090, 1, 56.118367, 10.133548),
+    ('Langagerskolen (Kolt Østervej)',      'Kolt Østervej 45, 8361 Hasselager',               751090, 0, 56.109433, 10.075118),
     ('Lisbjergskolen',                      'Jørgen Clevins Gade 31, 8200 Aarhus N',           751022, 1, 56.218634, 10.157948),
     ('Lystrup Skole',                       'Lystrupvej 256, 8520 Lystrup',                    751066, 1, 56.237290, 10.229867),
     ('Læssøesgades skole',                  'Læssøesgade 24, 8000 Aarhus C',                   751023, 1, 56.146377, 10.188354),
@@ -148,18 +149,18 @@ VALUES
     ('Skødstrup Skole',                     'Rosenbakken 4, 8541 Skødstrup',                   751039, 1, 56.271534, 10.308426),
     ('Skåde Skole',                         'Mantziusvej 5, 8270 Højbjerg',                    751040, 1, 56.104037, 10.207346),
     ('Solbjergskolen',                      'Kærgårdsvej 4, 8355 Solbjerg',                    751041, 1, 56.042553, 10.084737),
-    ('Stensagerskolen (Janesvej)',           'Janesvej 2, 8220 Brabrand',                       751903, 1, 56.166770, 10.137611),
-    ('Stensagerskolen (Stensagervej)',       'Stensagervej 11, 8260 Viby J',                   751903, 0, 56.131239, 10.146707),
+    ('Stensagerskolen (Janesvej)',          'Janesvej 2, 8220 Brabrand',                       751903, 1, 56.166770, 10.137611),
+    ('Stensagerskolen (Stensagervej)',      'Stensagervej 11, 8260 Viby J',                    751903, 0, 56.131239, 10.146707),
     ('Strandskolen',                        'Nellikevej 1, 8240 Risskov',                      751042, 1, 56.200330, 10.245746),
     ('Sygehusundervisning',                 'Palle Juul-Jensens Boulevard 175, 8200 Aarhus N', 751107, 1, 56.190967, 10.165825),
     ('Sødalskolen',                         'Louisevej 29, 8220 Brabrand',                     751014, 1, 56.150375, 10.136786),
     ('Sølystskolen',                        'Egå Havvej 5, 8250 Egå',                          751043, 1, 56.212247, 10.281777),
     ('Søndervangskolen',                    'Søndervangs Allé 40, 8260 Viby J',                751044, 1, 56.111261, 10.149489),
     ('Tilst Skole',                         'Tåstumvænget 8, 8381 Tilst',                      751045, 1, 56.189515, 10.113195),
-    ('Tranbjergskolen (Grønløkke Allé)',     'Grønløkke Allé 9, 8310 Tranbjerg J',             280458, 1, 56.094176, 10.124531),
-    ('Tranbjergskolen (Kirketorvet)',        'Kirketorvet 22, 8310 Tranbjerg J',                280458, 0, 56.090076, 10.140480),
-    ('Vestergårdsskolen (Nordbyvej)',        'Nordbyvej 25, 8260 Viby J',                      751050, 1, 56.129377, 10.156499),
-    ('Vestergårdsskolen (Stensagervej)',     'Stensagervej 10, 8260 Viby J',                   751050, 0, 56.130530, 10.148991),
+    ('Tranbjergskolen (Grønløkke Allé)',    'Grønløkke Allé 9, 8310 Tranbjerg J',              280458, 1, 56.094176, 10.124531),
+    ('Tranbjergskolen (Kirketorvet)',       'Kirketorvet 22, 8310 Tranbjerg J',                280458, 0, 56.090076, 10.140480),
+    ('Vestergårdsskolen (Nordbyvej)',       'Nordbyvej 25, 8260 Viby J',                       751050, 1, 56.129377, 10.156499),
+    ('Vestergårdsskolen (Stensagervej)',    'Stensagervej 10, 8260 Viby J',                    751050, 0, 56.130530, 10.148991),
     ('Viby Skole',                          'Kirkevej 2, 8260 Viby J',                         751051, 1, 56.127557, 10.164857),
     ('Virupskolen',                         'Virupvej 75, 8530 Hjortshøj',                     751052, 1, 56.243340, 10.271937),
     ('Vorrevangskolen',                     'Vorregårds Allé 109, 8200 Aarhus N',              751053, 1, 56.185948, 10.199095),
@@ -184,7 +185,8 @@ VALUES
     ('Krampeplan',  '', 1),
     ('Kørestol',    '', 1),
     ('Krykker',     '', 1),
-    ('Autostol',    '', 1);
+    ('Autostol',    '', 1),
+    ('El-kørestol', '', 1);
 
 
 INSERT INTO [befordring].[Hjemmel]
@@ -382,6 +384,7 @@ DECLARE @hjaelpemiddel_magnetsele int = (SELECT TOP 1 hjaelpemiddel_id FROM [bef
 DECLARE @hjaelpemiddel_krampeplan int = (SELECT TOP 1 hjaelpemiddel_id FROM [befordring].[Hjaelpemiddel] WHERE hjaelpemiddel_tekst = 'Krampeplan' ORDER BY hjaelpemiddel_id DESC);
 DECLARE @hjaelpemiddel_selekappe  int = (SELECT TOP 1 hjaelpemiddel_id FROM [befordring].[Hjaelpemiddel] WHERE hjaelpemiddel_tekst = 'Selekappe'  ORDER BY hjaelpemiddel_id DESC);
 DECLARE @hjaelpemiddel_autostol   int = (SELECT TOP 1 hjaelpemiddel_id FROM [befordring].[Hjaelpemiddel] WHERE hjaelpemiddel_tekst = 'Autostol'   ORDER BY hjaelpemiddel_id DESC);
+DECLARE @hjaelpemiddel_elkoerestol int = (SELECT TOP 1 hjaelpemiddel_id FROM [befordring].[Hjaelpemiddel] WHERE hjaelpemiddel_tekst = 'El-kørestol' ORDER BY hjaelpemiddel_id DESC);
 
 -- Tidspunkter
 DECLARE @tidspunkt_morgen      int = (SELECT TOP 1 tidspunkt_id FROM [befordring].[Tidspunkt] WHERE tidspunkt_tekst = 'Morgen'                ORDER BY tidspunkt_id DESC);
@@ -415,7 +418,7 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
 
 
 /* ============================================================
-   Elev  (14 total)
+   Elev  (26 total)
    1  Kasper Søndergaard   — Aktiv
    2  Kristian Holm        — Aktiv
    3  Rikke Nørgaard       — Aktiv (revurdering)  (adressebeskyttelse)
@@ -430,6 +433,19 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
    12 Anders Dalsgaard     — Ophørt
    13 Mette Christensen    — Aktiv  (ungdomsuddannelse)
    14 Thomas Vestergaard   — Aktiv (revurdering)
+
+   15 Astrid Mikkelsen     — Ny
+   16 Oliver Bak           — Ny
+   17 Freja Toft           — Ny  (adressebeskyttelse)
+   18 Noah Kjær            — Ny  (midlertidig kørsel)
+   19 Clara Winther        — Ny
+   20 Villads Brandt       — Ny
+   21 Alma Storm           — Ny
+   22 Elias Munk           — Ny
+   23 Ida Sylvest          — Ny  (0. klasse)
+   24 Malthe Overgaard     — Ny  (ungdomsuddannelse)
+   25 Liva Rask            — Ny
+   26 Storm Bendtsen       — Ny
 ============================================================ */
 
 INSERT INTO [befordring].[Elev]
@@ -532,7 +548,95 @@ VALUES
 
 
 /* ============================================================
-   Foraelder  (14 total — one per elev)
+   Elev 15-26 — twelve more students, all with a bevilling at Ny
+
+   Added so "Nye ansøgninger" has a realistic volume to work with.
+   Addresses are reused from the fourteen above on purpose: the seed does not
+   insert into Adresse, so every adresse_id here has to be one the table
+   already holds, and these are known good.
+============================================================ */
+
+INSERT INTO [befordring].[Elev]
+    (cpr, adresseringsnavn, navne_adresse_beskyttelse, adresse_id,
+     skoleafstand, klasseart, elevklassetrin, klassebetegnelse,
+     institution, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
+VALUES
+(
+    '1515101234', 'Astrid Mikkelsen', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
+    5.9, 'Normalklasse', '2', '2A',
+    'SFO - Solbjergskolen', 'Solbjergskolen',
+    @matrikel_6, NULL, 751041
+),
+(
+    '1616101234', 'Oliver Bak', 0, '00002732-733C-433A-A5DA-A7D428A980CF',
+    3.1, 'Normalklasse', '4', '4B',
+    'SFO - Samsøgades Skole', 'Samsøgades Skole',
+    @matrikel_7, NULL, 751036
+),
+(
+    '1717101234', 'Freja Toft', 1, '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0',
+    7.4, 'Specialklasse', '3', '3A',
+    'SFO - Frederiksbjerg skole', 'Frederiksbjerg skole',
+    @matrikel_8, NULL, 751027
+),
+(
+    '1818101234', 'Noah Kjær', 0, '000059B7-1FE6-4ED2-8386-D9578B2A8859',
+    2.4, 'Normalklasse', '1', '1C',
+    'SFO - Risskov Skole', 'Risskov Skole',
+    @matrikel_9, NULL, 751032
+),
+(
+    '1919101234', 'Clara Winther', 0, '0000670C-4F89-4C07-B77B-F9B82AF01C80',
+    8.2, 'Modtageklasse', '5', '5B',
+    'SFO - Skovvangskolen', 'Skovvangskolen',
+    @matrikel_10, NULL, 751038
+),
+(
+    '2020101234', 'Villads Brandt', 0, '00009B67-504C-4FE0-B1D1-39126722DF0F',
+    6.1, 'Normalklasse', '7', '7A',
+    '', 'Gammelgaardsskolen',
+    @matrikel_11, NULL, 751013
+),
+(
+    '2121101234', 'Alma Storm', 0, '00009E24-9877-4F17-8020-04A0B29E704F',
+    4.8, 'Specialklasse', '6', '6B',
+    'SFO - Højvangskolen', 'Højvangskolen',
+    @matrikel_12, NULL, 751018
+),
+(
+    '2222101234', 'Elias Munk', 0, '0000AAF0-826F-4458-B26F-4317AD2A4979',
+    9.6, 'Normalklasse', '8', '8A',
+    '', 'Holme Skole',
+    @matrikel_13, NULL, 751017
+),
+(
+    '2323101234', 'Ida Sylvest', 0, '0000BF23-21F1-4FBB-85AE-3089BC6CF623',
+    2.7, 'Normalklasse', '0', '0A',
+    'SFO - Bakkegårdsskolen', 'Bakkegårdsskolen',
+    @matrikel_1, NULL, 751002
+),
+(
+    '2424101234', 'Malthe Overgaard', 0, '0000C127-AB48-48C7-9770-EDA49D39EB5A',
+    11.3, '', '10', '',
+    '', '',
+    NULL, @ungdomsuddannelse_2, ''
+),
+(
+    '2525101234', 'Liva Rask', 0, '0000E92C-BB46-4745-A0AE-90950142AF79',
+    6.5, 'Normalklasse', '9', '9C',
+    '', 'Engdalskolen',
+    @matrikel_5, NULL, 751008
+),
+(
+    '2626101234', 'Storm Bendtsen', 0, '0000EE38-A966-4A72-9C34-19B0A32AD367',
+    3.9, 'Normalklasse', '3', '3D',
+    'SFO - Bavnehøj Skole', 'Bavnehøj Skole',
+    @matrikel_2, NULL, 751016
+);
+
+
+/* ============================================================
+   Foraelder  (14 total — one per elev; 15-26 added further down)
 ============================================================ */
 
 INSERT INTO [befordring].[Foraelder]
@@ -553,6 +657,28 @@ VALUES
 ('1212121212', '1212101234', 'Søren Dalsgaard',    '0000F131-D663-4434-A585-D30CA601B571', 0, 'Mor', 1),
 ('1313131313', '1313101234', 'Dorthe Christensen', '0000F5F4-9278-43A5-9BA8-24C21D76610C', 0, 'Mor', 1),
 ('1414141414', '1414101234', 'Kurt Vestergaard',   '0000AAF0-826F-4458-B26F-4317AD2A4979', 0, 'Mor', 1);
+
+
+/* ============================================================
+   Foraelder 15-26 — one per new student
+============================================================ */
+
+INSERT INTO [befordring].[Foraelder]
+    (cpr_foraelder, cpr_elev, adresseringsnavn, adresse_id,
+     navne_adresse_beskyttelse, relation, maa_vide_barns_adresse)
+VALUES
+('1515151515', '1515101234', 'Pernille Mikkelsen', '000021C5-E9EE-411D-B2D8-EC9161780CCD', 0, 'Mor', 1),
+('1616161616', '1616101234', 'Jonas Bak', '00002732-733C-433A-A5DA-A7D428A980CF', 0, 'Far', 1),
+('1717171717', '1717101234', 'Camilla Toft', '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0', 0, 'Mor', 0),
+('1818181818', '1818101234', 'Martin Kjær', '000059B7-1FE6-4ED2-8386-D9578B2A8859', 0, 'Far', 1),
+('1919191919', '1919101234', 'Sanne Winther', '0000670C-4F89-4C07-B77B-F9B82AF01C80', 0, 'Mor', 1),
+('2020202020', '2020101234', 'Ole Brandt', '00009B67-504C-4FE0-B1D1-39126722DF0F', 0, 'Far', 1),
+('2121212121', '2121101234', 'Line Storm', '00009E24-9877-4F17-8020-04A0B29E704F', 0, 'Mor', 1),
+('2222222220', '2222101234', 'Rikke Munk', '0000AAF0-826F-4458-B26F-4317AD2A4979', 0, 'Mor', 0),
+('2323232323', '2323101234', 'Jesper Sylvest', '0000BF23-21F1-4FBB-85AE-3089BC6CF623', 0, 'Far', 1),
+('2424242424', '2424101234', 'Bente Overgaard', '0000C127-AB48-48C7-9770-EDA49D39EB5A', 0, 'Mor', 1),
+('2525252525', '2525101234', 'Anders Rask', '0000E92C-BB46-4745-A0AE-90950142AF79', 0, 'Far', 1),
+('2626262626', '2626101234', 'Mette Bendtsen', '0000EE38-A966-4A72-9C34-19B0A32AD367', 0, 'Mor', 1);
 
 
 /* ============================================================
@@ -860,6 +986,261 @@ VALUES
     'Afstand', 'test_seed', 'test_seed', 1
 );
 DECLARE @bevilling_14 int = SCOPE_IDENTITY();
+
+
+/* ============================================================
+   Bevilling 15-26 — all at Ny
+
+   Ny is not simply the status written here: usp_recalculate_bevilling_status
+   derives it, and the rule is NO complete kørselsrækker and NO
+   sagsbehandler_id. Give one of these a kørselsrække and it becomes Aktiv,
+   Kommende or Udløbet; give it a sagsbehandler and it becomes Påbegyndt.
+   So none of them appears in the Koersel section below, and both
+   sagsbehandler_id and ppr_sagsbehandler_id are NULL.
+
+   adresse_id matches the student's own, and matrikel_id matches their
+   skolekode, so nothing here is flagged for genbehandling.
+============================================================ */
+
+-- 15: Astrid — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '1515101234', '000021C5-E9EE-411D-B2D8-EC9161780CCD', @status_ny, @matrikel_6, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-015', NULL, NULL,
+    DATEADD(DAY, -1, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 14, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Afstand', 'test_seed', 'test_seed', 1
+);
+
+-- 16: Oliver — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '1616101234', '00002732-733C-433A-A5DA-A7D428A980CF', @status_ny, @matrikel_7, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-016', NULL, NULL,
+    DATEADD(DAY, -3, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 10, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Afstand', 'test_seed', 'test_seed', 1
+);
+
+-- 17: Freja — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '1717101234', '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0', @status_ny, @matrikel_8, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-017', NULL, NULL,
+    DATEADD(DAY, -5, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 21, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Handicap', 'test_seed', 'test_seed', 1
+);
+
+-- 18: Noah — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '1818101234', '000059B7-1FE6-4ED2-8386-D9578B2A8859', @status_ny, @matrikel_9, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-018', NULL, NULL,
+    DATEADD(DAY, -2, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 5, @i_dag), 'Midlertidig kørsel',
+    NULL, NULL,
+    'Sygdom', 'test_seed', 'test_seed', 1
+);
+
+-- 19: Clara — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '1919101234', '0000670C-4F89-4C07-B77B-F9B82AF01C80', @status_ny, @matrikel_10, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-019', NULL, NULL,
+    DATEADD(DAY, -8, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 28, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Trafikfarlig skolevej', 'test_seed', 'test_seed', 1
+);
+
+-- 20: Villads — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '2020101234', '00009B67-504C-4FE0-B1D1-39126722DF0F', @status_ny, @matrikel_11, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-020', NULL, NULL,
+    DATEADD(DAY, -4, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 17, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Afstand', 'test_seed', 'test_seed', 1
+);
+
+-- 21: Alma — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '2121101234', '00009E24-9877-4F17-8020-04A0B29E704F', @status_ny, @matrikel_12, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-021', NULL, NULL,
+    DATEADD(DAY, -6, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 12, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Handicap', 'test_seed', 'test_seed', 1
+);
+
+-- 22: Elias — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '2222101234', '0000AAF0-826F-4458-B26F-4317AD2A4979', @status_ny, @matrikel_13, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-022', NULL, NULL,
+    DATEADD(DAY, -9, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 30, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Afstand', 'test_seed', 'test_seed', 1
+);
+
+-- 23: Ida — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '2323101234', '0000BF23-21F1-4FBB-85AE-3089BC6CF623', @status_ny, @matrikel_1, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-023', NULL, NULL,
+    DATEADD(DAY, -1, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 3, @i_dag), 'Midlertidig kørsel',
+    NULL, NULL,
+    'Brækket ben', 'test_seed', 'test_seed', 1
+);
+
+-- 24: Malthe — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '2424101234', '0000C127-AB48-48C7-9770-EDA49D39EB5A', @status_ny, NULL, @ungdomsuddannelse_2,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-024', NULL, NULL,
+    DATEADD(DAY, -7, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 25, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Afstand', 'test_seed', 'test_seed', 1
+);
+
+-- 25: Liva — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '2525101234', '0000E92C-BB46-4745-A0AE-90950142AF79', @status_ny, @matrikel_5, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-025', NULL, NULL,
+    DATEADD(DAY, -11, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 19, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Trafikfarlig skolevej', 'test_seed', 'test_seed', 1
+);
+
+-- 26: Storm — Ny
+INSERT INTO [befordring].[Bevilling]
+    (cpr_elev, adresse_id, status_id, matrikel_id, ungdomsuddannelse_id,
+     hjemmel_id, afgoerelsesbrev_id, revurderingsdato, befordringsudvalg,
+     esdh_noegle, sagsbehandler_id, ppr_sagsbehandler_id,
+     ansoegningsdato, sagsbehandlingsdato, relation_til_barnet,
+     foerste_koersel_dato, ansoegningstype,
+     afstandskriterie_dato, afstandskriterie_klassetrin,
+     begrundelse_fra_formular, created_by, updated_by, aktiv)
+VALUES
+(
+    '2626101234', '0000EE38-A966-4A72-9C34-19B0A32AD367', @status_ny, @matrikel_2, NULL,
+    NULL, NULL, NULL, NULL,
+    'ESDH-TEST-026', NULL, NULL,
+    DATEADD(DAY, -2, @i_dag), NULL, 'Forældremyndighed',
+    DATEADD(DAY, 9, @i_dag), 'Fast kørsel',
+    NULL, NULL,
+    'Afstand', 'test_seed', 'test_seed', 1
+);
 
 
 /* ============================================================

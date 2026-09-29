@@ -1,12 +1,16 @@
 """Helpers for calculating driving and walking distance between coordinates.
 
-Uses the OpenRouteService Directions API.
+Uses the OpenRouteService Directions API. The token comes from the ORS_API_KEY
+environment variable via app.core.config — never from source, both because it
+is a credential and because the rate limit it carries belongs to whichever
+plan the deployment is on.
 """
 
 import requests
 
+from app.core.config import settings
 
-_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImNhMGUwMDkxMTcxMDRjMWI5ODdkNzBlOWIyM2JiOTE5IiwiaCI6Im11cm11cjY0In0="
+
 _ORS_DRIVING_URL = "https://api.openrouteservice.org/v2/directions/driving-car"
 _ORS_WALKING_URL = "https://api.openrouteservice.org/v2/directions/foot-walking"
 
@@ -26,9 +30,22 @@ def _ors_request(url: str, lat1: float, lon1: float, lat2: float, lon2: float) -
         requests.HTTPError: If the OpenRouteService API returns an error.
     """
 
+    # Checked here rather than at import: a missing token must not stop the
+    # application from starting, and the error has to name the variable so it
+    # is obvious what is unset. Without this the header goes out empty and
+    # OpenRouteService answers 403, which reads like a revoked key.
+    if not settings.ors_api_key:
+        raise RuntimeError(
+            "ORS_API_KEY is not set, so no distance can be calculated. Set it "
+            "in the environment to an OpenRouteService API token."
+        )
+
     response = requests.post(
         url,
-        headers={"Authorization": _API_KEY, "Content-Type": "application/json"},
+        headers={
+            "Authorization": settings.ors_api_key,
+            "Content-Type": "application/json",
+        },
         json={"coordinates": [[lon1, lat1], [lon2, lat2]]},
         timeout=10,
     )
