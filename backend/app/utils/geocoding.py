@@ -1,16 +1,38 @@
 """Helper for geocoding a Danish address to latitude/longitude coordinates.
 
-Uses the OpenRouteService Geocoding API (structured + text search with scoring).
+Uses the OpenRouteService Geocoding API (structured + text search with
+scoring). The token comes from the ORS_API_KEY environment variable via
+app.core.config — the same token the distance helpers use, and never from
+source.
 """
 
 import re
 
 import requests
 
+from app.core.config import settings
 
-_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImNhMGUwMDkxMTcxMDRjMWI5ODdkNzBlOWIyM2JiOTE5IiwiaCI6Im11cm11cjY0In0="
+
 _COUNTRY_CODE = "DK"
 _MIN_SCORE = 12
+
+
+def _ors_key() -> str:
+    """The OpenRouteService token, or a clear error naming what is unset.
+
+    Read per call rather than at import so a missing token cannot stop the
+    application from starting, and so the message names the variable — an
+    empty api_key parameter otherwise comes back as a 403 that reads like a
+    revoked key.
+    """
+
+    if not settings.ors_api_key:
+        raise RuntimeError(
+            "ORS_API_KEY is not set, so no address can be geocoded. Set it in "
+            "the environment to an OpenRouteService API token."
+        )
+
+    return settings.ors_api_key
 
 
 def _normalize(value: str) -> str:
@@ -52,7 +74,7 @@ def _fetch_structured_candidates(
     city: str | None,
 ) -> list[dict]:
     params = {
-        "api_key": _API_KEY,
+        "api_key": _ors_key(),
         "address": f"{road_name} {house_number}",
         "postalcode": postal_code,
         "boundary.country": _COUNTRY_CODE,
@@ -76,7 +98,7 @@ def _fetch_text_candidates(full_address: str) -> list[dict]:
     response = requests.get(
         "https://api.openrouteservice.org/geocode/search",
         params={
-            "api_key": _API_KEY,
+            "api_key": _ors_key(),
             "text": full_address,
             "boundary.country": _COUNTRY_CODE,
             "size": 10,

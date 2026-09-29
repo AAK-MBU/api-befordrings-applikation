@@ -65,6 +65,13 @@ class Settings:
     # Secret used to sign the Starlette session cookie.
     session_secret: str = os.getenv("SESSION_SECRET", "dev-only-change-in-prod")
 
+    # OpenRouteService API token, used for walking and driving distances.
+    #
+    # No default: an empty token means every distance request fails, and it
+    # must fail loudly at the call rather than silently being sent as an
+    # empty Authorization header. See app/utils/distance.py.
+    ors_api_key: str = os.getenv("ORS_API_KEY", "")
+
 
 # Shared settings instance used throughout the application.
 #
