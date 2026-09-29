@@ -11,8 +11,14 @@ import requests
 from app.core.config import settings
 
 
-_ORS_DRIVING_URL = "https://api.openrouteservice.org/v2/directions/driving-car"
-_ORS_WALKING_URL = "https://api.openrouteservice.org/v2/directions/foot-walking"
+# HeiGIT is consolidating every API under api.heigit.org/<service>/<version>/.
+# api.openrouteservice.org still answers, but is deprecated and shuts off on
+# 24 August 2026 — and in the meantime HeiGIT says quota on the old host "might
+# be restricted to encourage the change", so the old URL is not merely
+# deprecated, it may be the slower one.
+_ORS_DIRECTIONS = "https://api.heigit.org/openrouteservice/v2/directions"
+_ORS_DRIVING_URL = f"{_ORS_DIRECTIONS}/driving-car"
+_ORS_WALKING_URL = f"{_ORS_DIRECTIONS}/foot-walking"
 
 
 def _ors_request(url: str, lat1: float, lon1: float, lat2: float, lon2: float) -> tuple[float, float]:

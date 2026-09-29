@@ -13,6 +13,12 @@ import requests
 from app.core.config import settings
 
 
+# The geocoder behind OpenRouteService is Pelias, and HeiGIT's unified host
+# names it directly: api.openrouteservice.org/geocode is now
+# api.heigit.org/pelias/v1. The old host is deprecated and shuts off on
+# 24 August 2026.
+_PELIAS = "https://api.heigit.org/pelias/v1"
+
 _COUNTRY_CODE = "DK"
 _MIN_SCORE = 12
 
@@ -85,7 +91,7 @@ def _fetch_structured_candidates(
         params["locality"] = city
 
     response = requests.get(
-        "https://api.openrouteservice.org/geocode/search/structured",
+        f"{_PELIAS}/search/structured",
         params=params,
         timeout=10,
     )
@@ -96,7 +102,7 @@ def _fetch_structured_candidates(
 
 def _fetch_text_candidates(full_address: str) -> list[dict]:
     response = requests.get(
-        "https://api.openrouteservice.org/geocode/search",
+        f"{_PELIAS}/search",
         params={
             "api_key": _ors_key(),
             "text": full_address,
