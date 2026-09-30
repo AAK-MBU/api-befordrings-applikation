@@ -285,7 +285,16 @@ def parse_workbook_afgoerelsesbrev(binary_excel: bytes) -> list[dict]:
 
         "Behandling af personoplysninger i Børn og Unge (aarhus.dk)": "https://aarhus.dk/om-kommunen/databeskyttelse/behandling-af-personoplysninger-i-boern-og-unge",
         
-        "Ansøg om bevilling af kørsel": "https://aarhus.dk/borger/pasning-skole-og-uddannelse/skole-sfo-og-klub/naar-dit-barn-gaar-i-skole/koersel-af-skoleelever/ansoeg-om-bevilling-af-koersel"
+        # Points at the self-service form itself, not the aarhus.dk landing
+        # page it used to. The link text is whatever the template already
+        # says — inject_links wraps the matched text, it does not rewrite it —
+        # so a caseworker types the plain words in the sheet and gets a real
+        # hyperlink here, without having to keep one alive through Excel.
+        #
+        # The key has to match the template text EXACTLY. Writing
+        # "Ansøg om bevilling af kørsel her" in the sheet while this key stops
+        # at "kørsel" leaves the word "her" outside the link.
+        "Ansøg om bevilling af kørsel": "https://selvbetjening.aarhuskommune.dk/da/content/ansoegning-om-koersel-af-skoleelev-i-aarhus-kommune"
     }
 
     def inject_links(entry_text: str) -> str:
