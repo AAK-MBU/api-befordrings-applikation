@@ -150,7 +150,12 @@ class Sagsaktivitet(Base):
     )
 
     cpr: Mapped[str] = mapped_column(String(10), nullable=False)
-    aktivitetstype: Mapped[str] = mapped_column(String(500), nullable=False)
+    # 50, matching the column: [aktivitetstype] [varchar](50) on both dev and
+    # prod. Declared as 500 for a while, which no migration ever backed — the
+    # two only agreed because the longest label written is 24 characters
+    # ("Status sat til Påbegyndt"). Widen the column with a migration before
+    # widening this again.
+    aktivitetstype: Mapped[str] = mapped_column(String(50), nullable=False)
     kommentar: Mapped[str | None] = mapped_column(Unicode, nullable=True)
     udfoert_af: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
