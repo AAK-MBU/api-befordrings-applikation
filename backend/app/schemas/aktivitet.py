@@ -18,6 +18,7 @@ class SagsaktivitetResponse(BaseModel):
     aktivitet_id: int
     cpr: str
     aktivitetstype: str
+    type_kode: str | None = None  # machine-readable key from SagsaktivitetType
     kommentar: str | None = None
     udfoert_af: str | None = None
     oprettet_tidspunkt: datetime

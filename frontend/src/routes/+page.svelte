@@ -38,24 +38,20 @@
       `
     },
     {
-      key: "bevilling_count",
-      label: "Bevillinger",
-      filterable: false,
-      render: (row) => `
-        <span class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
-          ${row.bevilling_count ?? 0}
-        </span>
-      `
-    },
-    {
       key: "esdh_noegle",
       label: "Sags-ID",
       filterType: "text",
-      render: (row) => `
-        <a href="#" class="text-sky-600 hover:underline">
-          ${row.esdh_noegle ?? ""}
-        </a>
-      `
+      // The href was "#" — a link that went nowhere. It now opens the case in
+      // GO, where the nightly run has resolved a URL for it, and renders as
+      // plain text where it has not.
+      render: (row) => {
+        const noegle = row.esdh_noegle ?? "";
+
+        return row.esdh_url
+          ? `<a href="${encodeURI(row.esdh_url)}" target="_blank" rel="noopener noreferrer"
+                title="Åbn sagen i GO" class="text-sky-600 hover:underline">${noegle}</a>`
+          : `<span class="text-gray-500">${noegle}</span>`;
+      }
     },
     {
       key: "sagsbehandler",
@@ -76,6 +72,7 @@
   );
 
   $: totalCount = sortedBevillinger.length;
+  $: fejledeBevillinger = sortedBevillinger.filter((b: any) => b.status === "Fejlet");
 
 </script>
 
@@ -99,6 +96,44 @@
     </button>
   </div>
 
+
+  <!-- Fejlede bevillinger alert panel — shown whenever any bevilling has status Fejlet -->
+  {#if fejledeBevillinger.length > 0}
+    <div class="mb-6">
+      <div class="flex items-center gap-2.5 mb-3 px-3 py-2 bg-red-50 rounded-lg border border-red-200 shadow-sm">
+        <h2 class="font-semibold text-red-800">Fejlede bevillinger</h2>
+        <span class="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-white text-xs font-bold bg-red-600">
+          {fejledeBevillinger.length}
+        </span>
+      </div>
+      <div class="bg-white border border-red-200 rounded-lg overflow-hidden shadow-sm">
+        <table class="w-full text-sm text-gray-700 border-collapse">
+          <thead>
+            <tr class="text-left text-white bg-red-600">
+              <th class="px-4 py-3 font-semibold whitespace-nowrap min-w-36">Navn</th>
+              <th class="px-4 py-3 font-semibold whitespace-nowrap min-w-36">CPR</th>
+              <th class="px-4 py-3 font-semibold whitespace-nowrap min-w-36">Sags-ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each fejledeBevillinger as bev (bev.cpr)}
+              <tr class="border-t border-red-100 hover:bg-red-50">
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <a href="/sag/{bev.cpr}" class="font-medium text-sky-700 hover:underline">
+                    {bev.navn ?? "—"}
+                  </a>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">{formatCpr(bev.cpr)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <a href="/sag/{bev.cpr}" class="text-sky-600 hover:underline font-mono">{bev.esdh_noegle ?? "—"}</a>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {/if}
 
   <!-- All bevillinger -->
   <div class="mb-6">

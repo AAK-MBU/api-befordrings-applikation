@@ -583,6 +583,16 @@ def create_letter(
         brev_i_forbindelse_med=(letter_data.model_extra or {}).get("brev_i_forbindelse_med"),
         oprettet_af=oprettet_af,
     )
+    loebenummer = (bevilling_data or {}).get("loebenummer")
+    bev_label = f"Bevilling {loebenummer}" if loebenummer else f"Bevilling ID {bevilling_id}"
+    bevilling_service._log_event(
+        cpr=cpr.replace("-", ""),
+        type_kode="brev_oprettet",
+        aktivitetstype="Brev oprettet",
+        kommentar=f"{bev_label} (ID: {bevilling_id})",
+        relateret_bevilling_id=bevilling_id,
+        udfoert_af=oprettet_af,
+    )
 
     locked_count = bevilling_service.lock_koerselsraekker(bevilling_id=bevilling_id)
     locked_bevilling = bevilling_service.lock_bevilling(bevilling_id=bevilling_id)

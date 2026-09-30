@@ -1,9 +1,9 @@
 USE [Befordringssystemet]
 GO
-/****** Object:  Schema [befordring]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Schema [befordring]    Script Date: 30/09/2026 09:53:22 ******/
 CREATE SCHEMA [befordring]
 GO
-/****** Object:  Table [befordring].[Status]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Status]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -19,7 +19,7 @@ CREATE TABLE [befordring].[Status](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Sagsbehandler]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Sagsbehandler]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -35,7 +35,7 @@ CREATE TABLE [befordring].[Sagsbehandler](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[PPR_Sagsbehandler]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[PPR_Sagsbehandler]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -51,7 +51,7 @@ CREATE TABLE [befordring].[PPR_Sagsbehandler](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Skolematrikel]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Skolematrikel]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -70,7 +70,7 @@ CREATE TABLE [befordring].[Skolematrikel](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Hjemmel]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Hjemmel]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -86,7 +86,7 @@ CREATE TABLE [befordring].[Hjemmel](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Afgoerelsesbrev]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Afgoerelsesbrev]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -102,7 +102,7 @@ CREATE TABLE [befordring].[Afgoerelsesbrev](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Elev]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Elev]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -128,7 +128,7 @@ CREATE TABLE [befordring].[Elev](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Adresse]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Adresse]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -144,7 +144,7 @@ CREATE TABLE [befordring].[Adresse](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Bevilling]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Bevilling]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -187,13 +187,14 @@ CREATE TABLE [befordring].[Bevilling](
 	[loebenummer] [int] NULL,
 	[genbehandling_haandteret_adresse_id] [nvarchar](36) NULL,
 	[genbehandling_haandteret_skolekode] [int] NULL,
+	[esdh_url] [nvarchar](500) NULL,
  CONSTRAINT [PK_bevilling] PRIMARY KEY CLUSTERED 
 (
 	[bevilling_id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  View [befordring].[view_Genbehandling]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Genbehandling]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -249,7 +250,7 @@ LEFT  JOIN [befordring].[Sagsbehandler]      sb  ON sb.sagsbehandler_id      = b
 WHERE      b.aktiv = 1
 AND        b.genbehandling = 1;
 GO
-/****** Object:  Table [befordring].[Brev]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Brev]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -273,7 +274,7 @@ CREATE TABLE [befordring].[Brev](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  View [befordring].[view_Forsendelse]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Forsendelse]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -328,7 +329,7 @@ WHERE
 AND br.aktiv   = 1
 AND ISNULL(b.aktiv, 0) = 1;
 GO
-/****** Object:  Table [befordring].[Part]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Part]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -350,7 +351,7 @@ CREATE TABLE [befordring].[Part](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Befordringstype]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Befordringstype]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -366,7 +367,7 @@ CREATE TABLE [befordring].[Befordringstype](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Koersel]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Koersel]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -396,7 +397,7 @@ CREATE TABLE [befordring].[Koersel](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Foraelder]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Foraelder]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -416,7 +417,7 @@ CREATE TABLE [befordring].[Foraelder](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  View [befordring].[view_Koerselsgodtgoerelse_Modtagere]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Koerselsgodtgoerelse_Modtagere]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -524,7 +525,7 @@ SELECT
 FROM     modtagere m
 GROUP BY m.modtager_noegle;
 GO
-/****** Object:  View [befordring].[view_Revurderinger]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Revurderinger]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -575,7 +576,7 @@ LEFT  JOIN [befordring].[Sagsbehandler]      sb  ON sb.sagsbehandler_id      = b
 WHERE      b.aktiv = 1
 AND        b.revurdering = 1;
 GO
-/****** Object:  View [befordring].[view_All_Active_Bevillinger]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_All_Active_Bevillinger]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -619,7 +620,7 @@ WHERE
     b.aktiv = 1
     AND s.status_tekst = 'Aktiv';
 GO
-/****** Object:  View [befordring].[view_New_Applications]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_New_Applications]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -632,6 +633,7 @@ SELECT
     e.adresseringsnavn,
     b.cpr_elev,
     b.esdh_noegle,
+    b.esdh_url,
     b.ansoegningsdato,
     b.ansoegningstype,
     b.foerste_koersel_dato,
@@ -662,7 +664,7 @@ WHERE
     b.aktiv = 1
     AND (s.status_tekst = 'Ny' OR s.status_tekst = 'Påbegyndt');
 GO
-/****** Object:  Table [befordring].[Ungdomsuddannelse]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Ungdomsuddannelse]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -679,7 +681,7 @@ CREATE TABLE [befordring].[Ungdomsuddannelse](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  View [befordring].[view_Stamdata]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Stamdata]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -717,6 +719,12 @@ SELECT
     b.esdh_noegle,
     b.status_tekst,
 
+    -- Both the id and the text. The text is what the case page renders; the
+    -- id is what anything comparing addresses has to use, since two identical
+    -- strings are not a match and Bevilling.adresse_id holds an id. The
+    -- conversion RPA compares each legacy bevilling's address against this to
+    -- decide whether the student still lives where the bevilling was granted.
+    e.adresse_id,
     ad.adresse_tekst,
 
     e.matrikel_id,
@@ -757,7 +765,7 @@ LEFT JOIN [Befordringssystemet].[befordring].[Skolematrikel] sm
 LEFT JOIN [Befordringssystemet].[befordring].[Ungdomsuddannelse] uu
     ON uu.ungdomsuddannelse_id = e.ungdomsuddannelse_id;
 GO
-/****** Object:  Table [befordring].[Hjaelpemiddel]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Hjaelpemiddel]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -773,7 +781,7 @@ CREATE TABLE [befordring].[Hjaelpemiddel](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Bevilling_Hjaelpemiddel_LINK]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Bevilling_Hjaelpemiddel_LINK]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -788,7 +796,7 @@ CREATE TABLE [befordring].[Bevilling_Hjaelpemiddel_LINK](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  View [befordring].[view_Student_Bevillinger]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Student_Bevillinger]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -824,6 +832,7 @@ SELECT
     b.genbehandling_bemaerkning,
     b.final,
     b.esdh_noegle,
+    b.esdh_url,
     e.elevklassetrin,
 
     b.sagsbehandlingsdato,
@@ -833,6 +842,11 @@ SELECT
     ba.longitude                                                  AS adresse_longitude,
     b.ansoegningstype,
     b.ansoegningsdato,
+    -- The date the bevilling's kørsel starts. Exposed so the PPR conversion
+    -- bot can tell its own bevillinger apart: every bevilling it creates for
+    -- one case carries the same esdh_noegle (the PPR case id), so that alone
+    -- cannot answer "has this one been created already?" on a re-run.
+    b.foerste_koersel_dato,
 
     b.matrikel_id,
     sk.matrikel_navn,
@@ -885,7 +899,7 @@ GROUP BY
     b.bevilling_id, b.loebenummer, b.created_at, b.updated_at,
     e.navne_adresse_beskyttelse, e.adresseringsnavn, e.cpr,
     b.status_id, st.status_tekst, b.statusbemaerkning, b.revurdering,
-    b.genbehandling, b.genbehandling_bemaerkning, b.final, b.esdh_noegle, e.elevklassetrin,
+    b.genbehandling, b.genbehandling_bemaerkning, b.final, b.esdh_noegle, b.esdh_url, e.elevklassetrin,
     b.sagsbehandlingsdato,
     ba.adresse_tekst,
     b.adresse_id,
@@ -893,6 +907,11 @@ GROUP BY
     ba.longitude,
     b.ansoegningstype,
     b.ansoegningsdato,
+    -- The date the bevilling's kørsel starts. Exposed so the PPR conversion
+    -- bot can tell its own bevillinger apart: every bevilling it creates for
+    -- one case carries the same esdh_noegle (the PPR case id), so that alone
+    -- cannot answer "has this one been created already?" on a re-run.
+    b.foerste_koersel_dato,
     b.matrikel_id, sk.matrikel_navn,
     b.ungdomsuddannelse_id, uu.ungdomsuddannelse_navn,
     e.skoleafstand,
@@ -903,7 +922,7 @@ GROUP BY
     b.sagsbehandler_id, sb.sagsbehandler_tekst,
     b.ppr_sagsbehandler_id, ppr.ppr_sagsbehandler_tekst;
 GO
-/****** Object:  Table [befordring].[Rutetype]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Rutetype]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -919,7 +938,7 @@ CREATE TABLE [befordring].[Rutetype](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[KoerselstypeTillaeg]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[KoerselstypeTillaeg]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -935,7 +954,7 @@ CREATE TABLE [befordring].[KoerselstypeTillaeg](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Koersel_KoerselstypeTillaeg_LINK]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Koersel_KoerselstypeTillaeg_LINK]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -950,7 +969,7 @@ CREATE TABLE [befordring].[Koersel_KoerselstypeTillaeg_LINK](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Ugedag]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Ugedag]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -966,7 +985,7 @@ CREATE TABLE [befordring].[Ugedag](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Koersel_Ugedag_LINK]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Koersel_Ugedag_LINK]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -981,7 +1000,7 @@ CREATE TABLE [befordring].[Koersel_Ugedag_LINK](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Tidspunkt]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Tidspunkt]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -997,7 +1016,7 @@ CREATE TABLE [befordring].[Tidspunkt](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  View [befordring].[view_Bevilling_Koerselsraekker]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Bevilling_Koerselsraekker]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1090,7 +1109,7 @@ AS
     WHERE k.aktiv = 1;
 
 GO
-/****** Object:  View [befordring].[view_ParentData]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_ParentData]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1121,7 +1140,7 @@ LEFT JOIN
     [Befordringssystemet].[befordring].[Adresse] ad
     ON ad.adresse_id = f.adresse_id;
 GO
-/****** Object:  View [befordring].[view_All_Bevillinger]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_All_Bevillinger]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1142,6 +1161,7 @@ SELECT
     b.revurdering,
 	b.final,
     b.esdh_noegle,
+    b.esdh_url,
     sb.sagsbehandler_tekst      AS sagsbehandler,
     ppr.ppr_sagsbehandler_tekst
 FROM      [Befordringssystemet].[befordring].[Bevilling]         b
@@ -1157,7 +1177,7 @@ LEFT JOIN [Befordringssystemet].[befordring].[PPR_Sagsbehandler] ppr ON ppr.ppr_
 WHERE
     b.aktiv = 1;
 GO
-/****** Object:  View [befordring].[view_Letter_BevillingData]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Letter_BevillingData]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1221,7 +1241,7 @@ LEFT JOIN (
 -- A letter should never be built from a deleted bevilling.
 WHERE b.aktiv = 1;
 GO
-/****** Object:  View [befordring].[view_Letter_Koerselsraekker]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Letter_Koerselsraekker]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1314,7 +1334,7 @@ AS
 WHERE
     k.aktiv = 1;
 GO
-/****** Object:  View [befordring].[view_Applications]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  View [befordring].[view_Applications]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1343,7 +1363,7 @@ WHERE
         'ny_ansoegning_om_midlertidig_koe'
     );
 GO
-/****** Object:  Table [befordring].[Adresse_STG]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Adresse_STG]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1362,7 +1382,7 @@ PRIMARY KEY CLUSTERED
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Elev_Adresse_STG]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Elev_Adresse_STG]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1370,10 +1390,11 @@ GO
 CREATE TABLE [befordring].[Elev_Adresse_STG](
 	[load_id] [uniqueidentifier] NOT NULL,
 	[cpr] [varchar](10) NOT NULL,
-	[adresse_id] [nvarchar](36) NOT NULL
+	[adresse_id] [nvarchar](36) NOT NULL,
+	[loaded_at] [datetime2](0) NOT NULL
 ) ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Elev_STG]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Elev_STG]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1395,7 +1416,7 @@ CREATE TABLE [befordring].[Elev_STG](
 	[adresse_id] [varchar](36) NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Foraelder_STG]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Foraelder_STG]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1410,7 +1431,7 @@ CREATE TABLE [befordring].[Foraelder_STG](
 	[relation] [varchar](50) NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[PortalAuditLog]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[PortalAuditLog]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1436,7 +1457,7 @@ CREATE TABLE [befordring].[PortalAuditLog](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 GO
-/****** Object:  Table [befordring].[Sagsaktivitet]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  Table [befordring].[Sagsaktivitet]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1449,11 +1470,30 @@ CREATE TABLE [befordring].[Sagsaktivitet](
 	[udfoert_af] [varchar](100) NULL,
 	[oprettet_tidspunkt] [datetime2](7) NOT NULL,
 	[relateret_bevilling_id] [int] NULL,
+	[aktivitetstype_id] [int] NULL,
 PRIMARY KEY CLUSTERED 
 (
 	[aktivitet_id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [befordring].[SagsaktivitetType]    Script Date: 30/09/2026 09:53:22 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [befordring].[SagsaktivitetType](
+	[type_id] [int] IDENTITY(1,1) NOT NULL,
+	[type_kode] [nvarchar](100) NOT NULL,
+ CONSTRAINT [PK_SagsaktivitetType] PRIMARY KEY CLUSTERED 
+(
+	[type_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
+ CONSTRAINT [UQ_SagsaktivitetType_kode] UNIQUE NONCLUSTERED 
+(
+	[type_kode] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
 GO
 ALTER TABLE [befordring].[Adresse_STG] ADD  CONSTRAINT [DF_Adresse_Stage_loaded_at]  DEFAULT (sysutcdatetime()) FOR [loaded_at]
 GO
@@ -1472,6 +1512,8 @@ GO
 ALTER TABLE [befordring].[Elev] ADD  CONSTRAINT [DF_Elev_Skolekode]  DEFAULT ((0)) FOR [skolekode]
 GO
 ALTER TABLE [befordring].[Elev] ADD  DEFAULT ((0)) FOR [kraever_genberegning]
+GO
+ALTER TABLE [befordring].[Elev_Adresse_STG] ADD  CONSTRAINT [DF_Elev_Adresse_STG_loaded_at]  DEFAULT (sysutcdatetime()) FOR [loaded_at]
 GO
 ALTER TABLE [befordring].[Foraelder] ADD  CONSTRAINT [DF_Foraelder_maa_vide_barns_adresse]  DEFAULT ((1)) FOR [maa_vide_barns_adresse]
 GO
@@ -1627,14 +1669,19 @@ REFERENCES [befordring].[Elev] ([cpr])
 GO
 ALTER TABLE [befordring].[Part] CHECK CONSTRAINT [FK_Part_Elev]
 GO
-/****** Object:  StoredProcedure [befordring].[usp_recalculate_bevilling_status]    Script Date: 18/09/2026 09:53:14 ******/
+ALTER TABLE [befordring].[Sagsaktivitet]  WITH CHECK ADD  CONSTRAINT [FK_Sagsaktivitet_Type] FOREIGN KEY([aktivitetstype_id])
+REFERENCES [befordring].[SagsaktivitetType] ([type_id])
+GO
+ALTER TABLE [befordring].[Sagsaktivitet] CHECK CONSTRAINT [FK_Sagsaktivitet_Type]
+GO
+/****** Object:  StoredProcedure [befordring].[usp_recalculate_bevilling_status]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
 
 
-CREATE PROCEDURE [befordring].[usp_recalculate_bevilling_status]
+CREATE   PROCEDURE [befordring].[usp_recalculate_bevilling_status]
     @bevilling_id INT = NULL,
     @today DATE = NULL,
     @dry_run BIT = 0
@@ -2140,15 +2187,419 @@ BEGIN
         bevilling_id;
 END;
 GO
-/****** Object:  StoredProcedure [befordring].[usp_upsert_adresser_from_stg]    Script Date: 18/09/2026 09:53:14 ******/
+/****** Object:  StoredProcedure [befordring].[usp_sync_elev_matrikel_from_bevilling]    Script Date: 30/09/2026 09:53:22 ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
 
+/*
+    Derive Elev.matrikel_id and Elev.ungdomsuddannelse_id from the student's
+    bevillinger.
+
+    Elev_STG carries neither — the data worker's source has no school. The only
+    place a school exists is on the bevilling, so it is copied back onto the
+    student here.
+
+    Which bevilling:
+
+        * the student's ACTIVE bevilling, if they have a qualifying one
+        * otherwise the qualifying bevilling that runs LONGEST — the latest
+          gyldig_til across its kørselsrækker
+
+    Soft-deleted bevillinger (aktiv = 0) are ignored throughout.
+
+    What makes a bevilling QUALIFY:
+
+      folkeskole            b.matrikel_id is set, AND that matrikel's skolekode
+                            equals the student's own skolekode.
+
+                            The student's skolekode comes from the data
+                            worker's load and is the authority on which school
+                            the child attends. A bevilling that has not caught
+                            up — still pointing at last year's school — must not
+                            supply a matrikel, or the walking distance would be
+                            measured to a school the child no longer attends.
+
+      ungdomsuddannelse     b.matrikel_id is NULL and b.ungdomsuddannelse_id is
+                            set. There is no skolekode on an ungdomsuddannelse,
+                            so there is nothing to cross-check; the bevilling is
+                            taken at face value.
+
+    Where NOTHING qualifies, both columns are CLEARED. That is the point of the
+    procedure as much as the copying is: a stale school is worse than no
+    school. It skips the walking-distance step (which needs coordinates) rather
+    than producing a confidently wrong number, and the mismatch is already on
+    the Genbehandling page for a caseworker to resolve. Once the bevilling is
+    corrected, the next night derives the school again.
+
+    This procedure is therefore AUTHORITATIVE over both columns: after it runs,
+    they mirror the chosen bevilling or they are NULL. Nothing else writes them.
+
+    What this is for, and what it is NOT for:
+
+      The pair feeds the walking-distance calculation, which resolves school
+      coordinates from Skolematrikel or Ungdomsuddannelse. Measuring to the
+      bevilling's school is correct: skoleafstand exists to serve the
+      afstandskriterie on that bevilling.
+
+      It does NOT feed genbehandling. usp_recalculate_bevilling_status compares
+      Elev.SKOLEKODE against the skolekode of the BEVILLING's matrikel — two
+      independent sources. Deriving matrikel_id from the bevilling cannot mask
+      a mismatch, because the qualifying rule above means a mismatched bevilling
+      never supplies one in the first place.
+
+    kraever_genberegning is raised wherever the pair actually changes, cleared
+    or set, because the school the distance is measured to has moved. The other
+    two triggers live with the columns they belong to — skolekode in
+    usp_upsert_elev_from_stg, adresse_id in usp_upsert_adresse_ids_from_stg.
+
+    Ordering: run AFTER usp_upsert_elev_from_stg, so that new students exist to
+    match against and skolekode is already current.
+*/
+
+CREATE   PROCEDURE [befordring].[usp_sync_elev_matrikel_from_bevilling]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @qualifying  INT = 0;
+    DECLARE @changed     INT = 0;
+    DECLARE @cleared     INT = 0;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+            /* Bevillinger that may supply a school for their student. */
+            ;WITH Qualifying AS
+            (
+                SELECT
+                    b.cpr_elev,
+                    b.matrikel_id,
+                    b.ungdomsuddannelse_id,
+                    b.created_at,
+                    b.bevilling_id,
+                    CASE WHEN s.status_tekst = N'Aktiv' THEN 0 ELSE 1 END AS status_rank,
+                    kr.seneste_gyldig_til
+                FROM       [befordring].[Bevilling]      b
+                LEFT JOIN  [befordring].[Status]         s  ON s.status_id   = b.status_id
+                /* The last day this bevilling covers anyone. A bevilling is a
+                   container; its kørselsrækker carry the dates, so "which
+                   bevilling runs longest" can only be asked of them. Soft-
+                   deleted rækker are excluded for the same reason
+                   soft-deleted bevillinger are. */
+                OUTER APPLY (
+                    SELECT MAX(k.gyldig_til) AS seneste_gyldig_til
+                    FROM   [befordring].[Koersel] k
+                    WHERE  k.bevilling_id = b.bevilling_id
+                    AND    k.aktiv = 1
+                ) kr
+                INNER JOIN [befordring].[Elev]           e  ON e.cpr         = b.cpr_elev
+                LEFT JOIN  [befordring].[Skolematrikel]  sm ON sm.matrikel_id = b.matrikel_id
+                WHERE b.aktiv = 1
+                AND (
+                        /* folkeskole: the matrikel must belong to the school
+                           the child is actually registered at. */
+                        (
+                            b.matrikel_id IS NOT NULL
+                            AND ISNULL(e.skolekode, 0) <> 0
+                            AND sm.skolekode = e.skolekode
+                        )
+                        OR
+                        /* ungdomsuddannelse: no skolekode exists to check. */
+                        (
+                            b.matrikel_id IS NULL
+                            AND b.ungdomsuddannelse_id IS NOT NULL
+                        )
+                    )
+            ),
+            /* rank 0 sorts before 1, so an Aktiv bevilling wins regardless of
+               anything else. That is the whole rule where a student has one:
+               the school they are being driven to today is the school they
+               attend.
+
+               Where none is Aktiv, the one running LONGEST wins — the latest
+               gyldig_til across its kørselsrækker. That used to be created_at
+               DESC, which asked when the row was typed rather than what it
+               describes: a bevilling entered last week for a period that
+               ended two years ago outranked one still running next term, and
+               the student was derived to the school they have already left.
+
+               A bevilling with no kørselsrækker at all has no period, so it
+               sorts last of the non-Aktiv ones and only supplies a school
+               when nothing else can. created_at and bevilling_id then break
+               the remaining ties, so the choice is stable from one night to
+               the next rather than arbitrary. */
+            Ranked AS
+            (
+                SELECT
+                    cpr_elev,
+                    matrikel_id,
+                    ungdomsuddannelse_id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY cpr_elev
+                        ORDER BY     status_rank,
+                                     CASE WHEN seneste_gyldig_til IS NULL THEN 1 ELSE 0 END,
+                                     seneste_gyldig_til DESC,
+                                     created_at DESC,
+                                     bevilling_id DESC
+                    ) AS rn
+                FROM Qualifying
+            )
+            SELECT cpr_elev, matrikel_id, ungdomsuddannelse_id
+            INTO   #Chosen
+            FROM   Ranked
+            WHERE  rn = 1;
+
+            CREATE UNIQUE CLUSTERED INDEX IX_Chosen_cpr ON #Chosen (cpr_elev);
+
+            SELECT @qualifying = COUNT(*) FROM #Chosen;
+
+            /* Every student is considered, not just those with a chosen
+               bevilling: the LEFT JOIN yields NULLs where nothing qualifies,
+               which is exactly the value that should be written.
+
+               EXCEPT rather than "<>" so NULL compares equal to NULL — a
+               student who has no school and should have none is not rewritten,
+               and does not have kraever_genberegning raised, every night. */
+            SELECT
+                e.cpr,
+                c.matrikel_id,
+                c.ungdomsuddannelse_id,
+                CASE WHEN c.cpr_elev IS NULL THEN 1 ELSE 0 END AS is_clear
+            INTO      #Delta
+            FROM      [befordring].[Elev] e
+            LEFT JOIN #Chosen c ON c.cpr_elev = e.cpr
+            /* Only students who could possibly change: they have a
+               qualifying bevilling, or they carry a school that may now need
+               clearing. A student with neither has NULL on both sides, the
+               EXCEPT below yields nothing, and the row can never reach
+               #Delta — so excluding it here changes no result.
+
+               It matters because Elev now holds every student in the
+               municipality, not only those with a bevilling. The vast
+               majority fall in that third group, and without this the delta
+               is computed across the whole table every night to produce
+               nothing for them. */
+            WHERE (
+                      c.cpr_elev             IS NOT NULL
+                   OR e.matrikel_id          IS NOT NULL
+                   OR e.ungdomsuddannelse_id IS NOT NULL
+                  )
+              AND EXISTS (
+                      SELECT e.matrikel_id, e.ungdomsuddannelse_id
+                      EXCEPT
+                      SELECT c.matrikel_id, c.ungdomsuddannelse_id
+                  );
+
+            SELECT
+                @changed = COUNT(*),
+                @cleared = SUM(CASE WHEN is_clear = 1 THEN 1 ELSE 0 END)
+            FROM #Delta;
+
+            UPDATE e
+            SET    e.matrikel_id          = d.matrikel_id,
+                   e.ungdomsuddannelse_id = d.ungdomsuddannelse_id,
+                   e.kraever_genberegning = 1
+            FROM   [befordring].[Elev] e
+            JOIN   #Delta d ON d.cpr = e.cpr;
+
+        COMMIT TRANSACTION;
+
+        SELECT
+            @qualifying        AS students_with_qualifying_bevilling,
+            @changed           AS school_changed,
+            ISNULL(@cleared,0) AS of_which_cleared;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        THROW;
+    END CATCH;
+END;
+GO
+/****** Object:  StoredProcedure [befordring].[usp_upsert_adresse_ids_from_stg]    Script Date: 30/09/2026 09:53:22 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/*
+    Resolve adresse_id for elever and forældre from Elev_Adresse_STG.
+
+    Elev_STG and Foraelder_STG never carry an address — the data worker's job
+    does not have one. The link between a person and an address comes from
+    LOIS.CPR.PersonGeoView instead, which the RPA loads into Elev_Adresse_STG
+    keyed on PNR_0 (ten digits, no dash, matching Elev.cpr and
+    Foraelder.cpr_foraelder).
+
+    One stage serves both tables: the column is `cpr`, not `cpr_elev`, so a
+    guardian's row looks exactly like a student's.
+
+    This procedure owns Elev.adresse_id. It is therefore also what raises
+    kraever_genberegning when a student moves, since a new address changes the
+    distance to school. usp_upsert_elev_from_stg raises the flag for the other
+    half — a change of school.
+
+    Addresses not present in Adresse are skipped, not written. Elev's and
+    Foraelder's foreign keys to Adresse are trusted (migration 021), so writing
+    an unknown id would fail the whole batch; and an address the nightly
+    Adresse import has not loaded yet is a sequencing problem, not a reason to
+    lose the rest of the run. The skipped count is returned so a persistent
+    gap is visible.
+
+    Ordering: this must run AFTER usp_upsert_adresser_from_stg (so Adresse is
+    current) and AFTER usp_upsert_elev_from_stg (so new students exist to
+    match).
+*/
+
+CREATE   PROCEDURE [befordring].[usp_upsert_adresse_ids_from_stg]
+    @load_id                UNIQUEIDENTIFIER,
+    @clear_stage_afterwards BIT = 1,
+    -- See usp_upsert_adresser_from_stg: one nightly run, so a load older than
+    -- a day belongs to a run that never finished.
+    @stale_after_days       INT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @staged_rows       INT = 0;
+    DECLARE @orphans_swept     INT = 0;
+    DECLARE @unknown_adresse   INT = 0;
+    DECLARE @elev_updated      INT = 0;
+    DECLARE @foraelder_updated INT = 0;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+            /* Sweep orphaned loads.
+
+               A run that fails while staging never reaches this procedure, so
+               its rows are never deleted by the load_id clear below. They are
+               invisible to every consumer — all of which filter on load_id —
+               but they accumulate, and nothing else ever reaps them.
+
+               Bounded by age rather than "anything that is not this load", so
+               two runs overlapping cannot delete each other's rows mid-flight.
+               Never touches the current load: its rows were staged moments
+               ago. */
+            DELETE FROM [befordring].[Elev_Adresse_STG]
+            WHERE load_id <> @load_id
+            AND   loaded_at < DATEADD(DAY, -@stale_after_days, SYSUTCDATETIME());
+
+            SET @orphans_swept = @@ROWCOUNT;
+
+            /* One row per cpr for this load. A person appears once in
+               PersonGeoView, but the stage has no key to enforce it. */
+            ;WITH SourceRows AS
+            (
+                SELECT
+                    LTRIM(RTRIM(cpr))        AS cpr,
+                    LTRIM(RTRIM(adresse_id)) AS adresse_id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY LTRIM(RTRIM(cpr))
+                        ORDER BY     (SELECT NULL)
+                    ) AS rn
+                FROM [befordring].[Elev_Adresse_STG]
+                WHERE load_id = @load_id
+                AND   NULLIF(LTRIM(RTRIM(cpr)), '')        IS NOT NULL
+                AND   NULLIF(LTRIM(RTRIM(adresse_id)), '') IS NOT NULL
+            )
+            SELECT cpr, adresse_id
+            INTO   #Source
+            FROM   SourceRows
+            WHERE  rn = 1;
+
+            SELECT @staged_rows = COUNT(*) FROM #Source;
+
+            /* Drop anything Adresse does not know about, rather than letting
+               the foreign key take the whole transaction down. */
+            SELECT @unknown_adresse = COUNT(*)
+            FROM   #Source s
+            WHERE  NOT EXISTS (SELECT 1 FROM [befordring].[Adresse] a
+                               WHERE a.adresse_id = s.adresse_id);
+
+            DELETE s
+            FROM   #Source s
+            WHERE  NOT EXISTS (SELECT 1 FROM [befordring].[Adresse] a
+                               WHERE a.adresse_id = s.adresse_id);
+
+            CREATE UNIQUE CLUSTERED INDEX IX_Source_cpr ON #Source (cpr);
+
+            /* Students who are actually moving. Captured before the UPDATE,
+               while the old adresse_id is still readable. ISNULL guards the
+               first-ever resolution, where the current value is NULL. */
+            SELECT e.cpr
+            INTO   #Moved
+            FROM   [befordring].[Elev] e
+            JOIN   #Source s ON s.cpr = e.cpr
+            WHERE  ISNULL(e.adresse_id, '') <> s.adresse_id;
+
+            UPDATE e
+            SET    e.adresse_id = s.adresse_id
+            FROM   [befordring].[Elev] e
+            JOIN   #Source s ON s.cpr = e.cpr
+            WHERE  ISNULL(e.adresse_id, '') <> s.adresse_id;
+
+            SET @elev_updated = @@ROWCOUNT;
+
+            /* A new address moves the child relative to their school, so the
+               walking distance has to be recalculated. */
+            UPDATE e
+            SET    e.kraever_genberegning = 1
+            FROM   [befordring].[Elev] e
+            JOIN   #Moved m ON m.cpr = e.cpr;
+
+            /* Guardians are matched on their own CPR, so one row in the stage
+               updates every Foraelder row that adult has — one per child. */
+            UPDATE f
+            SET    f.adresse_id = s.adresse_id
+            FROM   [befordring].[Foraelder] f
+            JOIN   #Source s ON s.cpr = f.cpr_foraelder
+            WHERE  ISNULL(f.adresse_id, '') <> s.adresse_id;
+
+            SET @foraelder_updated = @@ROWCOUNT;
+
+            IF @clear_stage_afterwards = 1
+            BEGIN
+                DELETE FROM [befordring].[Elev_Adresse_STG]
+                WHERE load_id = @load_id;
+            END;
+
+        COMMIT TRANSACTION;
+
+        SELECT
+            @staged_rows       AS staged_rows,
+            @unknown_adresse   AS skipped_unknown_adresse,
+            @elev_updated      AS elev_updated,
+            @foraelder_updated AS foraelder_updated,
+            @orphans_swept     AS orphan_rows_swept;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        THROW;
+    END CATCH;
+END;
+GO
+/****** Object:  StoredProcedure [befordring].[usp_upsert_adresser_from_stg]    Script Date: 30/09/2026 09:53:22 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
 CREATE   PROCEDURE [befordring].[usp_upsert_adresser_from_stg]
     @load_id UNIQUEIDENTIFIER,
-    @clear_stage_afterwards BIT = 1
+    @clear_stage_afterwards BIT = 1,
+    -- How long a staged load may survive before it is treated as debris from
+    -- a failed run. One day: the job runs nightly, so anything older than that
+    -- belongs to a run that never finished.
+    @stale_after_days INT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -2157,9 +2608,28 @@ BEGIN
     DECLARE @updated_rows INT = 0;
     DECLARE @inserted_rows INT = 0;
     DECLARE @staged_rows INT = 0;
+    DECLARE @orphans_swept INT = 0;
 
     BEGIN TRY
         BEGIN TRANSACTION;
+
+            /* Sweep orphaned loads.
+
+               A run that fails while staging never reaches this procedure, so
+               its rows are never deleted by the load_id clear below. They are
+               invisible to every consumer — all of which filter on load_id —
+               but they accumulate, and Adresse_STG stages every address in
+               the municipality.
+
+               Bounded by age rather than "anything that is not this load", so
+               two runs overlapping cannot delete each other's rows mid-flight.
+               Never touches the current load: its rows were staged moments
+               ago. */
+            DELETE FROM [befordring].[Adresse_STG]
+            WHERE load_id <> @load_id
+            AND   loaded_at < DATEADD(DAY, -@stale_after_days, SYSUTCDATETIME());
+
+            SET @orphans_swept = @@ROWCOUNT;
 
             ;WITH SourceRows AS
             (
@@ -2252,7 +2722,418 @@ BEGIN
         SELECT
             @staged_rows AS staged_rows,
             @updated_rows AS updated_rows,
-            @inserted_rows AS inserted_rows;
+            @inserted_rows AS inserted_rows,
+            @orphans_swept AS orphan_rows_swept;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        THROW;
+    END CATCH;
+END;
+GO
+/****** Object:  StoredProcedure [befordring].[usp_upsert_elev_from_stg]    Script Date: 30/09/2026 09:53:22 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/*
+    Merge the nightly student load from Elev_STG into Elev.
+
+    Elev_STG is filled by the data worker's job, which runs before the RPA.
+    That job is the authority on the columns it carries, so a NULL arriving in
+    STG is a real change and overwrites — except for the columns listed under
+    "Not copied" below.
+
+    Unlike Adresse_STG there is no load_id on this table: the loading job
+    truncates and refills it. This procedure therefore processes whatever it
+    finds, and does NOT clear the stage afterwards — that table belongs to the
+    other job and deleting from it could race their load.
+
+    Not copied, and why:
+
+      adresse_id            Always NULL in STG. Resolved separately from
+                            LOIS.CPR.PersonGeoView — see
+                            usp_upsert_adresse_ids_from_stg.
+
+      matrikel_id           ALWAYS NULL in STG — the data worker's source has
+      ungdomsuddannelse_id  no school. Both are derived from the student's
+                            bevillinger instead; see
+                            usp_sync_elev_matrikel_from_bevilling, which runs
+                            straight after this procedure. Copying either from
+                            STG would fight that derivation.
+
+                            This procedure does CLEAR them — see below.
+
+      skoleafstand          Written by the walking-distance step at the end of
+                            the nightly run. Copying a stale value from STG
+                            would overwrite last night's calculation.
+
+      kraever_genberegning  Set by THIS procedure when a watched column
+                            changes. Copying it from STG would clobber the flag
+                            we just raised, or raise one nothing asked for.
+
+    When skolekode changes, matrikel_id and ungdomsuddannelse_id are cleared
+    and kraever_genberegning is raised.
+
+    Clearing matters because those two are derived from a bevilling, and a
+    bevilling that has not caught up with the child's new school now points at
+    the wrong one. usp_sync_elev_matrikel_from_bevilling runs next and puts
+    back whatever the student's bevilling actually says — but where the student
+    has no bevilling to derive from, there is nothing to put back, and the
+    stale school must not survive. Leaving it would measure the walking
+    distance to a school the child no longer attends.
+
+    The other two kraever_genberegning triggers are raised by the procedures
+    that own those columns: usp_sync_elev_matrikel_from_bevilling for
+    matrikel_id, usp_upsert_adresse_ids_from_stg for adresse_id. Each flag is
+    raised where the change is visible, so none can overwrite another's work.
+
+    All or nothing: one transaction, so a failure part-way leaves Elev exactly
+    as it was rather than half-merged.
+*/
+
+CREATE   PROCEDURE [befordring].[usp_upsert_elev_from_stg]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @staged_rows    INT = 0;
+    DECLARE @duplicate_cpr  INT = 0;
+    DECLARE @updated_rows   INT = 0;
+    DECLARE @inserted_rows  INT = 0;
+    DECLARE @flagged_rows   INT = 0;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+            /* One row per cpr. There is no load_id or identity column to order
+               by, so a duplicate cpr in the stage is resolved arbitrarily —
+               and counted, so it shows up in the log rather than silently
+               picking a winner every night. Rows without a cpr are dropped:
+               the column is nullable in the stage but is the match key here. */
+            ;WITH SourceRows AS
+            (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY LTRIM(RTRIM(cpr))
+                        ORDER BY     (SELECT NULL)
+                    ) AS rn
+                FROM [befordring].[Elev_STG]
+                WHERE NULLIF(LTRIM(RTRIM(cpr)), '') IS NOT NULL
+            )
+            SELECT
+                LTRIM(RTRIM(cpr))         AS cpr,
+                adresselinjesnavn,
+                navne_adresse_beskyttelse,
+                klasseart,
+                elevklassetrin,
+                klassebetegnelse,
+                institution,
+                bopaelsdistrikt,
+                skolekode
+            INTO #Source
+            FROM SourceRows
+            WHERE rn = 1;
+
+            CREATE UNIQUE CLUSTERED INDEX IX_Source_cpr ON #Source (cpr);
+
+            SELECT @staged_rows = COUNT(*) FROM #Source;
+
+            SELECT @duplicate_cpr =
+                (SELECT COUNT(*) FROM [befordring].[Elev_STG]
+                 WHERE NULLIF(LTRIM(RTRIM(cpr)), '') IS NOT NULL)
+                - @staged_rows;
+
+            /* Which students are about to have their registered school code
+               change. Captured before the UPDATE, because afterwards the old
+               value is gone. */
+            SELECT s.cpr
+            INTO   #NeedsRecalc
+            FROM   #Source s
+            JOIN   [befordring].[Elev] e ON e.cpr = s.cpr
+            WHERE  EXISTS (
+                       SELECT e.skolekode
+                       EXCEPT
+                       SELECT s.skolekode
+                   );
+
+            SELECT @flagged_rows = COUNT(*) FROM #NeedsRecalc;
+
+            /* EXCEPT compares NULL to NULL as equal, which "<>" does not — so
+               a row whose values are unchanged is not rewritten just because
+               one of them is NULL. */
+            UPDATE target
+            SET
+                target.adresseringsnavn          = source.adresselinjesnavn,
+                target.navne_adresse_beskyttelse = source.navne_adresse_beskyttelse,
+                target.klasseart                 = source.klasseart,
+                target.elevklassetrin            = source.elevklassetrin,
+                target.klassebetegnelse          = source.klassebetegnelse,
+                target.institution               = source.institution,
+                target.bopaelsdistrikt           = source.bopaelsdistrikt,
+                target.skolekode                 = source.skolekode
+            FROM [befordring].[Elev] target
+            JOIN #Source source ON source.cpr = target.cpr
+            WHERE EXISTS
+            (
+                SELECT
+                    target.adresseringsnavn,
+                    target.navne_adresse_beskyttelse,
+                    target.klasseart,
+                    target.elevklassetrin,
+                    target.klassebetegnelse,
+                    target.institution,
+                    target.bopaelsdistrikt,
+                    target.skolekode
+
+                EXCEPT
+
+                SELECT
+                    source.adresselinjesnavn,
+                    source.navne_adresse_beskyttelse,
+                    source.klasseart,
+                    source.elevklassetrin,
+                    source.klassebetegnelse,
+                    source.institution,
+                    source.bopaelsdistrikt,
+                    source.skolekode
+            );
+
+            SET @updated_rows = @@ROWCOUNT;
+
+            /* Separate from the UPDATE above so the flag survives a row that
+               changed school but nothing else, and is not raised for a row
+               where only the name changed.
+
+               matrikel_id and ungdomsuddannelse_id are cleared rather than
+               left: both are derived from a bevilling, and the child has just
+               moved school, so whatever a bevilling said before now points at
+               the wrong one. The sync procedure that runs next re-derives them
+               where a bevilling exists; where none does, cleared is correct. */
+            UPDATE e
+            SET    e.kraever_genberegning = 1,
+                   e.matrikel_id          = NULL,
+                   e.ungdomsuddannelse_id = NULL
+            FROM   [befordring].[Elev] e
+            JOIN   #NeedsRecalc n ON n.cpr = e.cpr;
+
+            /* New students. adresse_id, matrikel_id and ungdomsuddannelse_id
+               are left NULL for the procedures that own them, and
+               kraever_genberegning starts at 1 because a student with no
+               skoleafstand needs one calculated. */
+            INSERT INTO [befordring].[Elev]
+            (
+                cpr,
+                adresseringsnavn,
+                navne_adresse_beskyttelse,
+                klasseart,
+                elevklassetrin,
+                klassebetegnelse,
+                institution,
+                bopaelsdistrikt,
+                skolekode,
+                kraever_genberegning
+            )
+            SELECT
+                source.cpr,
+                source.adresselinjesnavn,
+                source.navne_adresse_beskyttelse,
+                source.klasseart,
+                source.elevklassetrin,
+                source.klassebetegnelse,
+                source.institution,
+                source.bopaelsdistrikt,
+                source.skolekode,
+                1
+            FROM #Source source
+            WHERE NOT EXISTS
+            (
+                SELECT 1 FROM [befordring].[Elev] target
+                WHERE target.cpr = source.cpr
+            );
+
+            SET @inserted_rows = @@ROWCOUNT;
+
+        COMMIT TRANSACTION;
+
+        SELECT
+            @staged_rows   AS staged_rows,
+            @duplicate_cpr AS duplicate_cpr_dropped,
+            @updated_rows  AS updated_rows,
+            @inserted_rows AS inserted_rows,
+            @flagged_rows  AS skolekode_changed_school_cleared;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        THROW;
+    END CATCH;
+END;
+GO
+/****** Object:  StoredProcedure [befordring].[usp_upsert_foraelder_from_stg]    Script Date: 30/09/2026 09:53:22 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/*
+    Merge the nightly guardian load from Foraelder_STG into Foraelder.
+
+    Same contract as usp_upsert_elev_from_stg: the data worker's job owns the
+    stage and is the authority on the columns it carries, so a NULL arriving in
+    STG overwrites. No load_id on the table, so the stage is processed whole
+    and NOT cleared afterwards — it belongs to the other job.
+
+    Matched on the composite key (cpr_foraelder, cpr_elev): a guardian appears
+    once per child, so the same adult can legitimately have several rows.
+
+    Not copied, and why:
+
+      adresse_id              Always NULL in STG. Resolved separately from
+                              LOIS.CPR.PersonGeoView — see
+                              usp_upsert_adresse_ids_from_stg.
+
+      maa_vide_barns_adresse  Deliberately left alone for now. The column is
+                              present in the stage, so this is an exclusion
+                              rather than an oversight — remove it from this
+                              list when the import should own it.
+
+    Guardians whose child is not in Elev are skipped rather than failing the
+    batch. FK_Foraelder_Elev would reject them, and the two loads can
+    legitimately arrive out of step; the count is returned so a persistent
+    mismatch is visible instead of silent.
+*/
+
+CREATE   PROCEDURE [befordring].[usp_upsert_foraelder_from_stg]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @staged_rows     INT = 0;
+    DECLARE @duplicate_keys  INT = 0;
+    DECLARE @skipped_no_elev INT = 0;
+    DECLARE @updated_rows    INT = 0;
+    DECLARE @inserted_rows   INT = 0;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+            /* One row per (cpr_foraelder, cpr_elev). No load_id or identity to
+               order by, so a duplicate key is resolved arbitrarily and
+               counted. Rows missing either half of the key are dropped. */
+            ;WITH SourceRows AS
+            (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY LTRIM(RTRIM(cpr_foraelder)), LTRIM(RTRIM(cpr_elev))
+                        ORDER BY     (SELECT NULL)
+                    ) AS rn
+                FROM [befordring].[Foraelder_STG]
+                WHERE NULLIF(LTRIM(RTRIM(cpr_foraelder)), '') IS NOT NULL
+                AND   NULLIF(LTRIM(RTRIM(cpr_elev)), '')      IS NOT NULL
+            )
+            SELECT
+                LTRIM(RTRIM(cpr_foraelder)) AS cpr_foraelder,
+                LTRIM(RTRIM(cpr_elev))      AS cpr_elev,
+                adresseringsnavn,
+                navne_adresse_beskyttelse,
+                relation
+            INTO #Source
+            FROM SourceRows
+            WHERE rn = 1;
+
+            SELECT @staged_rows = COUNT(*) FROM #Source;
+
+            SELECT @duplicate_keys =
+                (SELECT COUNT(*) FROM [befordring].[Foraelder_STG]
+                 WHERE NULLIF(LTRIM(RTRIM(cpr_foraelder)), '') IS NOT NULL
+                 AND   NULLIF(LTRIM(RTRIM(cpr_elev)), '')      IS NOT NULL)
+                - @staged_rows;
+
+            /* Drop guardians whose child we do not have. Counted first so the
+               number is reported rather than inferred from a row difference. */
+            SELECT @skipped_no_elev = COUNT(*)
+            FROM   #Source s
+            WHERE  NOT EXISTS (SELECT 1 FROM [befordring].[Elev] e
+                               WHERE e.cpr = s.cpr_elev);
+
+            DELETE s
+            FROM   #Source s
+            WHERE  NOT EXISTS (SELECT 1 FROM [befordring].[Elev] e
+                               WHERE e.cpr = s.cpr_elev);
+
+            CREATE UNIQUE CLUSTERED INDEX IX_Source_key
+            ON #Source (cpr_foraelder, cpr_elev);
+
+            /* EXCEPT rather than "<>": it treats NULL as equal to NULL, so an
+               unchanged row is not rewritten just because a value is NULL. */
+            UPDATE target
+            SET
+                target.adresseringsnavn          = source.adresseringsnavn,
+                target.navne_adresse_beskyttelse = source.navne_adresse_beskyttelse,
+                target.relation                  = source.relation
+            FROM [befordring].[Foraelder] target
+            JOIN #Source source
+                ON  source.cpr_foraelder = target.cpr_foraelder
+                AND source.cpr_elev      = target.cpr_elev
+            WHERE EXISTS
+            (
+                SELECT
+                    target.adresseringsnavn,
+                    target.navne_adresse_beskyttelse,
+                    target.relation
+
+                EXCEPT
+
+                SELECT
+                    source.adresseringsnavn,
+                    source.navne_adresse_beskyttelse,
+                    source.relation
+            );
+
+            SET @updated_rows = @@ROWCOUNT;
+
+            INSERT INTO [befordring].[Foraelder]
+            (
+                cpr_foraelder,
+                cpr_elev,
+                adresseringsnavn,
+                navne_adresse_beskyttelse,
+                relation
+            )
+            SELECT
+                source.cpr_foraelder,
+                source.cpr_elev,
+                source.adresseringsnavn,
+                source.navne_adresse_beskyttelse,
+                source.relation
+            FROM #Source source
+            WHERE NOT EXISTS
+            (
+                SELECT 1
+                FROM   [befordring].[Foraelder] target
+                WHERE  target.cpr_foraelder = source.cpr_foraelder
+                AND    target.cpr_elev      = source.cpr_elev
+            );
+
+            SET @inserted_rows = @@ROWCOUNT;
+
+        COMMIT TRANSACTION;
+
+        SELECT
+            @staged_rows     AS staged_rows,
+            @duplicate_keys  AS duplicate_keys_dropped,
+            @skipped_no_elev AS skipped_child_not_in_elev,
+            @updated_rows    AS updated_rows,
+            @inserted_rows   AS inserted_rows;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0

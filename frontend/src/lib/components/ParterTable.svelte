@@ -253,7 +253,7 @@
     <thead>
       <tr class="text-white text-left" style="background-color: #032A42;">
         <th class="px-3 py-2 font-semibold min-w-40">Navn</th>
-        <th class="px-3 py-2 font-semibold min-w-32">Cpr-nummer</th>
+        <th class="px-3 py-2 font-semibold min-w-32">CPR/CVR-nummer</th>
         <th class="px-3 py-2 font-semibold min-w-48">Adresse</th>
         <th class="px-3 py-2 font-semibold min-w-32">Relation</th>
         <th class="px-3 py-2 font-semibold min-w-32">Telefon</th>

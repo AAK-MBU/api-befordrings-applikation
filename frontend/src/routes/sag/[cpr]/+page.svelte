@@ -231,38 +231,40 @@
     }
   }
 
-  function getDisplayLabel(type: string): string {
-    if (type.startsWith("Status sat til ")) return "Status opdateret";
+  function getDisplayLabel(aktivitet: any): string {
+    const kode: string = aktivitet.type_kode ?? "";
+    const type: string = aktivitet.aktivitetstype ?? "";
+    if (kode === "status_opdateret" || type.startsWith("Status sat til ")) return "Status opdateret";
     const map: Record<string, string> = {
-      "PPR Revurderet":         "PPR vurderet",
-      "BR Revurderet":          "BR vurderet",
-      "PPR revurderet fjernet": "PPR vurderet fjernet",
-      "BR revurderet fjernet":  "BR vurderet fjernet",
+      ppr_revurderet:         "PPR vurderet",
+      br_revurderet:          "BR vurderet",
+      ppr_revurderet_fjernet: "PPR vurderet fjernet",
+      br_revurderet_fjernet:  "BR vurderet fjernet",
     };
-    return map[type] ?? type;
+    return map[kode] ?? type;
   }
 
-  function getCategory(type: string): string {
-    if (type.startsWith("Status sat til ")) return "Status opdateret";
-    return getDisplayLabel(type);
+  function getCategory(aktivitet: any): string {
+    return getDisplayLabel(aktivitet);
   }
 
   function feedStyle(aktivitet: any): { border: string; icon: string; badgeBg: string; badgeText: string; cardBg: string } {
-    const type = aktivitet.aktivitetstype ?? "";
-    if (type === "PPR Revurderet" || type === "BR Revurderet") {
+    const kode: string = aktivitet.type_kode ?? "";
+    const type: string = aktivitet.aktivitetstype ?? "";
+    if (kode === "ppr_revurderet" || kode === "br_revurderet") {
       return { border: "border-l-green-500", icon: "check",    badgeBg: "bg-green-100",  badgeText: "text-green-800",  cardBg: "bg-gray-50" };
     }
-    if (type === "PPR revurderet fjernet" || type === "BR revurderet fjernet") {
+    if (kode === "ppr_revurderet_fjernet" || kode === "br_revurderet_fjernet") {
       return { border: "border-l-gray-300",  icon: "xmark",    badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
     }
-    if (type === "Kommentar") {
+    if (kode === "kommentar" || type === "Kommentar") {
       return { border: "border-l-blue-500",  icon: "chat",     badgeBg: "bg-blue-500",   badgeText: "text-white",      cardBg: "bg-blue-50" };
     }
-    if (type === "Brev oprettet") {
+    if (kode === "brev_oprettet" || type === "Brev oprettet" || kode === "brev_afsendt") {
       return { border: "border-l-gray-300",  icon: "envelope", badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
     }
-    if (type.startsWith("Status sat til ")) {
-      return { border: "border-l-slate-400", icon: "status",   badgeBg: "bg-slate-100",  badgeText: "text-slate-700",  cardBg: "bg-gray-50" };
+    if (kode === "status_opdateret" || type.startsWith("Status sat til ")) {
+      return { border: "border-l-gray-300",  icon: "status",   badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
     }
     return   { border: "border-l-gray-300",  icon: "gear",     badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
   }
@@ -299,7 +301,7 @@
   const feedMinDate = new Date(new Date().getFullYear() - 10, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
   const feedMaxDate = new Date(new Date().getFullYear() + 10, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
 
-  $: uniqueCategories = [...new Set<string>((aktiviteter ?? []).map((a: any) => getCategory(a.aktivitetstype ?? "")))].sort((a: string, b: string) => a.localeCompare(b, "da"));
+  $: uniqueCategories = [...new Set<string>((aktiviteter ?? []).map((a: any) => getCategory(a)))].sort((a: string, b: string) => a.localeCompare(b, "da"));
   $: uniqueSenders = [...new Set<string>((aktiviteter ?? []).map((a: any) => a.udfoert_af ?? "").filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, "da"));
   // Bevillinger referenced by at least one activity, newest first. Built from
   // the feed rather than from `bevillinger` so the dropdown never offers a
@@ -322,7 +324,7 @@
 
   $: filteredAktiviteter = (() => {
     const list = (aktiviteter ?? []).filter((a: any) => {
-      if (filterTypes.length > 0 && !filterTypes.includes(getCategory(a.aktivitetstype ?? ""))) return false;
+      if (filterTypes.length > 0 && !filterTypes.includes(getCategory(a))) return false;
       if (filterFra) {
         const ts = new Date(a.oprettet_tidspunkt);
         const fra = new Date(filterFra);
@@ -363,7 +365,7 @@
     },
     {
       key: "cpr_foraelder",
-      label: "Cpr-nummer",
+      label: "CPR-nummer",
       render: (row) => formatCpr(row.cpr_foraelder)
     },
     {
@@ -385,7 +387,7 @@
       filterable: false,
       render: (row: any) => {
         const val: boolean = row.maa_vide_barns_adresse;
-        return `<span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full border whitespace-nowrap ${val ? 'bg-green-100 border-green-300 text-green-700' : 'bg-gray-100 border-gray-300 text-gray-500'}">${val ? 'Ja' : 'Nej'}</span>`;
+        return `<span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full border whitespace-nowrap ${val ? 'bg-green-100 border-green-300 text-green-700' : 'bg-red-50 border-red-500 text-red-900'}">${val ? 'Ja' : 'Nej'}</span>`;
       }
     }
   ];
@@ -702,7 +704,7 @@
 
   <!-- Parent address restriction warning -->
   {#if anyParentCannotKnowAddress}
-    <div class="mb-4 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-amber-900">
+    <div class="mb-4 rounded-lg border-l-4 border-red-500 bg-red-50 p-4 text-red-900">
       <p class="mt-0.5 text-xs">
         {restrictedParentCprList} har fået frataget deres rettigheder til at se oplysninger om
         {formatCpr(stamdata?.cpr)}, og I må derfor <strong>ikke</strong> på nogen måde videregive
@@ -842,7 +844,7 @@
                move them across it. -->
           {#if skoleafstandMargin}
             <p
-              class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
+              class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-50 text-red-900 border border-red-500"
               title="Afstanden ligger tæt på afstandskriteriet for elevens klassetrin"
             >
               <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1273,7 +1275,7 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                     </svg>
                   {/if}
                   <span class="px-2 py-0.5 rounded text-xs font-medium {style.badgeBg} {style.badgeText}">
-                    {getDisplayLabel(aktivitet.aktivitetstype ?? "")}
+                    {getDisplayLabel(aktivitet)}
                   </span>
                   {#if aktivitet.relateret_bevilling_id}
                     <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{bevillingLabelById.get(aktivitet.relateret_bevilling_id) ?? `Bevilling #${aktivitet.relateret_bevilling_id}`}</span>
@@ -1299,7 +1301,7 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                 <!-- Right: action only. Only comments can be deleted — system
                      entries are the case history, and the backend refuses them. -->
                 <div class="shrink-0">
-                  {#if aktivitet.aktivitetstype === "Kommentar"}
+                  {#if aktivitet.type_kode === "kommentar" || aktivitet.aktivitetstype === "Kommentar"}
                     <button
                       type="button"
                       title="Slet kommentar"
@@ -1318,8 +1320,8 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
               {#if aktivitet.kommentar}
                 <p
                   class="mt-2 text-sm whitespace-pre-wrap"
-                  class:text-blue-900={aktivitet.aktivitetstype === 'Kommentar'}
-                  class:text-gray-800={aktivitet.aktivitetstype !== 'Kommentar'}
+                  class:text-blue-900={aktivitet.type_kode === 'kommentar' || aktivitet.aktivitetstype === 'Kommentar'}
+                  class:text-gray-800={aktivitet.type_kode !== 'kommentar' && aktivitet.aktivitetstype !== 'Kommentar'}
                 >{aktivitet.kommentar}</p>
               {/if}
             </div>

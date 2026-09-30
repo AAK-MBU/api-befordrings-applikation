@@ -552,7 +552,7 @@
 
 
   <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 mb-5 flex items-center gap-8">
-    <div class="flex flex-col items-center">
+    <div class="flex flex-col items-center min-w-[10rem] -ml-2">
       <p class="text-3xl font-bold text-gray-900">{genbehandlinger.length}</p>
       <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Sager</p>
     </div>

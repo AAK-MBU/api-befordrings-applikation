@@ -732,7 +732,20 @@
                 </span>
               {/if}
             {/if}
-            <span class="font-mono text-sm text-gray-500">{bevilling.esdh_noegle ?? ""}</span>
+            <!-- Sags-ID. A link into GO when the nightly run has resolved one;
+                 plain text until then, because GO's URL carries a per-case
+                 system id that cannot be derived from the key. -->
+            {#if bevilling.esdh_url}
+              <a
+                href={bevilling.esdh_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Åbn sagen i GO"
+                class="font-mono text-sm text-sky-600 hover:underline">{bevilling.esdh_noegle ?? ""}</a
+              >
+            {:else}
+              <span class="font-mono text-sm text-gray-500">{bevilling.esdh_noegle ?? ""}</span>
+            {/if}
           </div>
 
           <div class="flex items-center gap-2">

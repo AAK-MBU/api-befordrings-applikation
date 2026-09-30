@@ -20,6 +20,15 @@
   let selectedIds: number[] = [];
   let isSaving = false;
   let actionError: string | null = null;
+  let sagsbehandlerFilter: string = "";
+
+  $: sagsbehandlere = [...new Set(
+    forsendelser.map((f: any) => f.sagsbehandler).filter(Boolean)
+  )].sort();
+
+  $: displayedForsendelser = sagsbehandlerFilter
+    ? forsendelser.filter((f: any) => f.sagsbehandler === sagsbehandlerFilter)
+    : forsendelser;
 
   // Selection is keyed on brev_id and pruned whenever the list reloads, so a
   // letter someone else marked sent cannot stay selected and be acted on again.
@@ -28,8 +37,8 @@
     selectedIds = selectedIds.filter((id) => visible.has(id));
   }
 
-  $: allSelected = forsendelser.length > 0 && selectedIds.length === forsendelser.length;
-
+  $: allSelected = displayedForsendelser.length > 0 && selectedIds.length === displayedForsendelser.length;
+  
   function toggle(id: number) {
     selectedIds = selectedIds.includes(id)
       ? selectedIds.filter((existing) => existing !== id)
@@ -37,7 +46,7 @@
   }
 
   function toggleAll() {
-    selectedIds = allSelected ? [] : forsendelser.map((f: any) => f.brev_id);
+    selectedIds = allSelected ? [] : displayedForsendelser.map((f: any) => f.brev_id);
   }
 
   async function markAfsendt(ids: number[]) {
@@ -100,21 +109,44 @@
 
 <svelte:head><title>Forsendelse</title></svelte:head>
 
-<div class="p-8">
-  <div class="flex items-baseline justify-between mb-1">
-    <h1 class="text-2xl font-semibold text-gray-800">Forsendelse</h1>
-    <span class="text-sm text-gray-500">
-      {forsendelser.length}
-      {forsendelser.length === 1 ? "brev afventer" : "breve afventer"}
-    </span>
-  </div>
-
-  <p class="text-sm text-gray-500 mb-6 max-w-3xl">
-    Breve der er oprettet, men endnu ikke sendt til forældrene. Når brevet er
-    sendt, markeres det her — så forsvinder det fra listen.
-  </p>
-
+<section>
   <ReadOnlyNotice />
+
+  <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Forsendelse</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Breve der er oprettet, men endnu ikke sendt til forældrene. Når brevet er sendt, markeres det her — så forsvinder det fra listen.</p>
+    </div>
+    <div class="flex items-center gap-4 flex-wrap">
+      {#if sagsbehandlere.length > 0}
+        <select
+          bind:value={sagsbehandlerFilter}
+          class="min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white"
+        >
+          <option value="">Alle sagsbehandlere</option>
+          {#each sagsbehandlere as sb}
+            {@const count = forsendelser.filter((f: any) => f.sagsbehandler === sb).length}
+            <option value={sb}>{sb} ({count})</option>
+          {/each}
+        </select>
+      {/if}
+
+      {#if sagsbehandlerFilter}
+        <button type="button"
+          class="text-xs font-medium text-gray-500 hover:text-red-600 flex items-center gap-1 transition-colors whitespace-nowrap"
+          on:click={() => { sagsbehandlerFilter = ""; }}>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Nulstil filtre
+        </button>
+      {/if}
+
+      <span class="text-sm font-bold text-gray-500">
+        {displayedForsendelser.length}{sagsbehandlerFilter ? ` / ${forsendelser.length}` : ''} {forsendelser.length === 1 ? "brev" : "breve"}
+      </span>
+    </div>
+  </div>
 
   {#if actionError}
     <div class="mb-4 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
@@ -124,6 +156,8 @@
 
   {#if forsendelser.length === 0}
     <p class="text-sm text-gray-400 italic">Ingen breve afventer forsendelse.</p>
+  {:else if displayedForsendelser.length === 0}
+    <p class="text-sm text-gray-400 italic">Ingen breve matcher filteret.</p>
   {:else}
     <!-- Bulk bar: only present when something is selected, so it never sits
          there as a disabled control taking up space. -->
@@ -173,7 +207,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          {#each forsendelser as brev (brev.brev_id)}
+          {#each displayedForsendelser as brev (brev.brev_id)}
             <tr class="hover:bg-gray-50" class:bg-blue-50={selectedIds.includes(brev.brev_id)}>
               <td class="px-3 py-2.5">
                 <input
@@ -240,4 +274,4 @@
       </table>
     </div>
   {/if}
-</div>
+</section>

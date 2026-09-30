@@ -41,13 +41,8 @@
     let selectedPprSagsbehandler = "";
     let selectedKoerselstype = "";
 
-    const defaultToDate = (() => {
-      const d = new Date();
-      d.setMonth(d.getMonth() + 1);
-      return d.toISOString().slice(0, 10);
-    })();
     let filterFromDate = "";
-    let filterToDate = defaultToDate;
+    let filterToDate = "";
     let quickFilter: null | "overskredet" | "inden30" = null;
 
     $: uniqueSkoler            = [...new Set(revurderinger.map((b: any) => b.skole_navn).filter(Boolean))].sort() as string[];
@@ -92,7 +87,7 @@
 
     $: anyFilterActive = !!(selectedSkole || selectedSagsbehandler || selectedPprSagsbehandler
                             || selectedKoerselstype || filterFromDate
-                            || filterToDate !== defaultToDate || quickFilter);
+                            || filterToDate || quickFilter);
 
     $: overskredet    = revurderinger.filter((b: any) => (daysUntil(b.revurderingsdato) ?? 0) < 0).length;
     $: indenFor30Dage = revurderinger.filter((b: any) => { const d = daysUntil(b.revurderingsdato); return d !== null && d >= 0 && d <= 30; }).length;
@@ -668,7 +663,7 @@
       {#if anyFilterActive}
         <button type="button"
           class="text-xs font-medium text-gray-500 hover:text-red-600 flex items-center gap-1 transition-colors whitespace-nowrap"
-          on:click={() => { selectedSkole = ""; selectedSagsbehandler = ""; selectedPprSagsbehandler = ""; selectedKoerselstype = ""; filterFromDate = ""; filterToDate = defaultToDate; quickFilter = null; }}>
+          on:click={() => { selectedSkole = ""; selectedSagsbehandler = ""; selectedPprSagsbehandler = ""; selectedKoerselstype = ""; filterFromDate = ""; filterToDate = ""; quickFilter = null; }}>
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -693,7 +688,7 @@
 
   <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 mb-5 flex items-center gap-8">
     <button type="button"
-      class="flex flex-col items-center rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+      class="flex flex-col items-center rounded px-2 py-1 -mx-2 -my-1 transition-colors min-w-[10rem]"
       class:hover:bg-gray-100={quickFilter !== null}
       class:cursor-pointer={quickFilter !== null}
       class:cursor-default={quickFilter === null}
@@ -703,7 +698,7 @@
     </button>
     <div class="h-10 w-px bg-gray-200"></div>
     <button type="button"
-      class="flex flex-col items-center hover:bg-red-50 transition-colors rounded px-2 py-1 -mx-2 -my-1"
+      class="flex flex-col items-center hover:bg-red-50 transition-colors rounded px-2 py-1 -mx-2 -my-1 min-w-[10rem]"
       class:ring-2={quickFilter === 'overskredet'}
       class:ring-red-400={quickFilter === 'overskredet'}
       on:click={() => { quickFilter = quickFilter === 'overskredet' ? null : 'overskredet'; }}>
@@ -712,7 +707,7 @@
     </button>
     <div class="h-10 w-px bg-gray-200"></div>
     <button type="button"
-      class="flex flex-col items-center hover:bg-yellow-50 transition-colors rounded px-2 py-1 -mx-2 -my-1"
+      class="flex flex-col items-center hover:bg-yellow-50 transition-colors rounded px-2 py-1 -mx-2 -my-1 min-w-[10rem]"
       class:ring-2={quickFilter === 'inden30'}
       class:ring-yellow-400={quickFilter === 'inden30'}
       on:click={() => { quickFilter = quickFilter === 'inden30' ? null : 'inden30'; }}>

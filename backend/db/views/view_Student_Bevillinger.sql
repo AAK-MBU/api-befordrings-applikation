@@ -38,6 +38,7 @@ SELECT
     b.genbehandling_bemaerkning,
     b.final,
     b.esdh_noegle,
+    b.esdh_url,
     e.elevklassetrin,
 
     b.sagsbehandlingsdato,
@@ -104,7 +105,7 @@ GROUP BY
     b.bevilling_id, b.loebenummer, b.created_at, b.updated_at,
     e.navne_adresse_beskyttelse, e.adresseringsnavn, e.cpr,
     b.status_id, st.status_tekst, b.statusbemaerkning, b.revurdering,
-    b.genbehandling, b.genbehandling_bemaerkning, b.final, b.esdh_noegle, e.elevklassetrin,
+    b.genbehandling, b.genbehandling_bemaerkning, b.final, b.esdh_noegle, b.esdh_url, e.elevklassetrin,
     b.sagsbehandlingsdato,
     ba.adresse_tekst,
     b.adresse_id,

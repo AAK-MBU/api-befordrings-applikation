@@ -15,6 +15,7 @@ SELECT
     e.adresseringsnavn,
     b.cpr_elev,
     b.esdh_noegle,
+    b.esdh_url,
     b.ansoegningsdato,
     b.ansoegningstype,
     b.foerste_koersel_dato,
