@@ -513,7 +513,9 @@
 
     if (isTaxaType(befordringstypeId)) {
       if (isBlank(values.koersel_til_institution)) return "Kørsel til institution skal udfyldes";
-      if (isBlank(values.max_minutter_i_transport)) return "Max. antal min. i transport skal udfyldes";
+      // max_minutter_i_transport is deliberately NOT required: it is not
+      // always known when the kørselsrække is created, the column is nullable
+      // and neither the API schema nor the create modal has ever demanded it.
     }
 
     if (isSkolerejsekort(befordringstypeId)) {
@@ -724,7 +726,7 @@
             </select>
           </label>
           <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport *</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
             <input type="number" min="0" max="500" class={inputClass} value={newKoerselsraekke.max_minutter_i_transport ?? ""} on:change={(e) => updateNewField("max_minutter_i_transport", e.currentTarget.value)} />
           </label>
           <label class="block">
@@ -1014,7 +1016,7 @@
               </select>
             </label>
             <label class="block">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport *</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
               <input type="number" min="0" max="500" class={inputClass} value={editableKoerselsraekke.max_minutter_i_transport ?? ""} on:change={(e) => updateField("max_minutter_i_transport", e.currentTarget.value)} />
             </label>
             <label class="block">
