@@ -85,7 +85,7 @@ class Bevilling(Base):
     # Deep link to the case in GO. Written by rpa-befordring-nightly-runs,
     # which reads the per-case system id from GO's metadata endpoint — it
     # cannot be derived from esdh_noegle. NULL means "not resolved yet", which
-    # is what that step selects on. See migration 023.
+    # is what that step selects on. See migration 026.
     esdh_url: Mapped[str | None] = mapped_column(
         Unicode(500),
         nullable=True,

@@ -1,4 +1,3 @@
-
 <script lang="ts">
   import favicon from '$lib/assets/speedometer.png';
   import "../app.css";
@@ -27,6 +26,13 @@
   ];
 
   const currentPath = $derived($page.url.pathname);
+
+  const pageBg = $derived(
+    currentPath.startsWith('/nye-ansoegninger') ? 'bg-blue-50' :
+    currentPath.startsWith('/revurdering') ? 'bg-orange-50' :
+    currentPath.startsWith('/genbehandling') ? 'bg-rose-50' :
+    ''
+  );
 
   function isActive(tab: { href: string }) {
     if (tab.href === '/') return currentPath === '/';
@@ -164,7 +170,7 @@
       </div>
       <div class="leading-none">
         <p class="font-bold text-sm tracking-widest" style="color: #ffffff;">BEFORDRING</p>
-        <p class="text-[10px] tracking-wider mt-0.5" style="color: #7ec8e3;">AARHUS KOMMUNE</p>
+        <p class="text-[10px] tracking-wider mt-0.5" style="color: #7ec8e3;">BØRN OG UNGE</p>
       </div>
     </div>
 
@@ -352,7 +358,7 @@
   </div>
 </nav>
 
-<div class="px-4 md:px-8 py-4 md:py-6">
+<div class="px-4 md:px-8 py-4 md:py-6 min-h-[calc(100vh-60px)] {pageBg}">
   {@render children()}
 </div>
 

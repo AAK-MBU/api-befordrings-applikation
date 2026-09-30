@@ -2,69 +2,55 @@
 
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from app.models.citizen import Sagsaktivitet
+from app.models.citizen import Sagsaktivitet, SagsaktivitetType
 from app.schemas.aktivitet import SagsaktivitetCreateRequest
 
+# type_kode of the only activity type a caseworker may delete.
+DELETABLE_TYPE_KODE = "kommentar"
 
-# The only aktivitetstype a user may delete. Every other value on Sagsaktivitet
-# is written by the application to record something that happened to the case —
-# "Bevilling oprettet", "Brev oprettet" — and is part of the case history rather
-# than something a caseworker authored.
-DELETABLE_AKTIVITETSTYPE = "Kommentar"
+# Mapping from the legacy aktivitetstype strings sent by the frontend to the
+# canonical type_kode. Only "kommentar" is user-created; this map lets the
+# endpoint keep accepting the same payload without a breaking change.
+_AKTIVITETSTYPE_TO_KODE: dict[str, str] = {
+    "Kommentar": "kommentar",
+}
 
 
 class AktivitetService:
-    """Service class for case activity operations.
-
-    Args:
-        db:
-            SQLAlchemy database session.
-    """
+    """Service class for case activity operations."""
 
     def __init__(self, db: Session):
-        """Initialize the service with a database session."""
-
         self.db = db
 
+    def _get_type_id(self, type_kode: str) -> int | None:
+        return self.db.execute(
+            select(SagsaktivitetType.type_id).where(SagsaktivitetType.type_kode == type_kode)
+        ).scalar_one_or_none()
+
     def get_case_activity(self, cpr: str) -> list[Sagsaktivitet]:
-        """Retrieve all activities for a citizen/case, newest first.
-
-        Args:
-            cpr:
-                CPR number of the citizen/student.
-
-        Returns:
-            A list of Sagsaktivitet records ordered by oprettet_tidspunkt
-            descending.
-        """
+        """Retrieve all activities for a citizen/case, newest first."""
 
         stmt = (
             select(Sagsaktivitet)
             .where(Sagsaktivitet.cpr == cpr)
+            .options(joinedload(Sagsaktivitet.type))
             .order_by(Sagsaktivitet.oprettet_tidspunkt.desc())
         )
 
         return list(self.db.execute(stmt).scalars().all())
 
     def create_activity(self, cpr: str, payload: SagsaktivitetCreateRequest) -> Sagsaktivitet:
-        """Create an activity/comment on a citizen case.
+        """Create an activity/comment on a citizen case."""
 
-        Args:
-            cpr:
-                CPR number of the citizen/student.
-
-            payload:
-                The activity to create.
-
-        Returns:
-            The created Sagsaktivitet record.
-        """
+        type_kode = _AKTIVITETSTYPE_TO_KODE.get(payload.aktivitetstype)
+        type_id = self._get_type_id(type_kode) if type_kode else None
 
         aktivitet = Sagsaktivitet(
             cpr=cpr,
             aktivitetstype=payload.aktivitetstype,
+            aktivitetstype_id=type_id,
             kommentar=payload.kommentar,
             udfoert_af=payload.udfoert_af,
             relateret_bevilling_id=payload.relateret_bevilling_id,
@@ -72,36 +58,25 @@ class AktivitetService:
 
         self.db.add(aktivitet)
         self.db.commit()
-        self.db.refresh(aktivitet)
 
-        return aktivitet
+        # Re-query with joinedload so type_kode is available on the response.
+        return self.db.execute(
+            select(Sagsaktivitet)
+            .where(Sagsaktivitet.aktivitet_id == aktivitet.aktivitet_id)
+            .options(joinedload(Sagsaktivitet.type))
+        ).scalar_one()
 
     def delete_activity(self, aktivitet_id: int) -> dict:
         """Permanently delete a caseworker comment.
 
-        A real DELETE, unlike bevilling and kørselsrække which are soft-deleted
-        via an `aktiv` flag. Sagsaktivitet has no such column, and the intent
-        here is that a deleted comment leaves no trace in the feed.
-
-        The row is not gone without record: the DELETE call itself is written to
-        PortalAuditLog with the caller's identity, so who removed which activity
-        is answerable afterwards. What the comment *said* is not recoverable.
-
-        Args:
-            aktivitet_id:
-                ID of the activity to delete.
-
-        Returns:
-            Dictionary containing the deleted row count and id.
+        A real DELETE — Sagsaktivitet has no aktiv flag. The DELETE call itself
+        lands in PortalAuditLog with the caller's identity, so attribution is
+        preserved even though the comment text is gone.
 
         Raises:
             HTTPException:
-                404 if no activity has that id.
-
-                403 if the activity is not a comment. Authorisation to delete
-                comments is granted by the route's RequireEdit dependency; this
-                is the separate rule that system-written history is off limits
-                to everyone.
+                404 if the activity does not exist.
+                403 if it is not a comment (system history is immutable).
         """
 
         aktivitet = self.db.get(Sagsaktivitet, aktivitet_id)
@@ -112,7 +87,12 @@ class AktivitetService:
                 detail=f"Aktivitet not found: {aktivitet_id}",
             )
 
-        if aktivitet.aktivitetstype != DELETABLE_AKTIVITETSTYPE:
+        is_kommentar = (
+            aktivitet.type_kode == DELETABLE_TYPE_KODE
+            or aktivitet.aktivitetstype == "Kommentar"
+        )
+
+        if not is_kommentar:
             raise HTTPException(
                 status_code=403,
                 detail=(

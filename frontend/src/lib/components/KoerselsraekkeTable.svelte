@@ -87,6 +87,44 @@
   const isSkolerejsekort = (typeId: string | number | null | undefined) =>
     typeIsSkolerejsekort(lookupOptions.koerselstyper, typeId);
 
+  function koerselRowStatus(row: any): 'aktiv' | 'kommende' | 'historisk' {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+    const fra = new Date(row.gyldig_fra).getTime();
+    const til = new Date(row.gyldig_til).getTime();
+    if (fra <= todayMs && todayMs <= til) return 'aktiv';
+    if (fra > todayMs) return 'kommende';
+    return 'historisk';
+  }
+
+  $: sortedRows = (() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+
+    function group(row: any): number {
+      const fra = new Date(row.gyldig_fra).getTime();
+      const til = new Date(row.gyldig_til).getTime();
+      if (fra <= todayMs && todayMs <= til) return 0; // aktiv
+      if (fra > todayMs) return 1;                    // kommende
+      return 2;                                       // historisk
+    }
+
+    return [...rows].sort((a, b) => {
+      const ga = group(a);
+      const gb = group(b);
+      if (ga !== gb) return ga - gb;
+      const fra_a = new Date(a.gyldig_fra).getTime();
+      const fra_b = new Date(b.gyldig_fra).getTime();
+      const til_a = new Date(a.gyldig_til).getTime();
+      const til_b = new Date(b.gyldig_til).getTime();
+      if (ga === 0) return til_a - til_b; // aktiv: earliest end first
+      if (ga === 1) return fra_a - fra_b; // kommende: earliest start first
+      return til_b - til_a;              // historisk: most recent end first
+    });
+  })();
+  
   const isKoerselType = (typeId: string | number | null | undefined) =>
     typeIsKoersel(lookupOptions.koerselstyper, typeId);
 
@@ -808,9 +846,10 @@
     <p class="text-sm text-gray-400 py-2">Ingen kørselsrækker endnu.</p>
   {/if}
 
-  {#each rows as row}
+  {#each sortedRows as row}
 
     {@const isEditing = editingKoerselId === row.koersel_id}
+    {@const rowStatus = koerselRowStatus(row)}
 
     {#if isEditing}
 
@@ -1060,7 +1099,9 @@
       {@const isSRK = labelIsSkolerejsekort(row.befordringstype_tekst)}
 
       <!-- Labeled field grid view (matches the bevilling header card) -->
-      <div class="mb-2 bg-white rounded-lg border shadow-sm overflow-hidden {row.final ? 'border-gray-200' : 'border-gray-300'}" style="border-left: 3px solid {row.final ? '#9ca3af' : '#2ab4a0'};">
+      <div class="mb-2 rounded-lg border shadow-sm overflow-hidden
+        {rowStatus === 'aktiv' ? 'bg-green-50 border-green-200' : rowStatus === 'kommende' ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}"
+        style="border-left: 4px solid {rowStatus === 'aktiv' ? '#16a34a' : rowStatus === 'kommende' ? '#9333ea' : '#9ca3af'};">
 
         <div class="flex items-start justify-between gap-4 px-4 py-4">
 
@@ -1202,6 +1243,7 @@
 
           <!-- Handlinger -->
           <div class="flex items-center gap-2 shrink-0">
+
             {#if row.final}
               <!-- Locked state: redigér + closed lock icon (mirrors unlocked layout) -->
               {#if !readonly}

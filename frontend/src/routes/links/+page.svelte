@@ -22,10 +22,15 @@
     "inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:underline";
 </script>
 
-<div class="p-8 max-w-2xl">
-  <h1 class="text-2xl font-semibold text-gray-800 mb-6">Links</h1>
-
+<section class="max-w-2xl">
   <ReadOnlyNotice />
+
+
+  <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Links</h1>
+    </div>
+  </div>
   <ul class="space-y-3">
     {#each reports as report}
       <li>
@@ -89,4 +94,4 @@
       Hent modtagerliste (CSV)
     </a>
   </section>
-</div>
+</section>

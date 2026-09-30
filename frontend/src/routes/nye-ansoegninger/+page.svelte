@@ -19,6 +19,14 @@
   $: overOneWeek = ansoegninger.filter(a => (daysSince(a.ansoegningsdato) ?? 0) >= 7).length;
   $: overTwoWeeks = ansoegninger.filter(a => (daysSince(a.ansoegningsdato) ?? 0) >= 10).length;
 
+  let quickFilter: null | 'over7' | 'over10' = null;
+
+  $: displayedAnsoegninger = quickFilter === 'over10'
+    ? ansoegninger.filter(a => (daysSince(a.ansoegningsdato) ?? 0) >= 10)
+    : quickFilter === 'over7'
+    ? ansoegninger.filter(a => (daysSince(a.ansoegningsdato) ?? 0) >= 7)
+    : ansoegninger;
+
   async function handleDropdownChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     if (!target.dataset.bevillingId || !target.dataset.field) return;
@@ -180,17 +188,20 @@
     },
     {
       key: "foerste_koersel_dato",
-      label: "Første kørselsdato",
+      label: "Ønsket startdato",
       render: (row: any) => formatDanishDate(row.foerste_koersel_dato)
     },
     {
       key: "ansoegningstype",
-      label: "Kørsel"
+      label: "Kørsel",
+      filterType: "select",
+      multiSelect: true
     },
     {
-      key: "sagsbehandler_id",
+      key: "sagsbehandler",
       label: "Sagsbehandler",
-      filterable: false,
+      filterType: "select",
+      multiSelect: true,
       render: (row: any) => buildSelect(
         row.bevilling_id,
         "sagsbehandler_id",
@@ -200,9 +211,10 @@
       )
     },
     {
-      key: "ppr_sagsbehandler_id",
+      key: "ppr_sagsbehandler_tekst",
       label: "PPR ansvarlig",
-      filterable: false,
+      filterType: "select",
+      multiSelect: true,
       render: (row: any) => buildSelect(
         row.bevilling_id,
         "ppr_sagsbehandler_id",
@@ -222,18 +234,16 @@
 
 <section>
 
-  <!-- Page header -->
-  <div class="flex items-start justify-between mb-6">
+  <ReadOnlyNotice />
+
+  <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Nye ansøgninger</h1>
       <p class="text-sm text-gray-500 mt-0.5">Ansøgninger der afventer behandling</p>
     </div>
   </div>
 
-
-  <ReadOnlyNotice />
-
-
+  
   {#if assignError}
     <div class="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
       <p class="text-sm text-red-700 flex-1">{assignError}</p>
@@ -249,25 +259,38 @@
 
 
   <!-- Summary card -->
-  <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 mb-6 flex items-center gap-8">
-    <div>
-      <p class="text-4xl font-bold text-gray-900">{ansoegninger.length}</p>
+  <div class="bg-white border border-gray-300 rounded-lg shadow px-6 py-5 mb-5 flex items-center gap-8">
+    <button type="button"
+      class="flex flex-col items-center rounded px-2 py-1 -mx-2 -my-1 transition-colors min-w-[10rem]"
+      class:hover:bg-gray-100={quickFilter !== null}
+      class:cursor-pointer={quickFilter !== null}
+      class:cursor-default={quickFilter === null}
+      on:click={() => { if (quickFilter !== null) quickFilter = null; }}>
+      <p class="text-3xl font-bold text-gray-900">{ansoegninger.length}</p>
       <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Afventer</p>
-    </div>
+    </button>
 
     <div class="h-10 w-px bg-gray-200"></div>
 
-    <div>
-      <p class="text-2xl font-bold {overTwoWeeks > 0 ? 'text-red-600' : 'text-gray-400'}">{overTwoWeeks}</p>
-      <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Venter over 10 dage</p>
-    </div>
-
-    <div class="h-10 w-px bg-gray-200"></div>
-
-    <div>
-      <p class="text-2xl font-bold" style={overOneWeek > 0 ? 'color:#ca8a04;' : 'color:#9ca3af;'}>{overOneWeek}</p>
+    <button type="button"
+      class="flex flex-col items-center hover:bg-amber-50 transition-colors rounded px-2 py-1 -mx-2 -my-1 min-w-[10rem]"
+      class:ring-2={quickFilter === 'over7'}
+      class:ring-amber-400={quickFilter === 'over7'}
+      on:click={() => { quickFilter = quickFilter === 'over7' ? null : 'over7'; }}>
+      <p class="text-3xl font-bold" style={overOneWeek > 0 ? 'color:#ca8a04;' : 'color:#9ca3af;'}>{overOneWeek}</p>
       <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Venter over 7 dage</p>
-    </div>
+    </button>
+
+    <div class="h-10 w-px bg-gray-200"></div>
+
+    <button type="button"
+      class="flex flex-col items-center hover:bg-red-50 transition-colors rounded px-2 py-1 -mx-2 -my-1 min-w-[10rem]"
+      class:ring-2={quickFilter === 'over10'}
+      class:ring-red-400={quickFilter === 'over10'}
+      on:click={() => { quickFilter = quickFilter === 'over10' ? null : 'over10'; }}>
+      <p class="text-3xl font-bold" style={overTwoWeeks > 0 ? 'color:#dc2626;' : 'color:#9ca3af;'}>{overTwoWeeks}</p>
+      <p class="text-xs uppercase tracking-widest text-gray-400 mt-1.5">Venter over 10 dage</p>
+    </button>
   </div>
 
 
@@ -286,25 +309,13 @@
 
   {:else}
 
-    <!-- Applications table -->
-    <div class="mb-3 px-3 py-2 bg-white rounded-lg border border-gray-300 shadow-sm flex items-center gap-2.5">
-      <div class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></div>
-      <h2 class="font-semibold text-gray-700">Nye ansøgninger</h2>
-      <span
-        class="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-white text-xs font-bold"
-        style="background-color: #032A42;"
-      >
-        {ansoegninger.length}
-      </span>
-    </div>
-
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
       class="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm mb-6"
       on:change={handleDropdownChange}
     >
       <DataTable
-        data={ansoegninger}
+        data={displayedAnsoegninger}
         columns={columns}
         filterable={true}
         rowStyle={rowUrgencyStyle}
