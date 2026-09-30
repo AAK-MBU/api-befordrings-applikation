@@ -116,12 +116,28 @@ class Foraelder(Base):
     adresse = relationship("Adresse")
 
 
+class SagsaktivitetType(Base):
+    """Lookup table for canonical Sagsaktivitet type codes.
+
+    type_kode is the machine-readable key used for styling and logic;
+    aktivitetstype on Sagsaktivitet is the human-readable display string.
+    """
+
+    __tablename__ = "SagsaktivitetType"
+    __table_args__ = {"schema": DB_SCHEMA}
+
+    type_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    type_kode: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+
+    aktiviteter: Mapped[list["Sagsaktivitet"]] = relationship(back_populates="type")
+
+
 class Sagsaktivitet(Base):
     """Audit log of case-level events for a citizen.
 
-    Intentionally has no FK constraints in the database (matching the DB
-    design), so rows survive bevilling deletes and can reference CPRs that
-    are not yet in the Elev table.
+    Intentionally has no FK constraints to Bevilling/Elev in the database,
+    so rows survive bevilling deletes and can reference CPRs not yet in Elev.
+    aktivitetstype_id IS a proper FK to SagsaktivitetType for structured queries.
     """
 
     __tablename__ = "Sagsaktivitet"
@@ -134,7 +150,7 @@ class Sagsaktivitet(Base):
     )
 
     cpr: Mapped[str] = mapped_column(String(10), nullable=False)
-    aktivitetstype: Mapped[str] = mapped_column(String(50), nullable=False)
+    aktivitetstype: Mapped[str] = mapped_column(String(500), nullable=False)
     kommentar: Mapped[str | None] = mapped_column(Unicode, nullable=True)
     udfoert_af: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
@@ -146,6 +162,17 @@ class Sagsaktivitet(Base):
 
     # Soft reference — no FK constraint in the DB.
     relateret_bevilling_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    aktivitetstype_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey(f"{DB_SCHEMA}.SagsaktivitetType.type_id"),
+        nullable=True,
+    )
+    type: Mapped["SagsaktivitetType | None"] = relationship(back_populates="aktiviteter")
+
+    @property
+    def type_kode(self) -> str | None:
+        return self.type.type_kode if self.type else None
 
 
 class Part(Base):

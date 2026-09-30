@@ -45,6 +45,10 @@ DELETE FROM [befordring].[Rutetype];
 DELETE FROM [befordring].[PortalAuditLog];
 DELETE FROM [befordring].[Sagsbehandler];
 DELETE FROM [befordring].[Sagsaktivitet];
+-- Out of alphabetical order deliberately: Sagsaktivitet holds
+-- FK_Sagsaktivitet_Type into this table, so it cannot be cleared until the
+-- line above has run.
+DELETE FROM [befordring].[SagsaktivitetType];
 DELETE FROM [befordring].[Skolematrikel];
 DELETE FROM [befordring].[Status];
 DELETE FROM [befordring].[Tidspunkt];
@@ -70,6 +74,7 @@ DBCC CHECKIDENT ('[befordring].[Tidspunkt]', RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Ugedag]', RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Ungdomsuddannelse]', RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Rutetype]', RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[SagsaktivitetType]', RESEED, 0);
 
 
 PRINT 'Starting test data insert';
@@ -104,6 +109,28 @@ INSERT INTO [befordring].[PPR_Sagsbehandler]
 VALUES
     ('Hans',    '', 1),
     ('Kirsten', '', 1);
+
+
+-- The event kinds the Sagsforløb feed knows. Created by migration 023
+-- (plus 024 and 025); seeded here too so a dev database rebuilt from this
+-- file ends up with the same set.
+INSERT INTO [befordring].[SagsaktivitetType] (type_kode)
+VALUES
+    (N'bevilling_oprettet'),
+    (N'bevilling_ophoert'),
+    (N'bevilling_slettet'),
+    (N'brev_afsendt'),
+    (N'brev_oprettet'),
+    (N'br_revurderet'),
+    (N'br_revurderet_fjernet'),
+    (N'kommentar'),
+    (N'koerselsraekke_oprettet'),
+    (N'koerselsraekke_slettet'),
+    (N'ppr_ansvarlig_opdateret'),
+    (N'ppr_revurderet'),
+    (N'ppr_revurderet_fjernet'),
+    (N'sagsbehandler_opdateret'),
+    (N'status_opdateret');
 
 
 INSERT INTO [befordring].[Skolematrikel]
@@ -1498,6 +1525,66 @@ VALUES
 ('1414101234', 'Brev oprettet', 'Bevilling: § 26, stk. 1, nr. 1 (afstand)',            'Nina',  DATEADD(MINUTE, 600, DATEADD(DAY, -420, @nu)), @bevilling_14);
 
 
+/* ------------------------------------------------------------
+   Events that exist ONLY as a type code
+
+   koerselsraekke_oprettet and brev_afsendt were added after the code
+   taxonomy (migrations 024 and 025), so they have no legacy Danish string
+   the feed could fall back on. Seeding a couple exercises the path where
+   type_kode is the only thing the frontend has to go on — the rows above
+   all still carry text that the fallback would match, so without these the
+   dev feed would never test it.
+------------------------------------------------------------ */
+
+INSERT INTO [befordring].[Sagsaktivitet]
+    (cpr, aktivitetstype, kommentar, udfoert_af, oprettet_tidspunkt, relateret_bevilling_id)
+VALUES
+('0101101234', 'Kørselsrække oprettet', 'Kørselsrække tilføjet til bevillingen.', 'Sofie', DATEADD(MINUTE, 620, DATEADD(DAY, -184, @nu)), @bevilling_1),
+('0101101234', 'Brev afsendt',          'Bevillingsbrev markeret som afsendt.',   'Sofie', DATEADD(MINUTE, 640, DATEADD(DAY, -180, @nu)), @bevilling_1),
+('1212101234', 'Brev afsendt',          'Bevillingsbrev markeret som afsendt.',   'Nina',  DATEADD(MINUTE, 530, DATEADD(DAY, -399, @nu)), @bevilling_12),
+
+-- Deliberately unmapped: no type_kode will match this text, so the row keeps
+-- aktivitetstype_id NULL. That is the state of every row written before
+-- migration 023, and the feed has to render it from the text alone.
+('0707101234', 'Ukendt hændelse',       'Række uden kendt type — falder tilbage på teksten.', 'System', DATEADD(MINUTE, 700, DATEADD(DAY, -9, @nu)), (SELECT TOP 1 bevilling_id FROM [befordring].[Bevilling] WHERE cpr_elev = '0707101234' ORDER BY bevilling_id DESC));
+
+
+/* ------------------------------------------------------------
+   Resolve aktivitetstype_id from the text
+
+   The same mapping migration 023 uses, applied here so the test data looks
+   like a database that has been through it. Done as an UPDATE rather than a
+   column on every VALUES row: the rows above stay readable, and a row added
+   later is covered without anyone remembering to set the id by hand.
+
+   A text matching no code keeps NULL — see the row seeded for exactly that.
+------------------------------------------------------------ */
+
+UPDATE sa
+SET    sa.aktivitetstype_id = t.type_id
+FROM       [befordring].[Sagsaktivitet]     sa
+INNER JOIN [befordring].[SagsaktivitetType] t ON t.type_kode = CASE
+    WHEN sa.aktivitetstype = N'Bevilling oprettet'        THEN N'bevilling_oprettet'
+    WHEN sa.aktivitetstype = N'Bevilling slettet'         THEN N'bevilling_slettet'
+    WHEN sa.aktivitetstype = N'Brev oprettet'             THEN N'brev_oprettet'
+    WHEN sa.aktivitetstype = N'Brev afsendt'              THEN N'brev_afsendt'
+    WHEN sa.aktivitetstype = N'Kørselsrække oprettet'     THEN N'koerselsraekke_oprettet'
+    WHEN sa.aktivitetstype = N'Kørselsrække slettet'      THEN N'koerselsraekke_slettet'
+    WHEN sa.aktivitetstype LIKE N'Status sat til %'       THEN N'status_opdateret'
+    WHEN sa.aktivitetstype = N'Sagsbehandler opdateret'   THEN N'sagsbehandler_opdateret'
+    WHEN sa.aktivitetstype = N'PPR ansvarlig opdateret'   THEN N'ppr_ansvarlig_opdateret'
+    WHEN sa.aktivitetstype = N'PPR Revurderet'            THEN N'ppr_revurderet'
+    WHEN sa.aktivitetstype = N'PPR revurderet fjernet'    THEN N'ppr_revurderet_fjernet'
+    WHEN sa.aktivitetstype = N'BR Revurderet'             THEN N'br_revurderet'
+    WHEN sa.aktivitetstype = N'BR revurderet fjernet'     THEN N'br_revurderet_fjernet'
+    WHEN sa.aktivitetstype = N'Bevilling sat til Ophørt'  THEN N'bevilling_ophoert'
+    WHEN sa.aktivitetstype = N'Kommentar'                 THEN N'kommentar'
+    ELSE NULL
+END
+WHERE sa.aktivitetstype_id IS NULL;
+PRINT CONCAT('Sagsaktivitet: satte aktivitetstype_id på ', @@ROWCOUNT, ' række(r).');
+
+
 /* ============================================================
    Backfill sagsbehandlingsdato from each bevilling's letter date.
    Mirrors the runtime behaviour: the case is processed on the day its
@@ -1534,7 +1621,11 @@ SELECT * FROM [befordring].[view_All_Active_Bevillinger];
 SELECT * FROM [befordring].[view_New_Applications];
 SELECT * FROM [befordring].[view_Revurderinger];
 SELECT * FROM [befordring].[view_Genbehandling];
-SELECT * FROM [befordring].[Sagsaktivitet] ORDER BY cpr, oprettet_tidspunkt;
+SELECT   sa.aktivitet_id, sa.cpr, sa.aktivitetstype, t.type_kode,
+         sa.kommentar, sa.udfoert_af, sa.oprettet_tidspunkt
+FROM     [befordring].[Sagsaktivitet] sa
+LEFT JOIN [befordring].[SagsaktivitetType] t ON t.type_id = sa.aktivitetstype_id
+ORDER BY sa.cpr, sa.oprettet_tidspunkt;
 
 PRINT '';
 PRINT 'ROLLBACK is active. Change to COMMIT when the data looks correct.';

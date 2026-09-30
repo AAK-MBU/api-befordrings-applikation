@@ -15,7 +15,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models.bevilling import Brev
-
+from app.services.bevilling_service import BevillingService
 
 class BrevService:
     """Service class for Brev operations."""
@@ -169,6 +169,7 @@ class BrevService:
             )
 
         updated: list[int] = []
+        newly_afsendte: list[Brev] = []
         stamped = datetime.now()
 
         for brev in breve:
@@ -179,8 +180,22 @@ class BrevService:
             brev.afsendt_tidspunkt = stamped if afsendt else None
             brev.afsendt_af = afsendt_af if afsendt else None
             updated.append(brev.brev_id)
+            if afsendt:
+                newly_afsendte.append(brev)
 
         self.db.commit()
+
+        if newly_afsendte:
+            bev_service = BevillingService(db=self.db)
+            for brev in newly_afsendte:
+                bev_service._log_event(
+                    cpr=brev.cpr_elev,
+                    type_kode="brev_afsendt",
+                    aktivitetstype="Brev markeret som afsendt",
+                    kommentar=f"Brev ID: {brev.brev_id}",
+                    relateret_bevilling_id=brev.bevilling_id,
+                    udfoert_af=afsendt_af,
+                )
 
         return {
             "updated": updated,

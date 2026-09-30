@@ -1,4 +1,4 @@
--- Migration 023: Add esdh_url to Bevilling
+-- Migration 026: Add esdh_url to Bevilling
 -- Run once against the target database (test / prod).
 -- Safe to re-run — the IF NOT EXISTS guard makes it idempotent.
 --

@@ -196,17 +196,6 @@
       const result = await response.json();
       const bevillingId = Number(selectedLetterBevillingId);
 
-      await backendFetch(`/aktivitet/${cpr}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aktivitetstype: "Brev oprettet",
-          kommentar: `${bevillingLabel(selectedBevilling)} (ID: ${bevillingId})`,
-          relateret_bevilling_id: bevillingId,
-          udfoert_af: null,
-        }),
-      });
-
       // Deliberately not close(): the ATS reference appears nowhere else in the
       // app, so closing on success would throw away the only chance to read it.
       // The body swaps to a confirmation panel and Luk does the closing.

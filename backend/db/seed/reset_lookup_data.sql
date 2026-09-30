@@ -17,7 +17,8 @@
      lookup / reference data      Status, Hjemmel, Afgoerelsesbrev,
                                   Befordringstype, Tidspunkt, Rutetype,
                                   Ugedag, Hjaelpemiddel, KoerselstypeTillaeg,
-                                  Skolematrikel, Ungdomsuddannelse
+                                  SagsaktivitetType, Skolematrikel,
+                                  Ungdomsuddannelse
 
    WHAT IS KEPT
 
@@ -128,6 +129,9 @@ PRINT CONCAT('Released school references on ', @@ROWCOUNT, ' elev(er).');
    3. Lookup / reference data
 ------------------------------------------------------------ */
 
+/* Sagsaktivitet is cleared above, so nothing references SagsaktivitetType
+   by the time this runs. */
+DELETE FROM [befordring].[SagsaktivitetType];
 DELETE FROM [befordring].[Afgoerelsesbrev];
 DELETE FROM [befordring].[Befordringstype];
 DELETE FROM [befordring].[Hjaelpemiddel];
@@ -174,7 +178,8 @@ SELECT @count_sql = STRING_AGG(
                                     N'Afgoerelsesbrev', N'Befordringstype',
                                     N'Hjaelpemiddel', N'Hjemmel',
                                     N'KoerselstypeTillaeg', N'Rutetype',
-                                    N'Skolematrikel', N'Status',
+                                    N'SagsaktivitetType', N'Skolematrikel',
+                                    N'Status',
                                     N'Tidspunkt', N'Ugedag',
                                     N'Ungdomsuddannelse')
                      THEN 'cleared here' ELSE '' END

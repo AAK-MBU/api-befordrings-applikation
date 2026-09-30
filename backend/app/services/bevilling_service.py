@@ -31,7 +31,7 @@ from app.models.bevilling import (
     KoerselKoerselstypeTillaegLink,
     KoerselUgedagLink,
 )
-from app.models.citizen import Elev, Sagsaktivitet
+from app.models.citizen import Elev, Sagsaktivitet, SagsaktivitetType
 from app.models.lookup import PPRSagsbehandler, Sagsbehandler, Status
 from app.utils.afstandskriterie import (
     MIDLERTIDIG_KOERSEL,
@@ -59,9 +59,22 @@ class BevillingService:
         self.db = db
 
 
+    def _get_aktivitetstype_id(self, type_kode: str) -> int | None:
+        """Look up the SagsaktivitetType.type_id for a given type_kode."""
+        if not hasattr(self, "_type_id_cache"):
+            self._type_id_cache: dict[str, int | None] = {}
+        if type_kode not in self._type_id_cache:
+            self._type_id_cache[type_kode] = self.db.execute(
+                select(SagsaktivitetType.type_id).where(
+                    SagsaktivitetType.type_kode == type_kode
+                )
+            ).scalar_one_or_none()
+        return self._type_id_cache[type_kode]
+
     def _log_event(
         self,
         cpr: str,
+        type_kode: str,
         aktivitetstype: str,
         kommentar: str | None = None,
         relateret_bevilling_id: int | None = None,
@@ -69,15 +82,19 @@ class BevillingService:
     ) -> None:
         """Log a case event to Sagsaktivitet.
 
-        Audit logging is best-effort: it must never break the primary write
-        operation. On any failure the transaction is rolled back and the error
-        is swallowed.
+        Audit logging is best-effort: failures are swallowed so they never
+        break the primary write operation.
+
+        Args:
+            type_kode: Machine-readable FK to SagsaktivitetType (e.g. "status_opdateret").
+            aktivitetstype: Human-readable display label (e.g. "Status sat til Aktiv").
         """
 
         try:
             self.db.add(Sagsaktivitet(
                 cpr=cpr,
                 aktivitetstype=aktivitetstype,
+                aktivitetstype_id=self._get_aktivitetstype_id(type_kode),
                 kommentar=kommentar,
                 udfoert_af=udfoert_af,
                 relateret_bevilling_id=relateret_bevilling_id,
@@ -683,6 +700,7 @@ class BevillingService:
 
         self._log_event(
             cpr=cpr,
+            type_kode="bevilling_oprettet",
             aktivitetstype="Bevilling oprettet",
             kommentar=(
                 f"Bevilling {bevilling.loebenummer} "
@@ -731,6 +749,14 @@ class BevillingService:
 
         self._validate_koerselsraekke_dates(new_koerselsraekke_data)
 
+        bevilling = self.db.get(Bevilling, bevilling_id)
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+        cpr = bevilling.cpr_elev
+
         try:
             koerselsraekke_values = {
                 **new_koerselsraekke_data,
@@ -768,7 +794,7 @@ class BevillingService:
             self.db.commit()
             self.db.refresh(koersel)
 
-            return {
+            result = {
                 "koersel_id": koersel.koersel_id,
                 "rows_inserted": 1,
                 "status": status_result,
@@ -777,6 +803,17 @@ class BevillingService:
         except Exception:
             self.db.rollback()
             raise
+
+        self._log_event(
+            cpr=cpr,
+            type_kode="koerselsraekke_oprettet",
+            aktivitetstype="Kørselsrække oprettet",
+            kommentar=f"Koersel ID: {koersel.koersel_id} — {koersel.gyldig_fra} til {koersel.gyldig_til}",
+            relateret_bevilling_id=bevilling_id,
+            udfoert_af=udfoert_af,
+        )
+
+        return result
 
 
     def update_bevilling(self, bevilling_id: int, bevilling_data: dict, udfoert_af: str = "System"):
@@ -827,6 +864,9 @@ class BevillingService:
             "ppr_sagsbehandler_id": bevilling.ppr_sagsbehandler_id,
             "revurderet_af_ppr": bevilling.revurderet_af_ppr,
             "revurderet_af_br": bevilling.revurderet_af_br,
+            # Captured before reset_status can overwrite it, so the status log
+            # only fires when the status genuinely changed from the user's view.
+            "status_id": bevilling.status_id,
         }
 
         ophoert_status_id = self.get_status_id_by_text("Ophørt")
@@ -953,7 +993,8 @@ class BevillingService:
         if ophoert_transition:
             self._log_event(
                 cpr,
-                "Bevilling sat til Ophørt",
+                type_kode="bevilling_ophoert",
+                aktivitetstype="Bevilling sat til Ophørt",
                 kommentar=(
                     "Sagsbehandlingsdato sat til i dag"
                     + (
@@ -995,7 +1036,9 @@ class BevillingService:
         if "sagsbehandler_id" in new_data and new_data["sagsbehandler_id"] != old_values["sagsbehandler_id"]:
             name = self._get_sagsbehandler_name(new_data["sagsbehandler_id"])
             self._log_event(
-                cpr, "Sagsbehandler opdateret",
+                cpr,
+                type_kode="sagsbehandler_opdateret",
+                aktivitetstype="Sagsbehandler opdateret",
                 kommentar=f"Sagsbehandler sat til {name}" if name else None,
                 relateret_bevilling_id=bevilling_id,
                 udfoert_af=udfoert_af,
@@ -1004,26 +1047,47 @@ class BevillingService:
         if "ppr_sagsbehandler_id" in new_data and new_data["ppr_sagsbehandler_id"] != old_values["ppr_sagsbehandler_id"]:
             name = self._get_ppr_name(new_data["ppr_sagsbehandler_id"])
             self._log_event(
-                cpr, "PPR ansvarlig opdateret",
+                cpr,
+                type_kode="ppr_ansvarlig_opdateret",
+                aktivitetstype="PPR ansvarlig opdateret",
                 kommentar=f"PPR ansvarlig sat til {name}" if name else None,
                 relateret_bevilling_id=bevilling_id,
                 udfoert_af=udfoert_af,
             )
 
         if "revurderet_af_ppr" in new_data and new_data["revurderet_af_ppr"] != old_values["revurderet_af_ppr"]:
-            label = "PPR Revurderet" if new_data["revurderet_af_ppr"] else "PPR revurderet fjernet"
-            self._log_event(cpr, label, relateret_bevilling_id=bevilling_id, udfoert_af=udfoert_af)
+            is_set = new_data["revurderet_af_ppr"]
+            self._log_event(
+                cpr,
+                type_kode="ppr_revurderet" if is_set else "ppr_revurderet_fjernet",
+                aktivitetstype="PPR Revurderet" if is_set else "PPR revurderet fjernet",
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
 
-        br_changed = "revurderet_af_br" in new_data and new_data["revurderet_af_br"] != old_values["revurderet_af_br"]
-        if br_changed:
-            label = "BR Revurderet" if new_data["revurderet_af_br"] else "BR revurderet fjernet"
-            self._log_event(cpr, label, relateret_bevilling_id=bevilling_id, udfoert_af=udfoert_af)
+        if "revurderet_af_br" in new_data and new_data["revurderet_af_br"] != old_values["revurderet_af_br"]:
+            is_set = new_data["revurderet_af_br"]
+            self._log_event(
+                cpr,
+                type_kode="br_revurderet" if is_set else "br_revurderet_fjernet",
+                aktivitetstype="BR Revurderet" if is_set else "BR revurderet fjernet",
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
 
-        if status_result.get("rows_updated", 0) > 0:
+        # Only log a status event when the status actually changed from what it
+        # was before this update. When reset_status=True temporarily sets the DB
+        # to "Ny", the SP always reports rows_updated=1 even if the real status
+        # stays the same (e.g. Aktiv → reset to Ny → SP recalculates Aktiv).
+        # Comparing against old_values["status_id"] catches that case.
+        sp_changed = status_result.get("rows_updated", 0) > 0
+        real_change = status_result.get("status_id") != old_values.get("status_id")
+        if sp_changed and real_change:
             new_status = status_result["status_text"]
             self._log_event(
                 cpr,
-                f"Status sat til {new_status}",
+                type_kode="status_opdateret",
+                aktivitetstype=f"Status sat til {new_status}",
                 kommentar=status_result.get("status_reason") or self._STATUS_KOMMENTAR.get(new_status),
                 relateret_bevilling_id=bevilling_id,
                 udfoert_af=udfoert_af,
@@ -1441,7 +1505,8 @@ class BevillingService:
 
         self._log_event(
             cpr,
-            "Bevilling slettet",
+            type_kode="bevilling_slettet",
+            aktivitetstype="Bevilling slettet",
             kommentar=f"Bevilling ID: {bevilling_id}",
             relateret_bevilling_id=bevilling_id,
             udfoert_af=udfoert_af,
@@ -1486,7 +1551,8 @@ class BevillingService:
 
         self._log_event(
             cpr,
-            "Kørselsrække slettet",
+            type_kode="koerselsraekke_slettet",
+            aktivitetstype="Kørselsrække slettet",
             kommentar=f"Koersel ID: {koersel_id}, Bevilling ID: {bevilling_id}",
             relateret_bevilling_id=bevilling_id,
             udfoert_af=udfoert_af,

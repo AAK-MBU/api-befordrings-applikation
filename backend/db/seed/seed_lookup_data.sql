@@ -46,7 +46,8 @@
    verification selects at the bottom run BEFORE that decision, so they show
    what the commit would leave behind.
 
-   Requires migrations 001-022 (Rutetype arrives in 003).
+   Requires migrations 001-025 (Rutetype arrives in 003, SagsaktivitetType
+   in 023).
    ============================================================ */
 
 USE [Befordringssystemet];
@@ -109,6 +110,18 @@ OR     ungdomsuddannelse_id IS NOT NULL;
 
 PRINT CONCAT('Released school references on ', @@ROWCOUNT, ' elev(er).');
 
+/* FK_Sagsaktivitet_Type blocks the SagsaktivitetType delete the same way.
+   NULL is the right value here too: aktivitetstype still carries the display
+   text, so the Sagsforløb feed falls back to matching that — which is exactly
+   what it does for rows written before migration 023. The codes are
+   reassigned below, and the ids are not stable across a reseed, so keeping
+   the old ones would be worse than clearing them. */
+UPDATE [befordring].[Sagsaktivitet]
+SET    aktivitetstype_id = NULL
+WHERE  aktivitetstype_id IS NOT NULL;
+
+PRINT CONCAT('Released activity types on ', @@ROWCOUNT, ' sagsaktivitet(er).');
+
 
 /* ------------------------------------------------------------
    2. Clear every lookup table, then restart their identities
@@ -124,6 +137,7 @@ DELETE FROM [befordring].[Hjaelpemiddel];
 DELETE FROM [befordring].[Hjemmel];
 DELETE FROM [befordring].[KoerselstypeTillaeg];
 DELETE FROM [befordring].[Rutetype];
+DELETE FROM [befordring].[SagsaktivitetType];
 DELETE FROM [befordring].[Skolematrikel];
 DELETE FROM [befordring].[Status];
 DELETE FROM [befordring].[Tidspunkt];
@@ -144,6 +158,7 @@ DBCC CHECKIDENT ('[befordring].[Hjaelpemiddel]',      RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Hjemmel]',            RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[KoerselstypeTillaeg]', RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Rutetype]',           RESEED, 0);
+DBCC CHECKIDENT ('[befordring].[SagsaktivitetType]',   RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Skolematrikel]',      RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Status]',             RESEED, 0);
 DBCC CHECKIDENT ('[befordring].[Tidspunkt]',          RESEED, 0);
@@ -363,6 +378,38 @@ FROM (VALUES
 PRINT CONCAT('Rutetype: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
+-- SagsaktivitetType  (15 rows)
+--
+-- The event kinds the Sagsforløb feed knows. Written by the application as
+-- type_kode on every Sagsaktivitet row; the frontend styles and groups on the
+-- code rather than on the Danish text, so renaming a label no longer changes
+-- how the feed behaves.
+--
+-- Created and first seeded by migration 023 (plus 024 and 025). Listed here
+-- as well, because this file is the definition of what the lookups contain —
+-- a fresh database seeded from it must end up with the same set.
+INSERT INTO [befordring].[SagsaktivitetType] (type_kode)
+SELECT v.type_kode
+FROM (VALUES
+    (N'bevilling_oprettet'),
+    (N'bevilling_ophoert'),
+    (N'bevilling_slettet'),
+    (N'brev_afsendt'),
+    (N'brev_oprettet'),
+    (N'br_revurderet'),
+    (N'br_revurderet_fjernet'),
+    (N'kommentar'),
+    (N'koerselsraekke_oprettet'),
+    (N'koerselsraekke_slettet'),
+    (N'ppr_ansvarlig_opdateret'),
+    (N'ppr_revurderet'),
+    (N'ppr_revurderet_fjernet'),
+    (N'sagsbehandler_opdateret'),
+    (N'status_opdateret')
+) AS v (type_kode);
+PRINT CONCAT('SagsaktivitetType: ', @@ROWCOUNT, ' row(s) inserted.');
+
+
 -- Ugedag  (6 rows)
 INSERT INTO [befordring].[Ugedag] (dag_tekst, beskrivelse, aktiv)
 SELECT v.dag_tekst, v.beskrivelse, v.aktiv
@@ -394,6 +441,7 @@ UNION ALL SELECT 'Afgoerelsesbrev',     COUNT(*) FROM [befordring].[Afgoerelsesb
 UNION ALL SELECT 'KoerselstypeTillaeg', COUNT(*) FROM [befordring].[KoerselstypeTillaeg]
 UNION ALL SELECT 'Befordringstype',     COUNT(*) FROM [befordring].[Befordringstype]
 UNION ALL SELECT 'Tidspunkt',           COUNT(*) FROM [befordring].[Tidspunkt]
+UNION ALL SELECT 'SagsaktivitetType',   COUNT(*) FROM [befordring].[SagsaktivitetType]
 UNION ALL SELECT 'Rutetype',            COUNT(*) FROM [befordring].[Rutetype]
 UNION ALL SELECT 'Ugedag',              COUNT(*) FROM [befordring].[Ugedag]
 ORDER BY lookup_table;
@@ -421,6 +469,7 @@ UNION ALL SELECT 'Afgoerelsesbrev',     LTRIM(RTRIM(afgoerelsesbrev_tekst)),   C
 UNION ALL SELECT 'KoerselstypeTillaeg', LTRIM(RTRIM(tillaeg_tekst)),           COUNT(*) FROM [befordring].[KoerselstypeTillaeg] GROUP BY LTRIM(RTRIM(tillaeg_tekst))           HAVING COUNT(*) > 1
 UNION ALL SELECT 'Befordringstype',     LTRIM(RTRIM(befordringstype_tekst)),   COUNT(*) FROM [befordring].[Befordringstype]     GROUP BY LTRIM(RTRIM(befordringstype_tekst))   HAVING COUNT(*) > 1
 UNION ALL SELECT 'Tidspunkt',           LTRIM(RTRIM(tidspunkt_tekst)),         COUNT(*) FROM [befordring].[Tidspunkt]           GROUP BY LTRIM(RTRIM(tidspunkt_tekst))         HAVING COUNT(*) > 1
+UNION ALL SELECT 'SagsaktivitetType',   LTRIM(RTRIM(type_kode)),               COUNT(*) FROM [befordring].[SagsaktivitetType] GROUP BY LTRIM(RTRIM(type_kode))               HAVING COUNT(*) > 1
 UNION ALL SELECT 'Rutetype',            LTRIM(RTRIM(rutetype_tekst)),          COUNT(*) FROM [befordring].[Rutetype]            GROUP BY LTRIM(RTRIM(rutetype_tekst))          HAVING COUNT(*) > 1
 UNION ALL SELECT 'Ugedag',              LTRIM(RTRIM(dag_tekst)),               COUNT(*) FROM [befordring].[Ugedag]              GROUP BY LTRIM(RTRIM(dag_tekst))               HAVING COUNT(*) > 1;
 
@@ -471,6 +520,9 @@ DBCC CHECKIDENT ('[befordring].[KoerselstypeTillaeg]', RESEED, @naeste);
 
 SET @naeste = (SELECT ISNULL(MAX([rutetype_id]), 0) FROM [befordring].[Rutetype]);
 DBCC CHECKIDENT ('[befordring].[Rutetype]', RESEED, @naeste);
+
+SET @naeste = (SELECT ISNULL(MAX([type_id]), 0) FROM [befordring].[SagsaktivitetType]);
+DBCC CHECKIDENT ('[befordring].[SagsaktivitetType]', RESEED, @naeste);
 
 SET @naeste = (SELECT ISNULL(MAX([matrikel_id]), 0) FROM [befordring].[Skolematrikel]);
 DBCC CHECKIDENT ('[befordring].[Skolematrikel]', RESEED, @naeste);
