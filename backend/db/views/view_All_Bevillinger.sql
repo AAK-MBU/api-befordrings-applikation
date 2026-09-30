@@ -23,6 +23,7 @@ SELECT
     b.revurdering,
 	b.final,
     b.esdh_noegle,
+    b.esdh_url,
     sb.sagsbehandler_tekst      AS sagsbehandler,
     ppr.ppr_sagsbehandler_tekst
 FROM      [Befordringssystemet].[befordring].[Bevilling]         b

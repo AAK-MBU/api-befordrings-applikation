@@ -160,11 +160,18 @@
     {
       key: "esdh_noegle",
       label: "Sags-ID",
-      render: (row: any) => `
-        <a href="/sag/${row.cpr_elev}" class="text-sky-600 hover:underline">
-          ${row.esdh_noegle ?? ""}
-        </a>
-      `
+      // The key keeps linking to the student page: this table has no row
+      // click and the CPR column is plain text, so it is the only way in.
+      // GO gets its own small link beside it rather than taking the one that
+      // already carries the navigation.
+      render: (row: any) => {
+        const internt = `<a href="/sag/${row.cpr_elev}" class="text-sky-600 hover:underline">${row.esdh_noegle ?? ""}</a>`;
+
+        return row.esdh_url
+          ? `${internt} <a href="${encodeURI(row.esdh_url)}" target="_blank" rel="noopener noreferrer"
+                title="Åbn sagen i GO" class="ml-1 text-xs text-gray-500 hover:underline">GO</a>`
+          : internt;
+      }
     },
     {
       key: "ansoegningsdato",

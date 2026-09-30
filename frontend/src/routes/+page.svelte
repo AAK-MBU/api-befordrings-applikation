@@ -51,11 +51,17 @@
       key: "esdh_noegle",
       label: "Sags-ID",
       filterType: "text",
-      render: (row) => `
-        <a href="#" class="text-sky-600 hover:underline">
-          ${row.esdh_noegle ?? ""}
-        </a>
-      `
+      // The href was "#" — a link that went nowhere. It now opens the case in
+      // GO, where the nightly run has resolved a URL for it, and renders as
+      // plain text where it has not.
+      render: (row) => {
+        const noegle = row.esdh_noegle ?? "";
+
+        return row.esdh_url
+          ? `<a href="${encodeURI(row.esdh_url)}" target="_blank" rel="noopener noreferrer"
+                title="Åbn sagen i GO" class="text-sky-600 hover:underline">${noegle}</a>`
+          : `<span class="text-gray-500">${noegle}</span>`;
+      }
     },
     {
       key: "sagsbehandler",

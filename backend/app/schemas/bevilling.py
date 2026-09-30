@@ -33,6 +33,7 @@ class BevillingCreateRequest(BaseModel):
     revurderingsdato: date | None = None
     befordringsudvalg: date | None = None
     esdh_noegle: str | None = None
+    esdh_url: str | None = None
 
     sagsbehandler_id: int | None = None
     ppr_sagsbehandler_id: int | None = None

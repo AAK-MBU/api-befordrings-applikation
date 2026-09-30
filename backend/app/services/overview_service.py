@@ -78,6 +78,7 @@ class OverviewService:
             "cpr": bevilling.get("cpr_elev"),
             "status": bevilling.get("status_tekst"),
             "esdh_noegle": bevilling.get("esdh_noegle"),
+            "esdh_url": bevilling.get("esdh_url"),
             "sagsbehandler": bevilling.get("sagsbehandler"),
             "ppr_sagsbehandler": bevilling.get("ppr_sagsbehandler_tekst"),
             "revurdering": bevilling.get("revurdering"),
