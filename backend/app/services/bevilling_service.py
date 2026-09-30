@@ -1729,8 +1729,11 @@ class BevillingService:
                 # the SFO block (blok 4) on it.
                 "koersel_til_institution": row.get("koersel_til_institution"),
                 "max_minutter_i_transport": row.get("max_minutter_i_transport"),
-                # Egenbefordring-specific: the recipient's name, not the id.
+                # Egenbefordring-specific: who the godtgørelse is paid to,
+                # resolved to name and CPR rather than the id. Both are needed
+                # — the letter names the person and quotes their CPR.
                 "koerselsgodtgoerelse_modtager": row.get("koerselsgodtgoerelse_modtager"),
+                "koerselsgodtgoerelse_modtager_cpr": row.get("koerselsgodtgoerelse_modtager_cpr"),
             }
             for row in koersel_records
         ]

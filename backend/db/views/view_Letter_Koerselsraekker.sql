@@ -47,10 +47,21 @@ AS
         END AS koersel_til_institution,
         k.max_minutter_i_transport,
 
-        -- Egenbefordring-specific: the recipient's name, not the id. The id
-        -- means nothing in a letter, and this view resolves ids to text
-        -- everywhere else (befordringstype_tekst, tidspunkt_tekst, dage).
-        modtager.fulde_navn AS koerselsgodtgoerelse_modtager,
+        -- Egenbefordring-specific: who the kørselsgodtgørelse is paid to.
+        -- Resolved to name and CPR, not the id — the id means nothing in a
+        -- letter, and this view resolves ids to text everywhere else
+        -- (befordringstype_tekst, tidspunkt_tekst, dage).
+        --
+        -- The recipient lives in one of two mutually exclusive columns:
+        --   koerselsgodtgoerelse_modtager_id  -> Part      (øvrig part)
+        --   koerselsgodtgoerelse_modtager_cpr -> Foraelder (legal guardian)
+        -- so both are COALESCEd, exactly as view_Koerselsgodtgoerelse_Modtagere
+        -- does. Only the Part branch was resolved before, which left every
+        -- parent recipient blank in the letter.
+        COALESCE(foraelder.adresseringsnavn, modtager.fulde_navn)
+            AS koerselsgodtgoerelse_modtager,
+        COALESCE(foraelder.cpr_foraelder, modtager.cpr_nummer)
+            AS koerselsgodtgoerelse_modtager_cpr,
 
         dage.dage,
         tillaeg.koerselstype_tillaeg
@@ -91,6 +102,17 @@ AS
     LEFT JOIN
         [Befordringssystemet].[befordring].[Part] modtager
         ON modtager.part_id = k.koerselsgodtgoerelse_modtager_id
+    -- Foraelder is keyed on (cpr_foraelder, cpr_elev), so BOTH halves are
+    -- matched. On cpr_foraelder alone a parent with two children in the system
+    -- would multiply this kørselsrække into two rows, and the letter would
+    -- list it twice.
+    LEFT JOIN
+        [Befordringssystemet].[befordring].[Bevilling] bev
+        ON bev.bevilling_id = k.bevilling_id
+    LEFT JOIN
+        [Befordringssystemet].[befordring].[Foraelder] foraelder
+        ON  foraelder.cpr_foraelder = k.koerselsgodtgoerelse_modtager_cpr
+        AND foraelder.cpr_elev      = bev.cpr_elev
 -- A deleted kørselsrække must never reach a decision letter.
 WHERE
     k.aktiv = 1;
