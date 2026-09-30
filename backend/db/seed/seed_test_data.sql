@@ -290,12 +290,9 @@ VALUES
     ('Mellem hjem og klub',     '', 1),
     ('Mellem skole og klub',    '', 1),
     ('Mellem skole, klub, og hjem', '', 1),
-    ('Hjem til skole',          '', 1),
-    ('Hjem til klub',           '', 1),
-    ('Skole til hjem',          '', 1),
-    ('Skole til klub',          '', 1),
-    ('Klub til hjem',           '', 1),
-    ('Klub til skole',          '', 1);
+    ('Til skole',          '', 1),
+    ('Til hjem',          '', 1),
+    ('Til klub',           '', 1);
 
 
 INSERT INTO [befordring].[Ugedag]
