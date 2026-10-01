@@ -64,6 +64,7 @@ class BevillingUpdateRequest(BaseModel):
     reset_status: bool = False
     matrikel_id: int | None = None
     ungdomsuddannelse_id: int | None = None
+    ansoegningsdato: date | None = None
     sagsbehandlingsdato: date | None = None
     adresse_id: str | None = None
     afstandskriterie_dato: date | None = None
