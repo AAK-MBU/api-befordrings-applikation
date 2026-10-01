@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invalidateAll } from "$app/navigation";
 
   import { backendFetch } from "$lib/client/backendFetch";
@@ -11,6 +12,8 @@
   import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
   import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
   import { bevillingLabel } from "$lib/bevillingLabel";
+  import { aabnSagVindue } from "$lib/client/sagVindue";
+  import { lytPaaSagBesked } from "$lib/sagKanal";
   import {
     getStatusBadgeClass,
     formatCpr,
@@ -175,6 +178,35 @@
 
   let showCreateBevillingModal = false;
   let createBevillingMode: 'kopi' | 'tom' = 'kopi';
+
+  // Creating a bevilling happens in its own browser window, so the caseworker
+  // can keep the case on screen while filling the form in. The in-page modal
+  // stays as the fallback for a browser that refuses to open one.
+  function opretBevilling(mode: 'kopi' | 'tom') {
+    const sti = `/sag/${data.cpr}/opret-bevilling${mode === 'kopi' ? '?mode=kopi' : ''}`;
+
+    // Named per student and mode, so a second click focuses the window that is
+    // already open rather than discarding a half-filled form.
+    if (aabnSagVindue(sti, `opret-bevilling-${data.cpr}-${mode}`)) {
+      return;
+    }
+
+    createBevillingMode = mode;
+    showCreateBevillingModal = true;
+  }
+
+  function opretBrev() {
+    // Narrower than the bevilling window: the letter form is a single column.
+    if (aabnSagVindue(`/sag/${data.cpr}/opret-brev`, `opret-brev-${data.cpr}`, { bredde: 660 })) {
+      return;
+    }
+
+    showCreateLetterModal = true;
+  }
+
+  // A bevilling or brev created in that other window leaves this page showing
+  // a list without it. Reload when the other window says it saved.
+  onMount(() => lytPaaSagBesked(data.cpr, () => invalidateAll()));
 
 
   $: if (data) {
@@ -1014,7 +1046,7 @@
         class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         style="background-color: #032A42;"
         disabled={!canEdit}
-        on:click={() => { createBevillingMode = 'kopi'; showCreateBevillingModal = true; }}
+        on:click={() => opretBevilling('kopi')}
       >
         + Ny bevilling fra kopi
       </button>
@@ -1024,7 +1056,7 @@
         class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         style="background-color: #032A42;"
         disabled={!canEdit}
-        on:click={() => { createBevillingMode = 'tom'; showCreateBevillingModal = true; }}
+        on:click={() => opretBevilling('tom')}
       >
         + Ny bevilling fra tom
       </button>
@@ -1033,7 +1065,7 @@
         type="button"
         class="px-4 py-2 text-sm font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         disabled={!canEdit}
-        on:click={() => showCreateLetterModal = true}
+        on:click={opretBrev}
       >
         + Opret brev
       </button>

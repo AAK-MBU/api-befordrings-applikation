@@ -18,6 +18,10 @@
   export let cpr = "";
   export let bevillinger: any[] = [];
 
+  // Set when the form is the whole page rather than a modal over one — the
+  // separate "opret brev" window. See CreateBevillingModal for the reasoning.
+  export let standalone = false;
+
   const dispatch = createEventDispatcher();
 
   let selectedLetterBevillingId = "";
@@ -213,14 +217,22 @@
 
 <svelte:window
   on:keydown={(e) => {
-    if (open && e.key === "Escape") close();
+    // Not in standalone mode: there Escape would close the whole window and
+    // take the half-filled form with it, which is not what someone reaching
+    // for Escape in a window on another screen expects.
+    if (open && !standalone && e.key === "Escape") close();
   }}
 />
 
 {#if open}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="presentation">
+  <div
+    class={standalone
+      ? "min-h-screen bg-white"
+      : "fixed inset-0 z-50 flex items-center justify-center bg-black/40"}
+    role="presentation"
+  >
     <div
-      class="w-[560px] bg-white rounded-lg shadow-2xl"
+      class={standalone ? "w-full bg-white" : "w-[560px] bg-white rounded-lg shadow-2xl"}
       role="dialog"
       aria-modal="true"
       aria-label="Opret brev"

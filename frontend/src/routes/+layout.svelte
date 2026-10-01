@@ -27,6 +27,12 @@
 
   const currentPath = $derived($page.url.pathname);
 
+  // The create forms can be opened as their own browser window, parked on a
+  // second screen beside the case. Navigation chrome there would take room
+  // from the form and invite someone to navigate the popup off the form they
+  // are filling in.
+  const erLoesrevetVindue = $derived(/^\/sag\/[^/]+\/opret-/.test(currentPath));
+
   const pageBg = $derived(
     currentPath.startsWith('/nye-ansoegninger') ? 'bg-blue-50' :
     currentPath.startsWith('/revurdering') ? 'bg-orange-50' :
@@ -142,6 +148,7 @@
   }
 </script>
 
+{#if !erLoesrevetVindue}
 <nav style="background-color: #032A42; box-shadow: 0 2px 8px rgba(0,0,0,0.3);" class="px-4 md:px-8">
   <div class="flex items-center flex-wrap" style="min-height: 60px;">
 
@@ -357,8 +364,13 @@
 
   </div>
 </nav>
+{/if}
 
-<div class="px-4 md:px-8 py-4 md:py-6 min-h-[calc(100vh-60px)] {pageBg}">
+<div
+  class={erLoesrevetVindue
+    ? 'min-h-screen'
+    : `px-4 md:px-8 py-4 md:py-6 min-h-[calc(100vh-60px)] ${pageBg}`}
+>
   {@render children()}
 </div>
 

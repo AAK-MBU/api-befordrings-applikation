@@ -41,6 +41,12 @@
     // as the recipient of the kilometre reimbursement.
     export let parter: any[] = [];
 
+    // Set when the form is the whole page rather than a modal over one — the
+    // separate "opret bevilling" window. There is nothing behind it to dim and
+    // nothing to centre it in, so the backdrop and the fixed width only take
+    // room away from the form.
+    export let standalone = false;
+
     const dispatch = createEventDispatcher<{ created: void; cancel: void }>();
 
     function emptyToNull(value: any) { return value === "" ? null : value; }
@@ -634,9 +640,21 @@
     });
   </script>
 
-  <!-- Backdrop -->
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="presentation">
-    <div class="w-[1150px] max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">
+  <!-- Backdrop — absent in standalone mode, where the form is the page. -->
+  <div
+    class={standalone
+      ? "min-h-screen bg-white"
+      : "fixed inset-0 z-50 flex items-center justify-center bg-black/40"}
+    role="presentation"
+  >
+    <div
+      class={standalone
+        ? "w-full bg-white"
+        : "w-[1150px] max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-2xl"}
+      role="dialog"
+      aria-modal={standalone ? "false" : "true"}
+      tabindex="-1"
+    >
 
       <div class="sticky top-0 z-10 px-8 py-5 border-b border-gray-200" style="background-color: #032A42;">
         <h2 class="text-lg font-bold text-white">Opret ny bevilling</h2>
