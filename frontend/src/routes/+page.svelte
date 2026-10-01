@@ -54,6 +54,30 @@
       }
     },
     {
+      key: "koerselstyper",
+      label: "Kørselstype",
+      filterType: "select",
+      multiSelect: true,
+      // A bevilling can hold several kørselsrækker with different types, so
+      // the cell is a list rather than a single value. filterValues makes the
+      // dropdown offer each type on its own instead of one option per
+      // combination that happens to occur.
+      filterValues: (row: any) => row.koerselstyper ?? [],
+      render: (row: any) => {
+        const typer: string[] = row.koerselstyper ?? [];
+
+        if (typer.length === 0) {
+          return `<span class="text-gray-400">—</span>`;
+        }
+
+        return `<div class="flex flex-wrap gap-1">${typer
+          .map(
+            (type) => `<span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">${type}</span>`
+          )
+          .join("")}</div>`;
+      }
+    },
+    {
       key: "sagsbehandler",
       label: "Sagsbehandler",
       filterType: "select",
@@ -113,6 +137,7 @@
               <th class="px-4 py-3 font-semibold whitespace-nowrap min-w-36">Navn</th>
               <th class="px-4 py-3 font-semibold whitespace-nowrap min-w-36">CPR</th>
               <th class="px-4 py-3 font-semibold whitespace-nowrap min-w-36">Sags-ID</th>
+              <th class="px-4 py-3 font-semibold whitespace-nowrap min-w-36">Kørselstype</th>
             </tr>
           </thead>
           <tbody>
@@ -126,6 +151,19 @@
                 <td class="px-4 py-3 whitespace-nowrap">{formatCpr(bev.cpr)}</td>
                 <td class="px-4 py-3 whitespace-nowrap">
                   <a href="/sag/{bev.cpr}" class="text-sky-600 hover:underline font-mono">{bev.esdh_noegle ?? "—"}</a>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  {#if (bev.koerselstyper ?? []).length > 0}
+                    <div class="flex flex-wrap gap-1">
+                      {#each bev.koerselstyper as type}
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-white text-red-800 border border-red-200">
+                          {type}
+                        </span>
+                      {/each}
+                    </div>
+                  {:else}
+                    <span class="text-gray-400">—</span>
+                  {/if}
                 </td>
               </tr>
             {/each}
