@@ -504,8 +504,8 @@
     // Derive the afstandskriterie fields where there is nothing to overwrite.
     // A stored value is left alone — it may have been set deliberately — but
     // the computed one is offered next to the field, see brugBeregnet().
-    const beregnetKlassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin);
-    const beregnetDato = beregnAfstandskriterieDato(bevilling.elevklassetrin);
+    const beregnetKlassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin, bevilling.skoleafstand);
+    const beregnetDato = beregnAfstandskriterieDato(bevilling.elevklassetrin, bevilling.skoleafstand);
 
     if (beregnetKlassetrin !== null && editableBevilling.afstandskriterie_klassetrin == null) {
       editableBevilling.afstandskriterie_klassetrin = beregnetKlassetrin;
@@ -534,8 +534,8 @@
   $: beregnetForslag = beregnForslag(editableBevilling);
 
   function beregnForslag(edit: any): { klassetrin: number; dato: string } | null {
-    const klassetrin = beregnAfstandskriterieKlassetrin(edit?.elevklassetrin);
-    const dato = beregnAfstandskriterieDato(edit?.elevklassetrin);
+    const klassetrin = beregnAfstandskriterieKlassetrin(edit?.elevklassetrin, edit?.skoleafstand);
+    const dato = beregnAfstandskriterieDato(edit?.elevklassetrin, edit?.skoleafstand);
 
     if (klassetrin === null || dato === null) {
       return null;

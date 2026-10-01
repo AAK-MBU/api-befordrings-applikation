@@ -10,13 +10,18 @@
 //
 // Two things are derived from them, both of which used to be typed by hand:
 //
-//   afstandskriterie_klassetrin — the LAST klassetrin the student's current
-//     threshold applies to (3, 6, 9 or 10), i.e. the class they finish before
-//     the next threshold takes over.
+//   afstandskriterie_klassetrin — the LAST klassetrin the student still meets
+//     the criterion in, given their measured distance. The thresholds rise
+//     with age, so a student far enough from school keeps qualifying into
+//     later bands; one barely above their current threshold does not.
 //
-//   afstandskriterie_dato — when that happens. Always 30 June, because a
-//     Danish school year ends there; the year is the one in which the student
+//   afstandskriterie_dato — when that stops. Always 30 June, because a Danish
+//     school year ends there; the year is the one in which the student
 //     finishes the klassetrin above.
+//
+// Both need the DISTANCE as well as the klassetrin. Without it there is no
+// answer, only a guess that the student stops qualifying at the end of their
+// current band.
 
 export type Afstandsband = {
   /** Last klassetrin this band covers. */
@@ -81,13 +86,66 @@ export function graenseForKlassetrin(elevklassetrin: string | number | null | un
 
 
 /**
- * afstandskriterie_klassetrin for a student — the last klassetrin their current
- * threshold covers.
+ * afstandskriterie_klassetrin — the last klassetrin the student still meets the
+ * criterion in, given how far they actually live from school.
+ *
+ * The thresholds RISE with age, so a student well above their current band
+ * keeps qualifying into later ones. This walks upward from the band they are
+ * in now and stops at the first threshold the distance does not clear:
+ *
+ *     3. klasse, 10,3 km  ->  10   (clears 2,5 / 6 / 7 / 9)
+ *     3. klasse,  6,5 km  ->   6   (clears 2,5 and 6, fails 7)
+ *     5. klasse,  6,8 km  ->   6   (clears 6, fails 7)
+ *
+ * This used to return the end of the current band and never look at the
+ * distance at all, which happened to be right whenever the distance failed the
+ * NEXT threshold — the common case — and understated every other student by
+ * years.
+ *
+ * Strictly greater than: the rule is "længere end", so a distance exactly on a
+ * threshold does not clear it.
+ *
+ * null when the student does not meet even their current threshold. There is
+ * then no period during which the criterion holds, and a number would claim
+ * otherwise.
  */
 export function beregnAfstandskriterieKlassetrin(
-  elevklassetrin: string | number | null | undefined
+  elevklassetrin: string | number | null | undefined,
+  skoleafstandKm: number | string | null | undefined
 ): number | null {
-  return bandForKlassetrin(parseKlassetrin(elevklassetrin))?.tilKlassetrin ?? null;
+  const klassetrin = parseKlassetrin(elevklassetrin);
+  const nuvaerende = bandForKlassetrin(klassetrin);
+
+  if (klassetrin === null || !nuvaerende) {
+    return null;
+  }
+
+  if (skoleafstandKm === null || skoleafstandKm === undefined || skoleafstandKm === "") {
+    return null;
+  }
+
+  const afstand = Number(skoleafstandKm);
+
+  if (Number.isNaN(afstand)) {
+    return null;
+  }
+
+  let sidste: number | null = null;
+
+  for (const band of AFSTANDSBAND) {
+    // Bands the student has already passed say nothing about their future.
+    if (band.tilKlassetrin < nuvaerende.tilKlassetrin) {
+      continue;
+    }
+
+    if (afstand > band.graenseKm) {
+      sidste = band.tilKlassetrin;
+    } else {
+      break;
+    }
+  }
+
+  return sidste;
 }
 
 
@@ -102,19 +160,20 @@ export function beregnAfstandskriterieKlassetrin(
  */
 export function beregnAfstandskriterieDato(
   elevklassetrin: string | number | null | undefined,
+  skoleafstandKm: number | string | null | undefined,
   today: Date = new Date()
 ): string | null {
   const klassetrin = parseKlassetrin(elevklassetrin);
-  const band = bandForKlassetrin(klassetrin);
+  const tilKlassetrin = beregnAfstandskriterieKlassetrin(elevklassetrin, skoleafstandKm);
 
-  if (klassetrin === null || !band) {
+  if (klassetrin === null || tilKlassetrin === null) {
     return null;
   }
 
   const skoleaarSlutter =
     today.getMonth() >= 7 ? today.getFullYear() + 1 : today.getFullYear();
 
-  return `${skoleaarSlutter + (band.tilKlassetrin - klassetrin)}-06-30`;
+  return `${skoleaarSlutter + (tilKlassetrin - klassetrin)}-06-30`;
 }
 
 

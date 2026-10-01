@@ -975,6 +975,7 @@
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
         elevklassetrin={stamdata?.elevklassetrin ?? null}
+        skoleafstand={stamdata?.skoleafstand ?? null}
         parter={recipients}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}

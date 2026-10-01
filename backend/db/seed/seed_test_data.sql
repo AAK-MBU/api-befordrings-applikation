@@ -587,7 +587,7 @@ INSERT INTO [befordring].[Elev]
 VALUES
 (
     '1515101234', 'Astrid Mikkelsen', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
-    5.9, 'Normalklasse', '2', '2A',
+    10.9, 'Normalklasse', '2', '2A',
     'SFO - Solbjergskolen', 'Solbjergskolen',
     @matrikel_6, NULL, 751041
 ),

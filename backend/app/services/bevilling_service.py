@@ -568,13 +568,17 @@ class BevillingService:
             return
 
         if not has_klassetrin:
-            klassetrin = beregn_afstandskriterie_klassetrin(elev.elevklassetrin)
+            klassetrin = beregn_afstandskriterie_klassetrin(
+                elev.elevklassetrin, elev.skoleafstand
+            )
 
             if klassetrin is not None:
                 new_bevilling_data["afstandskriterie_klassetrin"] = klassetrin
 
         if not has_dato:
-            dato = beregn_afstandskriterie_dato(elev.elevklassetrin)
+            dato = beregn_afstandskriterie_dato(
+                elev.elevklassetrin, elev.skoleafstand
+            )
 
             if dato is not None:
                 new_bevilling_data["afstandskriterie_dato"] = dato

@@ -81,16 +81,64 @@ def _band_for_klassetrin(klassetrin: int | None) -> tuple[int, float] | None:
     )
 
 
-def beregn_afstandskriterie_klassetrin(elevklassetrin: str | int | None) -> int | None:
-    """The last klassetrin the student's current distance threshold covers."""
+def beregn_afstandskriterie_klassetrin(
+    elevklassetrin: str | int | None,
+    skoleafstand_km: float | str | None,
+) -> int | None:
+    """The last klassetrin the student still meets the criterion in.
 
-    band = _band_for_klassetrin(parse_klassetrin(elevklassetrin))
+    The thresholds RISE with age, so how long the criterion holds depends on
+    how far the student lives from school, not on klassetrin alone. This walks
+    up from their current band and stops at the first threshold the distance
+    does not clear:
 
-    return band[0] if band else None
+        3. klasse, 10,3 km  ->  10   (clears 2,5 / 6 / 7 / 9)
+        3. klasse,  6,5 km  ->   6   (clears 2,5 and 6, fails 7)
+        5. klasse,  6,8 km  ->   6   (clears 6, fails 7)
+
+    Strictly greater than: the rule is "længere end", so a distance exactly on
+    a threshold does not clear it.
+
+    None when the distance is unknown, or when it does not even meet the
+    student's current threshold — there is then no period during which the
+    criterion holds, and a number would claim otherwise.
+
+    Mirrors beregnAfstandskriterieKlassetrin in
+    frontend/src/lib/afstandskriterie.ts. Change both.
+    """
+
+    klassetrin = parse_klassetrin(elevklassetrin)
+    nuvaerende = _band_for_klassetrin(klassetrin)
+
+    if klassetrin is None or nuvaerende is None:
+        return None
+
+    if skoleafstand_km is None or skoleafstand_km == "":
+        return None
+
+    try:
+        afstand = float(skoleafstand_km)
+    except (TypeError, ValueError):
+        return None
+
+    sidste = None
+
+    for til_klassetrin, graense_km in AFSTANDSBAND:
+        # Bands the student has already passed say nothing about their future.
+        if til_klassetrin < nuvaerende[0]:
+            continue
+
+        if afstand > graense_km:
+            sidste = til_klassetrin
+        else:
+            break
+
+    return sidste
 
 
 def beregn_afstandskriterie_dato(
     elevklassetrin: str | int | None,
+    skoleafstand_km: float | str | None,
     today: date | None = None,
 ) -> date | None:
     """When the student's current distance threshold is replaced by the next.
@@ -106,11 +154,11 @@ def beregn_afstandskriterie_dato(
     today = today or date.today()
 
     klassetrin = parse_klassetrin(elevklassetrin)
-    band = _band_for_klassetrin(klassetrin)
+    til_klassetrin = beregn_afstandskriterie_klassetrin(elevklassetrin, skoleafstand_km)
 
-    if klassetrin is None or band is None:
+    if klassetrin is None or til_klassetrin is None:
         return None
 
     skoleaar_slutter = today.year + 1 if today.month >= 8 else today.year
 
-    return date(skoleaar_slutter + (band[0] - klassetrin), 6, 30)
+    return date(skoleaar_slutter + (til_klassetrin - klassetrin), 6, 30)
