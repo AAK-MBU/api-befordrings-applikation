@@ -30,6 +30,12 @@
     // manual, which is what an ungdomsuddannelse student needs anyway.
     export let elevklassetrin: string | number | null = null;
 
+    // The student's measured walking distance (Elev.skoleafstand). The
+    // afstandskriterie thresholds rise with age, so how long the criterion
+    // holds depends on how far they live from school — not on klassetrin
+    // alone. Without it both derived fields stay blank rather than guessing.
+    export let skoleafstand: number | string | null = null;
+
     // Parties on the case — the egenbefordring kørselsrække names one of them
     // as the recipient of the kilometre reimbursement.
     export let parter: any[] = [];
@@ -127,8 +133,8 @@
     // whenever the klassetrin changes, but not written straight into
     // newBevilling: applyBeregnetAfstandskriterie() does that, so a caseworker
     // who overrides either field keeps their value.
-    $: beregnetKlassetrin = beregnAfstandskriterieKlassetrin(elevklassetrin);
-    $: beregnetDato = beregnAfstandskriterieDato(elevklassetrin);
+    $: beregnetKlassetrin = beregnAfstandskriterieKlassetrin(elevklassetrin, skoleafstand);
+    $: beregnetDato = beregnAfstandskriterieDato(elevklassetrin, skoleafstand);
 
     function applyBeregnetAfstandskriterie() {
       if (beregnetKlassetrin === null || beregnetDato === null) {
@@ -339,6 +345,17 @@
       if (!newBevilling.hjemmel_id)         { modalError = "Hjemmel skal udfyldes"; return; }
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
+      // ESDH-nøglen er sagens nummer i GO. Den er påkrævet HER, men ikke i
+      // BevillingCreateRequest og ikke på databasekolonnen: OS2Forms opretter
+      // gennem den samme vej, og en borgeransøgning har ingen sagsnøgle at
+      // sende med — den tildeles først, når sagen oprettes.
+      //
+      // Når en sagsbehandler opretter i hånden, findes sagen derimod allerede,
+      // og nøglen er det eneste der binder bevillingen til den: brevet
+      // journaliseres på den, og det natlige job bygger linket til GO ud fra
+      // den. Uden den ender bevillingen uden begge dele, uden at noget
+      // klager.
+      if (!newBevilling.esdh_noegle?.trim()) { modalError = "ESDH-nøgle skal udfyldes"; return; }
 
       // Required in this form only — NOT in BevillingCreateRequest or the
       // database column, both of which stay nullable because OS2Forms submits
@@ -428,6 +445,8 @@
       if (!newBevilling.hjemmel_id)         { modalError = "Hjemmel skal udfyldes"; return; }
       if (!newBevilling.afgoerelsesbrev_id) { modalError = "Afgørelsesbrev skal udfyldes"; return; }
       if (!newBevilling.sagsbehandler_id)   { modalError = "Sagsbehandler skal udfyldes"; return; }
+      // Samme krav som i handleGoToStep2 — se begrundelsen der.
+      if (!newBevilling.esdh_noegle?.trim()) { modalError = "ESDH-nøgle skal udfyldes"; return; }
       if (!validateBevillingDates()) return;
       const payload = {
         adresse_id:                  newBevilling.adresse_id,
@@ -743,7 +762,7 @@
             {/if}
 
             <label class="text-sm font-medium text-gray-700">
-              ESDH-nøgle
+              ESDH-nøgle <span class="text-red-500">*</span>
               <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.esdh_noegle} />
             </label>
 

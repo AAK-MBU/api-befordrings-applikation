@@ -327,11 +327,13 @@
     let showCreateBevillingModal = false;
     let bevillingModalCpr = "";
     let bevillingModalElevklassetrin: string | null = null;
+    let bevillingModalSkoleafstand: number | string | null = null;
     let createBevillingModalMode: 'kopi' | 'tom' | null = null;
 
-    function openCreateBevillingModal(cpr: string, mode: 'kopi' | 'tom', elevklassetrin: string | null = null) {
+    function openCreateBevillingModal(cpr: string, mode: 'kopi' | 'tom', elevklassetrin: string | null = null, skoleafstand: number | string | null = null) {
       bevillingModalCpr = cpr;
       bevillingModalElevklassetrin = elevklassetrin;
+      bevillingModalSkoleafstand = skoleafstand;
       createBevillingModalMode = mode;
       showCreateBevillingModal = true;
     }
@@ -429,6 +431,7 @@
     mode={createBevillingModalMode}
     existingBevillinger={bevillingerByCpr[bevillingModalCpr] ?? []}
     elevklassetrin={bevillingModalElevklassetrin}
+    skoleafstand={bevillingModalSkoleafstand}
     parter={parterByCpr[bevillingModalCpr] ?? []}
     {lookupOptions}
     on:created={async () => { showCreateBevillingModal = false; await loadBevillinger(bevillingModalCpr); await invalidateAll(); }}
@@ -885,14 +888,14 @@
                       disabled={!canEdit || !(bevillingerByCpr[bev.cpr_elev]?.length > 0)}
                       class="px-3 py-1.5 text-xs font-medium text-white rounded transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       style="background-color: #032A42;"
-                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'kopi', bev.elevklassetrin ?? null)}>
+                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'kopi', bev.elevklassetrin ?? null, bev.gaaafstand_km ?? null)}>
                       + Ny bevilling fra kopi
                     </button>
                     <button type="button"
                       disabled={!canEdit}
                       class="px-3 py-1.5 text-xs font-medium text-white rounded transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       style="background-color: #032A42;"
-                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'tom', bev.elevklassetrin ?? null)}>
+                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'tom', bev.elevklassetrin ?? null, bev.gaaafstand_km ?? null)}>
                       + Ny bevilling fra tom
                     </button>
                     <button type="button"
