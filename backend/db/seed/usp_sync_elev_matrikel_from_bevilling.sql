@@ -73,6 +73,15 @@ GO
 */
 
 CREATE OR ALTER PROCEDURE [befordring].[usp_sync_elev_matrikel_from_bevilling]
+    /* Narrow the sync to one student. NULL (the default) syncs everyone, which
+       is what the nightly run does.
+
+       Passing a cpr makes this the same authoritative derivation, applied to
+       one row, so a caseworker can resolve a single student on demand rather
+       than waiting for the night. Same precedent as @bevilling_id on
+       usp_recalculate_bevilling_status. The rules are not duplicated or
+       relaxed for the single-student case — it is the same code path. */
+    @cpr CHAR(10) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -112,6 +121,7 @@ BEGIN
                 INNER JOIN [befordring].[Elev]           e  ON e.cpr         = b.cpr_elev
                 LEFT JOIN  [befordring].[Skolematrikel]  sm ON sm.matrikel_id = b.matrikel_id
                 WHERE b.aktiv = 1
+                AND (@cpr IS NULL OR b.cpr_elev = @cpr)
                 AND (
                         /* folkeskole: the matrikel must belong to the school
                            the child is actually registered at. */
@@ -196,7 +206,8 @@ BEGIN
                majority fall in that third group, and without this the delta
                is computed across the whole table every night to produce
                nothing for them. */
-            WHERE (
+            WHERE (@cpr IS NULL OR e.cpr = @cpr)
+              AND (
                       c.cpr_elev             IS NOT NULL
                    OR e.matrikel_id          IS NOT NULL
                    OR e.ungdomsuddannelse_id IS NOT NULL

@@ -1,9 +1,10 @@
 """API router for citizen-related endpoints.
 
-This module contains read-only endpoints for citizen stamdata and parent data.
+This module contains endpoints for citizen stamdata and parent data.
 
-Citizen stamdata and parent data are maintained by external systems and are
-read-only in this application. Only GET endpoints are exposed here.
+Stamdata and parent data themselves are maintained by external systems and are
+read-only here. The exception is genberegn_skole, which recomputes the two
+columns this application derives itself — see CitizenService.
 """
 
 from fastapi import APIRouter
@@ -78,3 +79,32 @@ def get_parent_data(cpr: str, db: DbSession):
     service = CitizenService(db=db)
 
     return service.get_parent_data(cpr=cpr)
+
+
+@router.post("/stamdata/{cpr}/genberegn_skole", dependencies=[RequireEdit])
+def genberegn_skole(cpr: str, db: DbSession):
+    """Re-derive the student's school and walking distance immediately.
+
+    Args:
+        cpr:
+            The CPR number of the student.
+
+        db:
+            The database session injected by FastAPI.
+
+    Returns:
+        The resulting matrikel_id, ungdomsuddannelse_id and skoleafstand, plus
+        a Danish ``besked`` where the distance could not be calculated.
+
+    Notes:
+        Both columns are normally derived by the nightly run, which means a
+        student registered today has neither until tomorrow — and a letter
+        cannot be produced without them. This runs the same derivation for one
+        student on request.
+
+        POST rather than GET: it writes.
+    """
+
+    service = CitizenService(db=db)
+
+    return service.genberegn_skole(cpr=cpr)

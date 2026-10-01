@@ -31,6 +31,53 @@
   // Page state
   // -----------------------------
 
+  // Genberegning af skole + skoleafstand. Both columns are normally derived by
+  // the nightly run, so a student registered today has neither — and a letter
+  // cannot be produced without them.
+  let genberegnerSkole = false;
+  let genberegnBesked: string | null = null;
+  let genberegnFejl: string | null = null;
+
+  async function genberegnSkole() {
+    genberegnerSkole = true;
+    genberegnBesked = null;
+    genberegnFejl = null;
+
+    try {
+      const response = await backendFetch(
+        `/citizen/stamdata/${data.cpr}/genberegn_skole`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        let message = "Kunne ikke genberegne skole og afstand";
+
+        try {
+          const errorData = await response.json();
+          message = errorData?.detail?.message ?? errorData?.detail ?? message;
+        } catch {
+          // Keep the fallback message — an unparseable body is still a failure.
+        }
+
+        genberegnFejl = message;
+        return;
+      }
+
+      // A successful call can still have nothing to measure: no bevilling
+      // qualifies, or a coordinate is missing. The backend says which, and
+      // that is worth showing rather than leaving the field silently unchanged.
+      const resultat = await response.json();
+      genberegnBesked = resultat?.besked ?? null;
+
+      await invalidateAll();
+    } catch (fejl) {
+      genberegnFejl = "Kunne ikke genberegne skole og afstand";
+      console.error(fejl);
+    } finally {
+      genberegnerSkole = false;
+    }
+  }
+
   let showCreateLetterModal = false;
 
   let { stamdata, parents, parter, recipients, bevillinger, lookupOptions, aktiviteter } = data;
@@ -837,8 +884,34 @@
 
         <!-- SKOLEAFSTAND -->
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skoleafstand (km)</p>
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Skoleafstand (km)</p>
+            <!-- Resolves Skole and Skoleafstand together: the distance is
+                 measured to the derived school, so there is nothing to
+                 recalculate separately. -->
+            <button
+              type="button"
+              class="text-sky-600 hover:text-sky-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!canEdit || genberegnerSkole}
+              on:click={genberegnSkole}
+              title="Genberegn skole og skoleafstand nu"
+              aria-label="Genberegn skole og skoleafstand"
+            >
+              <svg
+                class="w-3.5 h-3.5 {genberegnerSkole ? 'animate-spin' : ''}"
+                fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
           <p class="text-sm text-gray-800">{stamdata?.skoleafstand ?? "—"}</p>
+
+          {#if genberegnFejl}
+            <p class="mt-1 text-[11px] text-red-700">{genberegnFejl}</p>
+          {:else if genberegnBesked}
+            <p class="mt-1 text-[11px] text-amber-700">{genberegnBesked}</p>
+          {/if}
           <!-- Flagged when the distance sits within 500 m of the afstandskriterie
                for the student's klassetrin, either side: a recalculation could
                move them across it. -->

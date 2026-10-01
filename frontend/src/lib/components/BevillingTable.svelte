@@ -499,6 +499,12 @@
       adresse_tekst: bevilling.adresse_for_bevilling ?? "",
       adresse_lat:  bevilling.adresse_latitude  ?? null,
       adresse_lon:  bevilling.adresse_longitude ?? null,
+      // The view returns this with a time component, which <input type="date">
+      // refuses to display — the field would open blank and saving it would
+      // then clear a date nobody meant to touch.
+      ansoegningsdato: bevilling.ansoegningsdato
+        ? String(bevilling.ansoegningsdato).slice(0, 10)
+        : null,
     };
 
     // Derive the afstandskriterie fields where there is nothing to overwrite.
@@ -580,6 +586,7 @@
     recalcError = null;
     recalcErrorFor = null;
     const dateFields: [string | null | undefined, string][] = [
+      [editableBevilling.ansoegningsdato,        'Ansøgningsdato'],
       [editableBevilling.sagsbehandlingsdato,   'Sagsbehandlingsdato'],
       [editableBevilling.afstandskriterie_dato,  'Afstandskriterie dato'],
       [editableBevilling.revurderingsdato,       'Revurderingsdato'],
@@ -600,6 +607,7 @@
 
     const updates = {
       ...statusField,
+      ansoegningsdato: editableBevilling.ansoegningsdato,
       sagsbehandlingsdato: editableBevilling.sagsbehandlingsdato,
       adresse_id: editableBevilling.adresse_id,
       matrikel_id: editableBevilling.matrikel_id,
@@ -837,10 +845,20 @@
             <p class="text-sm text-gray-800">{bevilling.ansoegningstype ?? "—"}</p>
           </div>
 
-          <!-- OPRETTET -->
+          <!-- ANSØGNINGSDATO -->
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Ansøgningsdato</p>
-            <p class="text-sm text-gray-800">{formatDanishDate(bevilling.ansoegningsdato?.slice(0, 10))}</p>
+            {#if isEditing}
+              <input
+                type="date"
+                min={MIN_DATE} max={MAX_DATE}
+                class={inputClass}
+                value={editableBevilling.ansoegningsdato ?? ""}
+                on:change={(e) => updateField("ansoegningsdato", emptyToNull(e.currentTarget.value))}
+              />
+            {:else}
+              <p class="text-sm text-gray-800">{formatDanishDate(bevilling.ansoegningsdato?.slice(0, 10))}</p>
+            {/if}
           </div>
 
           <!-- SAGSBEHANDLINGSDATO -->
