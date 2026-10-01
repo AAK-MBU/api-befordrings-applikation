@@ -18,6 +18,7 @@
     } from "$lib/koerselstype";
     import { afstandFraKoordinater } from "$lib/client/afstand";
     import { bevillingLabel } from "$lib/bevillingLabel";
+    import { vaelgGaeldendeBevilling } from "$lib/bevillingRanking";
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
     export let cpr: string;
@@ -609,6 +610,21 @@
         if (activeBev) prefillFromBevilling(activeBev);
       } else {
         resetModalKoersel('tom');
+
+        // A student has one ESDH case across all their bevillinger, so a
+        // bevilling created from blank belongs to the same case as the ones
+        // already on the student. Only the "kopi" path used to carry the key
+        // over, leaving the caseworker to retype it here.
+        //
+        // Which bevilling it is read from only matters where they disagree,
+        // and then the current one is the right answer — hence the same
+        // ranking the nightly sync uses: aktiv, then kommende, then the
+        // bevilling whose kørsel ran latest.
+        const gaeldende = vaelgGaeldendeBevilling(existingBevillinger);
+
+        if (gaeldende?.esdh_noegle) {
+          newBevilling = { ...newBevilling, esdh_noegle: gaeldende.esdh_noegle };
+        }
       }
 
       // Last, so it also wins over a copied bevilling's values: those were

@@ -127,13 +127,78 @@ class OverviewService:
         return self._rows_to_dicts(result)
 
 
+    def _koerselstyper_pr_bevilling(self):
+        """Map every bevilling to the kørselstyper on its kørselsrækker.
+
+        Returns:
+            A dictionary of ``{bevilling_id: [kørselstype, ...]}``, with the
+            labels de-duplicated and alphabetically sorted.
+
+        Notes:
+            The overview shows one row per student, and that row should say
+            what kind of kørsel the student actually has right now. A bevilling
+            can hold several kørselsrækker with different validity periods, so
+            "right now" means the rækker whose period covers today.
+
+            Where a bevilling has no currently valid række — a Kommende one
+            whose period has not started, an Udløbet one whose period has
+            ended — the column would otherwise be blank for every such row.
+            Those rows fall back to all of the bevilling's kørselsrækker, so
+            the column always says something about the bevilling on screen.
+
+            One query covers every bevilling. Asking per student would mean a
+            query per row on a page that lists the whole municipality.
+        """
+
+        sql = text("""
+            SELECT
+                k.bevilling_id,
+                bt.befordringstype_tekst,
+                CASE
+                    WHEN (k.gyldig_fra IS NULL OR k.gyldig_fra <= CAST(GETDATE() AS date))
+                     AND (k.gyldig_til IS NULL OR k.gyldig_til >= CAST(GETDATE() AS date))
+                    THEN 1
+                    ELSE 0
+                END AS er_aktuel
+            FROM
+                [befordring].[Koersel] k
+            INNER JOIN
+                [befordring].[Befordringstype] bt
+                ON bt.befordringstype_id = k.befordringstype_id
+            WHERE
+                k.aktiv = 1
+                AND k.bevilling_id IS NOT NULL
+        """)
+
+        aktuelle: dict = {}
+        alle: dict = {}
+
+        for row in self._rows_to_dicts(self.db.execute(sql)):
+            bevilling_id = row["bevilling_id"]
+            tekst = (row["befordringstype_tekst"] or "").strip()
+
+            if not tekst:
+                continue
+
+            alle.setdefault(bevilling_id, set()).add(tekst)
+
+            if row["er_aktuel"]:
+                aktuelle.setdefault(bevilling_id, set()).add(tekst)
+
+        return {
+            bevilling_id: sorted(aktuelle.get(bevilling_id) or typer)
+            for bevilling_id, typer in alle.items()
+        }
+
+
     def get_alle_bevillinger(self):
         """Get all bevillinger for the overview, one row per student.
 
         Each student is shown once. The displayed bevilling is the active one
         if the student has an active bevilling; otherwise the most recently
         created bevilling. Each record also carries ``bevilling_count`` — how
-        many bevillinger the student has in total.
+        many bevillinger the student has in total — and ``koerselstyper``, the
+        kørselstyper on that bevilling's currently valid kørselsrækker.
 
         Returns:
             A list of simplified bevilling records, one per student.
@@ -154,6 +219,8 @@ class OverviewService:
             is_active = (record.get("status_tekst") or "").strip().lower() == "aktiv"
             return (is_active, created is not None, created or datetime.min)
 
+        koerselstyper = self._koerselstyper_pr_bevilling()
+
         chosen: dict = {}
         counts: dict = {}
 
@@ -168,6 +235,9 @@ class OverviewService:
         for cpr, record in chosen.items():
             overview = self._map_bevilling_overview_record(record)
             overview["bevilling_count"] = counts[cpr]
+            overview["koerselstyper"] = koerselstyper.get(
+                record.get("bevilling_id"), []
+            )
             result.append(overview)
 
         return result

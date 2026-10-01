@@ -23,6 +23,13 @@
     class?: string;
     selectOptions?: { value: string | number; label: string }[];
     inputType?: string;
+    /**
+     * For a column that holds several values per row (kørselstyper, say).
+     * Returns the row's values as a list, so the filter dropdown offers each
+     * one on its own rather than one compound option per combination, and a
+     * row matches when *any* of its values is selected.
+     */
+    filterValues?: (row: any) => string[];
   };
 
   // -----------------------------
@@ -120,9 +127,13 @@
     };
   });
 
-  function getUniqueOptions(key: string): string[] {
+  function getUniqueOptions(column: DataTableColumn): string[] {
+    const values = column.filterValues
+      ? data.flatMap((row) => column.filterValues!(row))
+      : data.map((row) => row[column.key]);
+
     return Array.from(
-      new Set(data.map((row) => String(row[key] ?? "").trim()).filter(Boolean))
+      new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b, "da"));
   }
 
@@ -154,6 +165,22 @@
         (Array.isArray(filterValue) && filterValue.length === 0)
       ) {
         return true;
+      }
+
+      if (column.filterValues) {
+        const rowValues = column
+          .filterValues(row)
+          .map((value) => String(value ?? "").trim().toLowerCase())
+          .filter(Boolean);
+
+        // A row matches on any one of its values, so filtering on
+        // "Solokørsel" also returns students who have both Solokørsel and
+        // Skolerejsekort.
+        if (Array.isArray(filterValue)) {
+          return filterValue.some((v) => rowValues.includes(v.toLowerCase()));
+        }
+
+        return rowValues.some((value) => value.includes(filterValue.toLowerCase()));
       }
 
       const rowValue = String(row[column.key] ?? "").toLowerCase();
@@ -249,7 +276,7 @@
                         style={menuStyle}
                         class="z-50 max-h-72 overflow-auto bg-white border border-gray-200 rounded shadow-lg"
                       >
-                        {#each getUniqueOptions(column.key) as option}
+                        {#each getUniqueOptions(column) as option}
                           {@const isSelected = Array.isArray(filters[column.key]) && (filters[column.key] as string[]).includes(option)}
                           <label class="flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 cursor-pointer whitespace-nowrap">
                             <input
@@ -284,7 +311,7 @@
                     class="h-7 w-full border border-gray-200 rounded px-2 text-xs focus:border-blue-400 focus:ring-0 bg-white"
                   >
                     <option value="">Alle</option>
-                    {#each getUniqueOptions(column.key) as option}
+                    {#each getUniqueOptions(column) as option}
                       <option value={option}>{option}</option>
                     {/each}
                   </select>
