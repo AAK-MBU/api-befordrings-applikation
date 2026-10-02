@@ -9,7 +9,15 @@
   export let parter: any[] = [];
 
   // Fixed relation options (was free text).
-  const RELATION_OPTIONS = ["Værge", "Plejefamilie", "Adoptiv Far/Mor", "Andet"];
+  //
+  // "Andet" stays last: it is the catch-all, and a list that ends with it
+  // reads as "one of these, or none of them".
+  //
+  // Separate from ANSOEGER_RELATIONER in $lib/ansoegerRelation — that one is
+  // the bevilling's relation_til_barnet, which OS2Forms also writes. These two
+  // vocabularies overlap but are not the same field, and merging them would
+  // put values from the application form into the party register.
+  const RELATION_OPTIONS = ["Værge", "Plejefamilie", "Adoptiv Far/Mor", "Bosted", "Andet"];
 
   type Draft = {
     fulde_navn: string;

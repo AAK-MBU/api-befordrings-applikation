@@ -111,3 +111,40 @@ export function firstOutOfRangeDate(
 
   return null;
 }
+
+
+/**
+ * Today as "YYYY-MM-DD" in LOCAL time.
+ *
+ * Built from the local calendar parts rather than
+ * `new Date().toISOString().slice(0, 10)`, which yields the UTC date — wrong
+ * between local midnight and the UTC offset. At 00:30 in Copenhagen that
+ * reads as yesterday.
+ */
+export function iDagISO(): string {
+  const nu = new Date();
+
+  return [
+    nu.getFullYear(),
+    String(nu.getMonth() + 1).padStart(2, "0"),
+    String(nu.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+/**
+ * The "YYYY-MM-DD" part of a date value, or "" when there is none.
+ *
+ * Dates reach the frontend as SQL DATE columns serialised to "2026-10-02", and
+ * occasionally with a time component. Comparing them as STRINGS is the whole
+ * point of this helper: ISO dates order correctly lexicographically, and no
+ * timezone is involved.
+ *
+ * Parsing them into Date objects is what goes wrong. `new Date("2026-10-02")`
+ * is specified to parse a date-ONLY string as UTC midnight, while a local
+ * midnight built with setHours(0,0,0,0) sits one or two hours earlier in
+ * Denmark — so a row starting today compared as "fra > today" and showed as
+ * kommende for the whole day.
+ */
+export function datoDel(value: string | null | undefined): string {
+  return value ? String(value).slice(0, 10) : "";
+}

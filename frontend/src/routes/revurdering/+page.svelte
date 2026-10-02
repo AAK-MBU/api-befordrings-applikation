@@ -7,6 +7,7 @@
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
     import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
+    import { matcherFilter, filterTilQuery, daysUntil, type RevurderingFilter } from "$lib/revurderingFilter";
 
     export let data;
 
@@ -57,33 +58,30 @@
       )
     )].sort() as string[];
 
-    $: filteredRevurderinger = revurderinger.filter((b: any) => {
-      if (selectedSkole            && b.skole_navn              !== selectedSkole)            return false;
-      if (selectedSagsbehandler    && b.sagsbehandler_tekst     !== selectedSagsbehandler)    return false;
-      if (selectedPprSagsbehandler && b.ppr_sagsbehandler_tekst !== selectedPprSagsbehandler) return false;
+    // One object, so the predicate and the export URL are built from exactly
+    // the same state.
+    $: aktivtFilter = {
+      skole: selectedSkole,
+      sagsbehandler: selectedSagsbehandler,
+      pprSagsbehandler: selectedPprSagsbehandler,
+      koerselstype: selectedKoerselstype,
+      fraDato: filterFromDate,
+      tilDato: filterToDate,
+      hurtigfilter: quickFilter ?? "",
+    } satisfies RevurderingFilter;
 
-      if (selectedKoerselstype) {
-        const types = (b.koerselsraekker ?? [])
-          .filter((k: any) => !k.final)
-          .map((k: any) => k.befordringstype_tekst);
-        if (!types.includes(selectedKoerselstype)) return false;
-      }
+    // Filtered through $lib/revurderingFilter rather than inline, because the
+    // CSV export applies the SAME function server side. A second copy of these
+    // rules would drift, and the failure would be silent — the file would hold
+    // a different set of cases than the screen, with no way to tell which was
+    // right.
+    $: filteredRevurderinger = revurderinger.filter((b: any) => matcherFilter(b, aktivtFilter));
 
-      if (b.revurderingsdato) {
-        if (filterFromDate && b.revurderingsdato < filterFromDate) return false;
-        if (filterToDate   && b.revurderingsdato > filterToDate)   return false;
-      }
-
-      if (quickFilter === "overskredet") {
-        if ((daysUntil(b.revurderingsdato) ?? 0) >= 0) return false;
-      }
-      if (quickFilter === "inden30") {
-        const d = daysUntil(b.revurderingsdato);
-        if (d === null || d < 0 || d > 30) return false;
-      }
-
-      return true;
-    });
+    // The export mirrors the current view, so the query carries the filter.
+    $: eksportUrl = (() => {
+      const query = filterTilQuery(aktivtFilter);
+      return `/revurdering/revurderinger.csv${query ? `?${query}` : ""}`;
+    })();
 
     $: anyFilterActive = !!(selectedSkole || selectedSagsbehandler || selectedPprSagsbehandler
                             || selectedKoerselstype || filterFromDate
@@ -91,14 +89,6 @@
 
     $: overskredet    = revurderinger.filter((b: any) => (daysUntil(b.revurderingsdato) ?? 0) < 0).length;
     $: indenFor30Dage = revurderinger.filter((b: any) => { const d = daysUntil(b.revurderingsdato); return d !== null && d >= 0 && d <= 30; }).length;
-
-    function daysUntil(dateStr: string | null): number | null {
-      if (!dateStr) return null;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const target = new Date(dateStr);
-      return Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    }
 
     function urgencyColor(revurderingsdato: string | null): string {
       const d = daysUntil(revurderingsdato);
@@ -685,6 +675,24 @@
       <span class="text-sm font-bold text-gray-500">
         {filteredRevurderinger.length}{anyFilterActive ? ` / ${revurderinger.length}` : ''} sager
       </span>
+
+      <!-- A plain <a download>, not a fetch + Blob: the link carries the
+           session cookie on its own and the browser owns the save dialog.
+           The href carries the current filter, so the file matches the list
+           on screen — the count beside it is what the download contains. -->
+      <a
+        href={eksportUrl}
+        download
+        class="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-700"
+        title={anyFilterActive
+          ? "Hent de viste sager som CSV"
+          : "Hent alle sager som CSV"}
+      >
+        <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+          <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+        {anyFilterActive ? "Hent viste (CSV)" : "Hent alle (CSV)"}
+      </a>
 
     </div>
   </div>
