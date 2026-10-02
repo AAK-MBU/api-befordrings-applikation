@@ -228,6 +228,13 @@
   let savingKommentar = false;
   let kommentarError: string | null = null;
 
+  // Which bevilling the comment belongs to, or "" for a general case note.
+  //
+  // The genbehandling and revurdering pages have always sent this — there the
+  // bevilling is implicit, because the caseworker comments from its card. On
+  // this page there is no such context, so it has to be chosen.
+  let kommentarBevillingId: string = "";
+
   async function saveKommentar() {
     if (!nyKommentar.trim()) {
       return;
@@ -246,6 +253,11 @@
           aktivitetstype: "Kommentar",
           kommentar: nyKommentar,
           udfoert_af: null,
+          // null rather than "" — the column is a nullable int, and the feed
+          // badge keys off "is it set", not "is it truthy".
+          relateret_bevilling_id: kommentarBevillingId
+            ? Number(kommentarBevillingId)
+            : null,
         })
       });
 
@@ -255,6 +267,7 @@
       }
 
       nyKommentar = "";
+      kommentarBevillingId = "";
 
       await invalidateAll();
     } finally {
@@ -1162,7 +1175,7 @@
         placeholder="Skriv kommentar..."
       ></textarea>
 
-      <div class="mt-2">
+      <div class="mt-2 flex flex-wrap items-center gap-3">
         <button
           type="button"
           class="px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-50 bg-blue-500"
@@ -1171,6 +1184,23 @@
         >
           {savingKommentar ? "Gemmer..." : "Gem kommentar"}
         </button>
+
+        <!-- Optional, and deliberately defaulted to none: a general note about
+             the case should not be forced onto one bevilling. Every bevilling
+             is offered, not only the active one — a comment about an expired
+             bevilling is perfectly ordinary. -->
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          Knyt til
+          <select
+            bind:value={kommentarBevillingId}
+            class="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:border-blue-400 focus:ring-0"
+          >
+            <option value="">Ingen bevilling</option>
+            {#each bevillinger ?? [] as bev}
+              <option value={String(bev.bevilling_id)}>{bevillingLabel(bev)}</option>
+            {/each}
+          </select>
+        </label>
       </div>
     </div>
 
@@ -1384,7 +1414,10 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                     {getDisplayLabel(aktivitet)}
                   </span>
                   {#if aktivitet.relateret_bevilling_id}
-                    <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{bevillingLabelById.get(aktivitet.relateret_bevilling_id) ?? `Bevilling #${aktivitet.relateret_bevilling_id}`}</span>
+                    <!-- The map holds only the bevillinger on this page, so a soft-deleted one
+                         falls through. Saying "(slettet)" rather than just the id makes that
+                         read as a fact about the bevilling instead of a failed lookup. -->
+                    <span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{bevillingLabelById.get(aktivitet.relateret_bevilling_id) ?? `Bevilling #${aktivitet.relateret_bevilling_id} (slettet)`}</span>
                   {/if}
                 </div>
 
