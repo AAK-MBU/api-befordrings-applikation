@@ -1193,7 +1193,7 @@
           Knyt til
           <select
             bind:value={kommentarBevillingId}
-            class="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:border-blue-400 focus:ring-0"
+            class="border border-gray-300 rounded pl-2 pr-8 py-1.5 text-sm bg-white focus:border-blue-400 focus:ring-0"
           >
             <option value="">Ingen bevilling</option>
             {#each bevillinger ?? [] as bev}
