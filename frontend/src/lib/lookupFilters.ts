@@ -42,6 +42,20 @@ const HJEMMEL_AFGOERELSESBREVE: Record<string, string[]> = {
   ],
   "§ 26, stk. 2 (sygdom)": [
     "Bevilling: § 26, stk. 2 (sygdom)",
+    // The midlertidig folkeskole letters cite this same paragraph — see their
+    // body text: "jf. folkeskolelovens § 26". Without them here, choosing this
+    // hjemmel on a Midlertidig kørsel + folkeskole bevilling emptied the
+    // afgørelsesbrev dropdown entirely: AFGOERELSESBREV_ALLOW narrowed it to
+    // exactly these two, and this mapping then removed both.
+    //
+    // Ungdomsuddannelse was unaffected only by accident — its hjemmel
+    // "§ 10 (brækket ben)" has no entry in this map, so nothing restricted it.
+    //
+    // Safe to list here: a non-midlertidig ansøgningstype never reaches this
+    // filter with them, because applyRule has already removed every
+    // MIDLERTIDIG_ONLY_AFGOERELSESBREVE value.
+    "Midlertidig kørsel bevilling: § 26, stk. 2 (brækket ben folkeskole)",
+    "Midlertidig kørsel afslag: § 26, stk. 2 (brækket ben folkeskole)",
   ],
   "§ 26, stk. 1 og 2": [
     "Påtænkt afslag: § 26, stk. 2 (sygdom)",
@@ -76,9 +90,13 @@ const AFGOERELSESBREV_ALLOW: Record<string, string[]> = {
 };
 
 // Allowed hjemmel texts per "Midlertidig kørsel" + school type.
-// NOTE: inferred from the § referenced by the afgørelsesbrev above (the request
-// listed the afgørelsesbrev allow-list explicitly but not the hjemmel one).
-// Adjust if the intended hjemmel mapping differs.
+//
+// Confirmed against the letter bodies in the template workbook: the folkeskole
+// letters cite "folkeskolelovens § 26", the ungdomsuddannelse ones cite
+// "bekendtgørelse om lov om befordringsrabat til uddannelsessøgende § 10".
+// Two different statutes — § 10 cannot apply to a folkeskole pupil, and § 26
+// cannot apply to an ungdomsuddannelse student — so neither list may grow to
+// include the other's paragraph.
 const HJEMMEL_ALLOW: Record<string, string[]> = {
   [`${MIDLERTIDIG}|folkeskole`]: ["§ 26, stk. 2 sygdom"],
   [`${MIDLERTIDIG}|ungdomsuddannelse`]: ["§ 10 (brækket ben)"],
