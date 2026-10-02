@@ -17,6 +17,7 @@
       isTaxaType as typeIsTaxa,
     } from "$lib/koerselstype";
     import { afstandFraKoordinater } from "$lib/client/afstand";
+    import { harEftermiddag } from "$lib/tidspunkt";
     import { bevillingLabel } from "$lib/bevillingLabel";
     import { vaelgGaeldendeBevilling } from "$lib/bevillingRanking";
 
@@ -107,6 +108,12 @@
     // Midlertidig kørsel is granted on a different basis, so the afstandskriterie
     // fields, befordringsudvalg and PPR ansvarlig do not apply and are hidden.
     $: isMidlertidig = isMidlertidigKoersel(newBevilling.ansoegningstype);
+
+    // "Kørsel til institution" only applies to a kørsel with an afternoon leg:
+    // a morning journey goes home -> school, and the SFO or klub is where the
+    // child goes afterwards.
+    const harEftermiddagsTur = (tidspunktId: string | number | null | undefined) =>
+      harEftermiddag(tidspunkter, tidspunktId);
 
     $: availableModalKoerselstyper = koerselstyperFor(
       koerselstyper,
@@ -516,7 +523,9 @@
           if (!krs.bevilget_koereafstand_pr_vej) { modalError = `${prefix}Bevilget km pr. vej skal udfyldes`; return; }
           if (!krs.koerselsgodtgoerelse_modtager_id && !krs.koerselsgodtgoerelse_modtager_cpr) { modalError = `${prefix}Kørselsgodtgørelse modtager skal udfyldes`; return; }
         }
-        if (isModalKoerselTaxaType(krs.befordringstype_id)) {
+        if (isModalKoerselTaxaType(krs.befordringstype_id) && harEftermiddagsTur(krs.tidspunkt_id)) {
+          // Only asked for where it applies — the field is hidden on a
+          // morning-only kørsel, and a hidden field cannot be required.
           if (krs.koersel_til_institution === "" || krs.koersel_til_institution == null) {
             modalError = `${prefix}Kørsel til institution skal udfyldes`; return;
           }
@@ -584,7 +593,14 @@
             dag_ids:                          entry.dagIds,
             transporttid_i_bus:               isSRK ? numberOrNull(krs.transporttid_i_bus) : null,
             skift_med_bus:                    isSRK ? numberOrNull(krs.skift_med_bus) : null,
-            koersel_til_institution:          isTxa ? (krs.koersel_til_institution === 'true' || krs.koersel_til_institution === true) : null,
+            // Nulled when it does not apply, not merely hidden: answering "Ja"
+            // under Eftermiddag and then switching to Morgen would otherwise
+            // leave a morning kørsel claiming it goes to an institution, and
+            // the afgørelsesbrev would gain an SFO paragraph for a journey
+            // that does not exist.
+            koersel_til_institution:          isTxa && harEftermiddagsTur(krs.tidspunkt_id)
+              ? (krs.koersel_til_institution === 'true' || krs.koersel_til_institution === true)
+              : null,
             max_minutter_i_transport:         isTxa ? numberOrNull(krs.max_minutter_i_transport) : null,
             koerselsgodtgoerelse_modtager_id: isEgb ? numberOrNull(krs.koerselsgodtgoerelse_modtager_id) : null,
             koerselsgodtgoerelse_modtager_cpr: isEgb ? (krs.koerselsgodtgoerelse_modtager_cpr || null) : null,
@@ -1060,6 +1076,7 @@
                     </select>
                   </div>
                 </div>
+                {#if harEftermiddagsTur(krs.tidspunkt_id)}
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørsel til institution *</span>
                   <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
@@ -1070,6 +1087,7 @@
                     <option value="false">Nej</option>
                   </select>
                 </label>
+                {/if}
                 <label class="block">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
                   <input type="number" min="0" max="500" class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
