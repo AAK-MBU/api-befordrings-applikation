@@ -35,6 +35,10 @@ class BevillingCreateRequest(BaseModel):
     esdh_noegle: str | None = None
     esdh_url: str | None = None
 
+    # The OS2Forms submission id, so a resubmitted or re-driven form cannot
+    # produce a second bevilling. Only the OS2Forms path sets it.
+    os2forms_id: str | None = None
+
     sagsbehandler_id: int | None = None
     ppr_sagsbehandler_id: int | None = None
 

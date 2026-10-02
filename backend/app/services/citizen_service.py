@@ -262,7 +262,12 @@ class CitizenService:
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Distance API error: {e}")
 
-        elev.skoleafstand = round(distance_km, 3)
+        # One decimal, matching what the nightly run stores. It reaches the
+        # same ORS call through /bevilling/calculate_walking_distance, which
+        # rounds there; this service calls walking_distance() directly and so
+        # has to round for itself. Two sources for one column must agree, or
+        # the button and the night quietly disagree about the same student.
+        elev.skoleafstand = round(distance_km, 1)
         elev.kraever_genberegning = False
 
         self.db.commit()

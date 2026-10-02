@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.adresse import Adresse
+from app.models.bevilling import Bevilling
 from app.models.lookup import Hjaelpemiddel, Skolematrikel, Ungdomsuddannelse
 from app.schemas.bevilling import BevillingCreateRequest
 from app.services.bevilling_service import BevillingService
@@ -220,6 +221,39 @@ class OS2FormsService:
         return [row.hjaelpemiddel_id for row in rows]
 
 
+    def _find_bevilling_by_os2forms_id(self, os2forms_id: str | None) -> int | None:
+        """The bevilling already created from this submission, if any.
+
+        Args:
+            os2forms_id:
+                The OS2Forms submission id, or None when the caller did not
+                send one.
+
+        Returns:
+            The existing bevilling_id, or None.
+
+        Notes:
+            None in means None out: a submission that carries no id cannot be
+            recognised on a second delivery, so it is created. That is the old
+            behaviour, kept deliberately rather than refusing the request —
+            the live OS2Forms remote post handler does not send the id yet,
+            and refusing would stop applications reaching caseworkers.
+
+            Soft-deleted bevillinger count. A caseworker who deleted one has
+            decided it should not exist; recreating it on the next delivery
+            would undo that silently.
+        """
+
+        if not os2forms_id:
+            return None
+
+        return self.db.execute(
+            select(Bevilling.bevilling_id).where(
+                Bevilling.os2forms_id == os2forms_id
+            )
+        ).scalars().first()
+
+
     def map_submission_to_bevilling(self, payload: dict) -> BevillingCreateRequest:
         """Map an OS2Forms payload to a BevillingCreateRequest.
 
@@ -256,6 +290,7 @@ class OS2FormsService:
             ansoegningstype=os2forms_mapping.get_ansoegningstype(payload),
             begrundelse_fra_formular=os2forms_mapping.get_begrundelse(payload),
             hjaelpemiddel_ids=self._resolve_hjaelpemiddel_ids(hjaelpemiddel_names),
+            os2forms_id=os2forms_mapping.get_os2forms_id(payload),
         )
 
 
@@ -287,10 +322,24 @@ class OS2FormsService:
         # Parse the raw OS2Forms request into a normal dictionary.
         payload = await self.parse_payload(request)
 
-        print(f"parsed_payload:\n{payload}")
-
         # Convert OS2Forms field names/values into the internal API schema.
         bevilling_request = self.map_submission_to_bevilling(payload)
+
+        # One bevilling per submission. Without this, every retry makes another
+        # one for the same family: a manually re-driven journalization, two
+        # overlapping reconciler runs, or OS2Forms simply delivering twice.
+        #
+        # Answered before anything is written, so a repeat call is a no-op
+        # rather than a half-applied one — create_elev below is get-or-create
+        # and harmless, but the bevilling is not.
+        eksisterende = self._find_bevilling_by_os2forms_id(bevilling_request.os2forms_id)
+
+        if eksisterende is not None:
+            return {
+                "status": "already_exists",
+                "cpr": cpr,
+                "result": {"bevilling_id": eksisterende},
+            }
 
         # Ensure an Elev row exists for this CPR before creating the bevilling.
         #

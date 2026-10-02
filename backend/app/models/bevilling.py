@@ -91,6 +91,19 @@ class Bevilling(Base):
         nullable=True,
     )
 
+    # The OS2Forms submission this bevilling was created from, as
+    # [RPA].[journalizing].[Forms] holds it. NULL on everything a caseworker
+    # creates by hand — only submissions carry one.
+    #
+    # It is what makes "has this application already produced a bevilling?"
+    # answerable, which both the create endpoint's duplicate guard and the
+    # reconciliation job depend on. A filtered unique index enforces it in the
+    # database. See migration 028.
+    os2forms_id: Mapped[str | None] = mapped_column(
+        Unicode(36),
+        nullable=True,
+    )
+
     sagsbehandler_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(f"{DB_SCHEMA}.Sagsbehandler.sagsbehandler_id"),

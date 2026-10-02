@@ -193,3 +193,36 @@ def get_ansoegningstype(payload: dict) -> str:
     # This value was "Kørsel" until migration 009 renamed it; existing rows were
     # updated at the same time, so both old and new data read "Fast kørsel".
     return "Fast kørsel"
+
+
+def get_os2forms_id(payload: dict) -> str | None:
+    """The OS2Forms submission id, if the caller sent one.
+
+    Args:
+        payload:
+            Parsed OS2Forms submission data.
+
+    Returns:
+        The submission id as a string, or None.
+
+    Notes:
+        This is what makes a submission recognisable on a second delivery, so
+        a retry updates nothing instead of creating a second bevilling for the
+        same family.
+
+        Two spellings are accepted because two callers send it. The
+        reconciliation job reads form_id from [RPA].[journalizing].[Forms] and
+        sends that name; an OS2Forms remote post handler would send the
+        submission's own uuid token. They are the same value.
+
+        Returns None rather than "" for a blank, so the caller's "did they
+        send one?" check does not have to repeat the emptiness test.
+    """
+
+    for key in ("form_id", "uuid"):
+        value = payload.get(key)
+
+        if value:
+            return str(value).strip() or None
+
+    return None
