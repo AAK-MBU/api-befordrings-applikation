@@ -22,27 +22,32 @@ export type CsvColumn = {
   format?: (value: unknown, row: Record<string, unknown>) => unknown;
 };
 
-// Danish Excel splits on semicolon, not comma — a comma-separated file opens
-// as a single column per row, which looks like the export is broken.
-const SEPARATOR = ";";
+// TAB, not semicolon or comma.
+//
+// Excel does not read the separator from the file — it uses the system list
+// separator from Windows' regional settings, so a semicolon file opens as one
+// column on a machine set to an English locale. The "sep=;" directive fixes
+// that, but Excel honours EITHER that directive OR the UTF-8 BOM, never both:
+// with sep= present it ignores the BOM and falls back to the ANSI codepage,
+// and "Kørselstyper" arrives as "KÃ¸rselstyper".
+//
+// A tab needs neither. Excel splits on tabs in a UTF-16 file regardless of
+// locale, so the separator and the encoding stop fighting.
+const SEPARATOR = "\t";
 
-// Excel only recognises a UTF-8 CSV when it starts with a BOM. Without it æ, ø
-// and å arrive mangled, which on a list of people's names is not cosmetic.
-const BOM = "﻿";
+// UTF-16 little-endian, which is what makes the tab above work: Excel detects
+// UTF-16 from the FF FE byte-order mark and parses the file as text rather
+// than through the locale-dependent CSV path. UTF-8 with a BOM reads the
+// characters correctly too, but only under that CSV path — which is where the
+// separator problem lives.
+//
+// Danish names are the whole reason this matters. æ, ø and å mangled on a
+// list of children is not cosmetic.
+const ENCODING = "utf16le";
+const BOM = "\ufeff";
 
 // Excel wants CRLF; LF alone leaves some versions showing one long row.
 const LINJESKIFT = "\r\n";
-
-// Excel does NOT read the separator from the file — it uses the system list
-// separator from Windows' regional settings. On a machine set to an English
-// locale that is a comma, so a semicolon-separated file lands in a single
-// column however well-formed it is. This directive overrides that, and Excel
-// honours it regardless of locale.
-//
-// The cost: other readers see it as a row. pandas needs sep=";", skiprows=1,
-// and Python's csv module the same. Worth it — these files are opened in
-// Excel by caseworkers, not parsed.
-const SEP_DIREKTIV = `sep=${SEPARATOR}`;
 
 
 /**
@@ -59,7 +64,7 @@ export function csvField(value: unknown): string {
 }
 
 
-/** The CSV body: BOM, separator directive, header line, then the data rows. */
+/** The CSV text: BOM, header line, then the data rows. Tab-separated. */
 export function csvBody(
   rows: Record<string, unknown>[],
   columns: CsvColumn[]
@@ -75,7 +80,7 @@ export function csvBody(
     ),
   ];
 
-  return BOM + SEP_DIREKTIV + LINJESKIFT + linjer.join(LINJESKIFT);
+  return BOM + linjer.join(LINJESKIFT);
 }
 
 
@@ -104,9 +109,11 @@ export function csvResponse(
     String(today.getDate()).padStart(2, "0"),
   ].join("-");
 
-  return new Response(csvBody(rows, columns), {
+  // Encoded to UTF-16LE bytes rather than handed over as a JS string, which
+  // the platform would otherwise serialise as UTF-8.
+  return new Response(Buffer.from(csvBody(rows, columns), ENCODING), {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Type": "text/csv; charset=utf-16le",
       "Content-Disposition": `attachment; filename="${filnavn}-${dato}.csv"`,
       "Cache-Control": "no-store",
     },
