@@ -121,6 +121,30 @@ def get_bevilling(bevilling_id: int, db: DbSession):
     return service.get_bevilling(bevilling_id=bevilling_id)
 
 
+@router.get("/mangler_esdh_noegle")
+def get_bevillinger_uden_esdh_noegle(db: DbSession, maks_antal: int = 200):
+    """List bevillinger that have no ESDH key yet.
+
+    Args:
+        db:
+            The database session injected by FastAPI.
+
+        maks_antal:
+            Upper bound on the number of rows returned.
+
+    Returns:
+        bevilling_id, cpr_elev and created_at for each, oldest first.
+
+    Notes:
+        Read by rpa-befordring-kontrol, which resolves the case in GO and
+        writes the key back through PUT /bevilling/{bevilling_id}.
+    """
+
+    service = BevillingService(db=db)
+
+    return service.get_bevillinger_uden_esdh_noegle(maks_antal=maks_antal)
+
+
 @router.get("/get_student_bevillinger/{cpr}")
 def get_student_bevillinger(cpr: str, db: DbSession):
     """Get all bevillinger connected to a specific student/citizen.

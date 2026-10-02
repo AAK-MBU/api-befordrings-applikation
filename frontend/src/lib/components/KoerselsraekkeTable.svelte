@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from "$app/stores";
-  import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
+  import { MIN_DATE, MAX_DATE, isDateOutOfRange, iDagISO, datoDel } from "$lib/dates";
+  import { harEftermiddag } from "$lib/tidspunkt";
   import { formatDanishDate } from "$lib/tableColumnConfig";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
   import DagePicker from "$lib/components/DagePicker.svelte";
@@ -87,28 +88,38 @@
   const isSkolerejsekort = (typeId: string | number | null | undefined) =>
     typeIsSkolerejsekort(lookupOptions.koerselstyper, typeId);
 
+  // "Kørsel til institution" only means something on a kørsel with an
+  // afternoon leg: a morning journey takes the child home -> school, and the
+  // SFO or klub is where they go afterwards.
+  const harEftermiddagsTur = (tidspunktId: string | number | null | undefined) =>
+    harEftermiddag(lookupOptions.tidspunkter, tidspunktId);
+
+  // Compared as "YYYY-MM-DD" STRINGS, not as Date objects.
+  //
+  // gyldig_fra is a SQL DATE, so it arrives as "2026-10-02", and
+  // `new Date("2026-10-02")` is specified to parse a date-only string as UTC
+  // midnight. `today.setHours(0,0,0,0)` gives LOCAL midnight, which in Denmark
+  // is one or two hours earlier — so `fra > todayMs` was true for a række
+  // starting today, and it showed purple (kommende) until midnight.
   function koerselRowStatus(row: any): 'aktiv' | 'kommende' | 'historisk' {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayMs = today.getTime();
-    const fra = new Date(row.gyldig_fra).getTime();
-    const til = new Date(row.gyldig_til).getTime();
-    if (fra <= todayMs && todayMs <= til) return 'aktiv';
-    if (fra > todayMs) return 'kommende';
+    const iDag = iDagISO();
+    const fra = datoDel(row.gyldig_fra);
+    const til = datoDel(row.gyldig_til);
+
+    if (fra <= iDag && iDag <= til) return 'aktiv';
+    if (fra > iDag) return 'kommende';
     return 'historisk';
   }
 
   $: sortedRows = (() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayMs = today.getTime();
+    // Was a second copy of koerselRowStatus's comparison, with the same
+    // timezone fault — so a række starting today sorted into the kommende
+    // group while its own badge said otherwise. Derived from the one function
+    // now, so the colour and the grouping cannot disagree again.
+    const GRUPPE = { aktiv: 0, kommende: 1, historisk: 2 } as const;
 
     function group(row: any): number {
-      const fra = new Date(row.gyldig_fra).getTime();
-      const til = new Date(row.gyldig_til).getTime();
-      if (fra <= todayMs && todayMs <= til) return 0; // aktiv
-      if (fra > todayMs) return 1;                    // kommende
-      return 2;                                       // historisk
+      return GRUPPE[koerselRowStatus(row)];
     }
 
     return [...rows].sort((a, b) => {
@@ -416,7 +427,16 @@
       skift_med_bus: isSkolerejsekort(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.skift_med_bus) : null,
       // Only the fields belonging to the chosen kørselstype are sent; the rest
       // are nulled so a value cannot survive a change of type.
-      koersel_til_institution: isTaxaType(editableKoerselsraekke.befordringstype_id) ? boolOrNull(editableKoerselsraekke.koersel_til_institution) : null,
+      // Nulled when the field does not apply, not merely hidden. Answering
+      // "Ja" under Eftermiddag and then switching to Morgen would otherwise
+      // leave a morning kørsel claiming it goes to an institution — and the
+      // afgørelsesbrev would gain an SFO paragraph about a journey that does
+      // not exist.
+      koersel_til_institution:
+        isTaxaType(editableKoerselsraekke.befordringstype_id) &&
+        harEftermiddagsTur(editableKoerselsraekke.tidspunkt_id)
+          ? boolOrNull(editableKoerselsraekke.koersel_til_institution)
+          : null,
       max_minutter_i_transport: isTaxaType(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.max_minutter_i_transport) : null,
       koerselsgodtgoerelse_modtager_id: isEgenbefordring(editableKoerselsraekke.befordringstype_id) ? numberOrNull(editableKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
       koerselsgodtgoerelse_modtager_cpr: isEgenbefordring(editableKoerselsraekke.befordringstype_id) ? (editableKoerselsraekke.koerselsgodtgoerelse_modtager_cpr || null) : null,
@@ -512,7 +532,11 @@
     }
 
     if (isTaxaType(befordringstypeId)) {
-      if (isBlank(values.koersel_til_institution)) return "Kørsel til institution skal udfyldes";
+      // Only asked for where it applies — the field is hidden for a
+      // morning-only kørsel, and a hidden field cannot be required.
+      if (harEftermiddagsTur(values.tidspunkt_id) && isBlank(values.koersel_til_institution)) {
+        return "Kørsel til institution skal udfyldes";
+      }
       // max_minutter_i_transport is deliberately NOT required: it is not
       // always known when the kørselsrække is created, the column is nullable
       // and neither the API schema nor the create modal has ever demanded it.
@@ -566,7 +590,11 @@
       skift_med_bus: isSkolerejsekort(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.skift_med_bus) : null,
       // Only the fields belonging to the chosen kørselstype are sent; the rest
       // are nulled so a value cannot survive a change of type.
-      koersel_til_institution: isTaxaType(newKoerselsraekke.befordringstype_id) ? boolOrNull(newKoerselsraekke.koersel_til_institution) : null,
+      koersel_til_institution:
+        isTaxaType(newKoerselsraekke.befordringstype_id) &&
+        harEftermiddagsTur(newKoerselsraekke.tidspunkt_id)
+          ? boolOrNull(newKoerselsraekke.koersel_til_institution)
+          : null,
       max_minutter_i_transport: isTaxaType(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.max_minutter_i_transport) : null,
       koerselsgodtgoerelse_modtager_id: isEgenbefordring(newKoerselsraekke.befordringstype_id) ? numberOrNull(newKoerselsraekke.koerselsgodtgoerelse_modtager_id) : null,
       koerselsgodtgoerelse_modtager_cpr: isEgenbefordring(newKoerselsraekke.befordringstype_id) ? (newKoerselsraekke.koerselsgodtgoerelse_modtager_cpr || null) : null,
@@ -717,6 +745,7 @@
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
             <TagMultiSelect options={lookupOptions.koerselstypeTillaeg ?? []} bind:selected={newSelectedTillaegIds} placeholder="Tilføj tillæg" />
           </div>
+          {#if harEftermiddagsTur(newKoerselsraekke.tidspunkt_id)}
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørsel til institution *</span>
             <select class={selectClass} value={newKoerselsraekke.koersel_til_institution ?? ""} on:change={(e) => updateNewField("koersel_til_institution", e.currentTarget.value)}>
@@ -725,6 +754,7 @@
               <option value="false">Nej</option>
             </select>
           </label>
+          {/if}
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
             <input type="number" min="0" max="500" class={inputClass} value={newKoerselsraekke.max_minutter_i_transport ?? ""} on:change={(e) => updateNewField("max_minutter_i_transport", e.currentTarget.value)} />
@@ -1007,6 +1037,7 @@
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tillæg</span>
               <TagMultiSelect options={lookupOptions.koerselstypeTillaeg ?? []} bind:selected={selectedTillaegIds} placeholder="Tilføj tillæg" />
             </div>
+            {#if harEftermiddagsTur(editableKoerselsraekke.tidspunkt_id)}
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Kørsel til institution *</span>
               <select class={selectClass} value={editableKoerselsraekke.koersel_til_institution != null ? String(editableKoerselsraekke.koersel_til_institution) : ""} on:change={(e) => updateField("koersel_til_institution", e.currentTarget.value)}>
@@ -1015,6 +1046,7 @@
                 <option value="false">Nej</option>
               </select>
             </label>
+            {/if}
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Max. antal min. i transport</span>
               <input type="number" min="0" max="500" class={inputClass} value={editableKoerselsraekke.max_minutter_i_transport ?? ""} on:change={(e) => updateField("max_minutter_i_transport", e.currentTarget.value)} />

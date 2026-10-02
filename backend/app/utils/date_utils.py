@@ -8,9 +8,14 @@ Currently it handles:
 - Subtracting months from a date while handling month length safely
 """
 
+import logging
 from calendar import monthrange
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
+
+_TIDSZONE = ZoneInfo("Europe/Copenhagen")
 
 
 def parse_os2forms_timestamp(value: str | int | None) -> date | None:
@@ -28,19 +33,50 @@ def parse_os2forms_timestamp(value: str | int | None) -> date | None:
         Returns None if no value was provided.
 
     Notes:
-        OS2Forms timestamps are expected to be Unix timestamps.
+        TWO shapes arrive, because two callers send this field:
 
-        The timezone is important because converting a timestamp without a
-        timezone can sometimes produce the wrong date around midnight.
+          * a Unix timestamp — what OS2Forms' own remote post handler sends,
+            e.g. 1790000000
+          * an ISO 8601 string — what [RPA].[journalizing] stores and
+            rpa-befordring-kontrol forwards, e.g.
+            "2026-10-01T14:12:28+00:00"
+
+        Only the first was handled, so a submission from the kontrol process
+        raised ValueError inside int() and the whole create returned 500 — no
+        bevilling at all, over a date field.
+
+        The timezone matters in both branches: a submission at 23:30 UTC is
+        already the next day in Copenhagen, and ansoegningsdato is a date.
+        An ISO value carrying its own offset is converted; a naive one is read
+        as local time, which is what a timestamp without an offset means here.
+
+        An unparseable value yields None rather than raising. The date can be
+        corrected on the bevilling afterwards; a rejected submission cannot be
+        recovered without someone noticing it went missing.
     """
 
     if not value:
         return None
 
-    return datetime.fromtimestamp(
-        int(value),
-        tz=ZoneInfo("Europe/Copenhagen"),
-    ).date()
+    tekst = str(value).strip()
+
+    # Unix timestamp, including one sent as a numeric string.
+    try:
+        return datetime.fromtimestamp(int(tekst), tz=_TIDSZONE).date()
+    except (ValueError, OverflowError, OSError):
+        pass
+
+    # ISO 8601. fromisoformat handles offsets and a trailing "Z" from 3.11 on.
+    try:
+        tidspunkt = datetime.fromisoformat(tekst)
+    except ValueError:
+        logger.warning("Kunne ikke læse OS2Forms-tidsstempel: %r", value)
+        return None
+
+    if tidspunkt.tzinfo is None:
+        tidspunkt = tidspunkt.replace(tzinfo=_TIDSZONE)
+
+    return tidspunkt.astimezone(_TIDSZONE).date()
 
 
 def subtract_months(value: date, months: int) -> date:

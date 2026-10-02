@@ -1589,6 +1589,52 @@ class BevillingService:
         return int(result["calculated_status_id"])
 
 
+    def get_bevillinger_uden_esdh_noegle(self, maks_antal: int = 200):
+        """Bevillinger that have no ESDH key yet.
+
+        Args:
+            maks_antal:
+                Upper bound on the number of rows returned.
+
+        Returns:
+            A list of dictionaries with bevilling_id, cpr_elev and created_at,
+            oldest first.
+
+        Notes:
+            Serves rpa-befordring-kontrol, which looks the case up in GO and
+            writes the key back. A bevilling created from an OS2Forms
+            submission has no key — the submission does not know the GO case —
+            and the nightly run derives esdh_url FROM the key, so without one
+            the bevilling never gets a link into its case either.
+
+            Soft-deleted bevillinger are excluded: there is no point resolving
+            a case for a bevilling nobody will open.
+
+            Oldest first, so a backlog drains in the order it built up rather
+            than the newest rows crowding out the ones that have waited
+            longest. The cap exists because this is called on a schedule and
+            every row it returns costs a GO lookup.
+        """
+
+        sql = text("""
+            SELECT TOP (:maks_antal)
+                b.bevilling_id,
+                b.cpr_elev,
+                b.created_at
+            FROM
+                [befordring].[Bevilling] b
+            WHERE
+                b.aktiv = 1
+            AND NULLIF(LTRIM(RTRIM(b.esdh_noegle)), '') IS NULL
+            ORDER BY
+                b.created_at ASC, b.bevilling_id ASC
+        """)
+
+        result = self.db.execute(sql, {"maks_antal": maks_antal})
+
+        return self._rows_to_dicts(result)
+
+
     def recalculate_bevilling_status(self, bevilling_id: int, commit: bool = True,):
         """Recalculate and save the status for a bevilling.
 
