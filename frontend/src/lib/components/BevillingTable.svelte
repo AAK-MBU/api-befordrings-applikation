@@ -742,7 +742,13 @@
             {/if}
             <!-- Sags-ID. A link into GO when the nightly run has resolved one;
                  plain text until then, because GO's URL carries a per-case
-                 system id that cannot be derived from the key. -->
+                 system id that cannot be derived from the key.
+
+                 Deliberately NOT editable here. The key is writable through
+                 the API so rpa-befordring-kontrol can resolve it from GO, but
+                 a mistyped case number would point a caseworker at another
+                 child's case — so it is set by the process that can look it
+                 up, not by hand. -->
             {#if bevilling.esdh_url}
               <a
                 href={bevilling.esdh_url}

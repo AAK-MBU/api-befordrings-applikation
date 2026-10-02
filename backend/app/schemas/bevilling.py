@@ -70,6 +70,19 @@ class BevillingUpdateRequest(BaseModel):
     ungdomsuddannelse_id: int | None = None
     ansoegningsdato: date | None = None
     sagsbehandlingsdato: date | None = None
+
+    # Editable after creation. A bevilling created from an OS2Forms submission
+    # gets no esdh_noegle — the submission does not know the GO case — and
+    # until this was here nobody could give it one: not a caseworker, not the
+    # API. A bevilling without a key also never gets a link into the case,
+    # because the link is resolved FROM the key.
+    esdh_noegle: str | None = None
+
+    # The resolved deep link. Written by rpa-befordring-kontrol alongside the
+    # key, and by the nightly run as a backstop. It cannot be composed from
+    # the key — GO's URL carries a per-case system id — so it is stored rather
+    # than derived. See migration 026.
+    esdh_url: str | None = None
     adresse_id: str | None = None
     afstandskriterie_dato: date | None = None
     afstandskriterie_klassetrin: int | None = None
