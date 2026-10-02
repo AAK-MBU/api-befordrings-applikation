@@ -18,8 +18,12 @@ import type { RequestHandler } from "./$types";
 
 const COLUMNS: CsvColumn[] = [
   { key: "adresseringsnavn", header: "Navn" },
-  { key: "cpr", header: "CPR" },
+  // cpr_elev, not cpr — that is what view_Revurderinger exposes.
+  { key: "cpr_elev", header: "CPR" },
   { key: "skole_navn", header: "Skole" },
+  { key: "folkeregister_adresse", header: "Folkeregisteradresse" },
+  { key: "elevklassetrin", header: "Klassetrin" },
+  { key: "gaaafstand_km", header: "Gåafstand (km)" },
   { key: "revurderingsdato", header: "Revurderingsdato" },
   {
     key: "revurderingsdato",
@@ -31,7 +35,7 @@ const COLUMNS: CsvColumn[] = [
   { key: "sagsbehandler_tekst", header: "Sagsbehandler" },
   { key: "ppr_sagsbehandler_tekst", header: "PPR ansvarlig" },
   { key: "status_tekst", header: "Status" },
-  { key: "esdh_noegle", header: "Sags-ID" },
+  { key: "afstandskriterie_dato", header: "Afstandskriterie dato" },
   {
     key: "koerselsraekker",
     header: "Kørselstyper",

@@ -33,6 +33,17 @@ const BOM = "﻿";
 // Excel wants CRLF; LF alone leaves some versions showing one long row.
 const LINJESKIFT = "\r\n";
 
+// Excel does NOT read the separator from the file — it uses the system list
+// separator from Windows' regional settings. On a machine set to an English
+// locale that is a comma, so a semicolon-separated file lands in a single
+// column however well-formed it is. This directive overrides that, and Excel
+// honours it regardless of locale.
+//
+// The cost: other readers see it as a row. pandas needs sep=";", skiprows=1,
+// and Python's csv module the same. Worth it — these files are opened in
+// Excel by caseworkers, not parsed.
+const SEP_DIREKTIV = `sep=${SEPARATOR}`;
+
 
 /**
  * Quote a CSV field.
@@ -48,7 +59,7 @@ export function csvField(value: unknown): string {
 }
 
 
-/** The CSV body for `rows`, including the header line and the BOM. */
+/** The CSV body: BOM, separator directive, header line, then the data rows. */
 export function csvBody(
   rows: Record<string, unknown>[],
   columns: CsvColumn[]
@@ -64,7 +75,7 @@ export function csvBody(
     ),
   ];
 
-  return BOM + linjer.join(LINJESKIFT);
+  return BOM + SEP_DIREKTIV + LINJESKIFT + linjer.join(LINJESKIFT);
 }
 
 
