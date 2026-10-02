@@ -917,7 +917,7 @@
         <!-- SKOLEAFSTAND -->
         <div>
           <div class="flex items-center gap-1.5 mb-1.5">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Skoleafstand (km)</p>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Gåafstand (km)</p>
             <!-- Resolves Skole and Skoleafstand together: the distance is
                  measured to the derived school, so there is nothing to
                  recalculate separately. -->
