@@ -1,5 +1,5 @@
 import { filterFraQuery, matcherFilter, daysUntil } from "$lib/revurderingFilter";
-import { csvResponse, type CsvColumn } from "$lib/server/csv";
+import { csvCpr, csvResponse, type CsvColumn } from "$lib/server/csv";
 import { backendUserFetcher } from "$lib/server/backendApi";
 
 import type { RequestHandler } from "./$types";
@@ -19,7 +19,7 @@ import type { RequestHandler } from "./$types";
 const COLUMNS: CsvColumn[] = [
   { key: "adresseringsnavn", header: "Navn" },
   // cpr_elev, not cpr — that is what view_Revurderinger exposes.
-  { key: "cpr_elev", header: "CPR" },
+  { key: "cpr_elev", header: "CPR", format: csvCpr },
   { key: "skole_navn", header: "Skole" },
   { key: "folkeregister_adresse", header: "Folkeregisteradresse" },
   { key: "elevklassetrin", header: "Klassetrin" },

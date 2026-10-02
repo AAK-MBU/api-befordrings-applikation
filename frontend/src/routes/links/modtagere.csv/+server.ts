@@ -1,4 +1,4 @@
-import { csvResponse, type CsvColumn } from "$lib/server/csv";
+import { csvCpr, csvResponse, type CsvColumn } from "$lib/server/csv";
 import { backendUserFetcher } from "$lib/server/backendApi";
 
 import type { RequestHandler } from "./$types";
@@ -14,7 +14,7 @@ import type { RequestHandler } from "./$types";
 
 const COLUMNS: CsvColumn[] = [
   { key: "modtager_navn", header: "Navn" },
-  { key: "modtager_cpr", header: "CPR" },
+  { key: "modtager_cpr", header: "CPR", format: csvCpr },
   { key: "modtager_type", header: "Type" },
   { key: "elever", header: "Elever" },
   { key: "antal_elever", header: "Antal elever" },

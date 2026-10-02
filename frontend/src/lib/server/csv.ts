@@ -119,3 +119,29 @@ export function csvResponse(
     },
   });
 }
+
+
+/**
+ * A CPR formatted as DDMMYY-XXXX, for a column that must survive Excel.
+ *
+ * Quoting a field does NOT stop Excel coercing it to a number — quotes protect
+ * separators and newlines, nothing else. So "0101101234" is read as the number
+ * 101101234 and the leading zero is gone, on a column where that silently
+ * identifies the wrong person.
+ *
+ * The dash is what fixes it: nothing parses DDMMYY-XXXX as a number, so the
+ * value stays text. It is also the format Danes read a CPR in, so this costs
+ * nothing in legibility — and it is the same treatment the application's own
+ * tables already apply through formatCpr.
+ *
+ * Deliberately NOT `="0101101234"`, the other common trick: a cell beginning
+ * with = is a formula, which makes the file a CSV-injection vector and reads
+ * as literal text everywhere except Excel.
+ */
+export function csvCpr(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+
+  const cifre = String(value).replace(/\D/g, "");
+
+  return cifre.length === 10 ? `${cifre.slice(0, 6)}-${cifre.slice(6)}` : String(value);
+}
