@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from "$app/stores";
-  import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
+  import { MIN_DATE, MAX_DATE, isDateOutOfRange, iDagISO, datoDel } from "$lib/dates";
   import { formatDanishDate } from "$lib/tableColumnConfig";
   import TagMultiSelect from "$lib/components/TagMultiSelect.svelte";
   import DagePicker from "$lib/components/DagePicker.svelte";
@@ -87,28 +87,32 @@
   const isSkolerejsekort = (typeId: string | number | null | undefined) =>
     typeIsSkolerejsekort(lookupOptions.koerselstyper, typeId);
 
+  // Compared as "YYYY-MM-DD" STRINGS, not as Date objects.
+  //
+  // gyldig_fra is a SQL DATE, so it arrives as "2026-10-02", and
+  // `new Date("2026-10-02")` is specified to parse a date-only string as UTC
+  // midnight. `today.setHours(0,0,0,0)` gives LOCAL midnight, which in Denmark
+  // is one or two hours earlier — so `fra > todayMs` was true for a række
+  // starting today, and it showed purple (kommende) until midnight.
   function koerselRowStatus(row: any): 'aktiv' | 'kommende' | 'historisk' {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayMs = today.getTime();
-    const fra = new Date(row.gyldig_fra).getTime();
-    const til = new Date(row.gyldig_til).getTime();
-    if (fra <= todayMs && todayMs <= til) return 'aktiv';
-    if (fra > todayMs) return 'kommende';
+    const iDag = iDagISO();
+    const fra = datoDel(row.gyldig_fra);
+    const til = datoDel(row.gyldig_til);
+
+    if (fra <= iDag && iDag <= til) return 'aktiv';
+    if (fra > iDag) return 'kommende';
     return 'historisk';
   }
 
   $: sortedRows = (() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayMs = today.getTime();
+    // Was a second copy of koerselRowStatus's comparison, with the same
+    // timezone fault — so a række starting today sorted into the kommende
+    // group while its own badge said otherwise. Derived from the one function
+    // now, so the colour and the grouping cannot disagree again.
+    const GRUPPE = { aktiv: 0, kommende: 1, historisk: 2 } as const;
 
     function group(row: any): number {
-      const fra = new Date(row.gyldig_fra).getTime();
-      const til = new Date(row.gyldig_til).getTime();
-      if (fra <= todayMs && todayMs <= til) return 0; // aktiv
-      if (fra > todayMs) return 1;                    // kommende
-      return 2;                                       // historisk
+      return GRUPPE[koerselRowStatus(row)];
     }
 
     return [...rows].sort((a, b) => {
