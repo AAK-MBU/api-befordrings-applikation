@@ -1200,21 +1200,10 @@
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tillæg</p>
                 <p class="text-sm text-gray-800 break-words">{row.tillaeg_tekst ?? "—"}</p>
               </div>
-              <!-- Hidden on a morning-only kørsel, matching the edit form —
-                   but ONLY when there is nothing stored. A row saved before
-                   the field was gated can hold "Ja" on a Morgen kørsel, and
-                   that value still puts an SFO paragraph in the afgørelsesbrev
-                   (block_handlers only asks whether any række says "Ja").
-                   Hiding it would conceal a value that is actively doing
-                   something; it disappears by itself once the row is saved. -->
-              {#if harEftermiddagsTur(row.tidspunkt_id) || row.koersel_til_institution != null}
-                <div>
-                  <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørsel til institution</p>
-                  <p class="text-sm text-gray-800">{row.koersel_til_institution === true ? 'Ja' : row.koersel_til_institution === false ? 'Nej' : '—'}</p>
-                </div>
-              {:else}
-                <div></div>
-              {/if}
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørsel til institution</p>
+                <p class="text-sm text-gray-800">{row.koersel_til_institution === true ? 'Ja' : row.koersel_til_institution === false ? 'Nej' : '—'}</p>
+              </div>
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Max. antal min. i transport</p>
                 <p class="text-sm text-gray-800">{row.max_minutter_i_transport ?? "—"}</p>
