@@ -26,6 +26,7 @@ from oidc_auth.integrations import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import api_key_header, match_api_key
+from app.core.session_udloeb import er_udloebet
 from app.utils.identitet import visningsnavn
 
 
@@ -49,6 +50,49 @@ from app.utils.identitet import visningsnavn
 # - inject the returned database session
 # - treat db as a SQLAlchemy Session
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def aktiv_session(request: Request):
+    """The current user's claims, refused once the session has passed 01:00.
+
+    Args:
+        request:
+            The incoming request, carrying the session cookie.
+
+    Returns:
+        The OIDC claims.
+
+    Raises:
+        HTTPException:
+            401 where there is no session, or where it began before the last
+            nightly boundary.
+
+    Notes:
+        Wraps get_current_user rather than replacing it, so the library keeps
+        owning how claims are read and this only adds the age check.
+
+        Used by require_auth AND by GET /me. Both, deliberately: the frontend
+        decides whether someone is logged in by probing /me, so a check only in
+        require_auth would leave the UI showing an authenticated user while
+        every API call behind it answered 401.
+
+        API-key callers never reach this — require_auth returns before it — and
+        must not: the RPAs hold no session and have nothing to re-authenticate
+        with.
+    """
+
+    claims = get_current_user(request)
+
+    if er_udloebet(getattr(claims, "iat", None)):
+        # Same 401 as "no session at all", so the frontend's existing redirect
+        # to login handles it without a second code path. Logging in writes a
+        # fresh cookie over the stale one.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="session expired",
+        )
+
+    return claims
 
 
 def require_auth(
@@ -83,7 +127,7 @@ def require_auth(
 
         return {"auth_type": "api_key", "api_key_name": key_name}
 
-    return get_current_user(request)
+    return aktiv_session(request)
 
 
 def get_udfoert_af(
