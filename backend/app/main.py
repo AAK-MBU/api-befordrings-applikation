@@ -17,11 +17,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from oidc_auth import IDTokenClaims
-from oidc_auth.integrations import create_oidc_router, get_current_user
+from oidc_auth.integrations import create_oidc_router
 
 from app.api.dependencies import edit_role_names
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.api.dependencies import aktiv_session
 from app.utils.identitet import visningsnavn
 from app.core.oidc import oidc_config
 from app.middleware.audit_middleware import AuditLogMiddleware
@@ -125,10 +126,13 @@ def root():
 
 
 @app.get("/me", tags=["auth"])
-def me(user: IDTokenClaims = Depends(get_current_user)) -> dict:
+def me(user: IDTokenClaims = Depends(aktiv_session)) -> dict:
     """Return the OIDC claims for the currently logged-in user.
 
-    Raises 401 if there is no active OIDC session.
+    Raises 401 if there is no active OIDC session, or if the session has
+    passed its nightly 01:00 boundary — aktiv_session rather than
+    get_current_user, because the frontend decides whether someone is logged
+    in by probing this endpoint.
     """
     return {
         "sub": user.sub,
