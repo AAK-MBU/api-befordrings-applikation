@@ -14,6 +14,42 @@ USE [Befordringssystemet];
 
 SET XACT_ABORT ON;
 
+
+/* ------------------------------------------------------------
+   SERVERSPÆRRE — udfyld @tilladte_servere før scriptet bruges
+
+   USE [Befordringssystemet] siger INTET om hvilken server man står på:
+   databasen hedder det samme på dev og på prod. Uden denne spærre er den
+   eneste beskyttelse ROLLBACK'et nederst — og hele pointen med filen er, at
+   man laver det om til COMMIT. Et vindue, der stod på prod, sletter så hver
+   eneste Koersel, Bevilling, Brev og Elev.
+
+   Fejler LUKKET: listen er tom, så scriptet stopper alle steder, indtil
+   servernavnet er skrevet ind. Det er med vilje. En tom liste, der tillod
+   alt, ville være værre end ingen spærre, fordi den ville se ud som om der
+   var styr på det.
+
+   Find navnet med:   SELECT @@SERVERNAME;
+------------------------------------------------------------ */
+
+DECLARE @tilladte_servere TABLE (servernavn SYSNAME);
+
+INSERT INTO @tilladte_servere (servernavn) VALUES
+    -- ('MIN-DEV-SERVER'),
+    ('srvsql58');
+
+IF NOT EXISTS (SELECT 1 FROM @tilladte_servere WHERE servernavn = @@SERVERNAME)
+BEGIN
+    RAISERROR(
+        'STOPPET: seed_test_data sletter ALLE data og maa ikke koere paa %s. Tilfoej servernavnet til @tilladte_servere, hvis det er en testserver.',
+        16, 1, @@SERVERNAME
+    );
+    RETURN;
+END;
+
+PRINT CONCAT('Serverspaerre OK: ', @@SERVERNAME);
+
+
 BEGIN TRANSACTION;
 
 
@@ -1287,6 +1323,32 @@ VALUES
     NULL, NULL,
     'Afstand', 'test_seed', 'test_seed', 1
 );
+
+
+/* ============================================================
+   ESDH-link.
+
+   One hardcoded URL on every seeded bevilling, so the places that render a
+   link to the case have something to render: the Sags-ID column on Overblik,
+   the bevilling card, and the Forsendelse list.
+
+   In production this is resolved per case by rpa-befordring-kontrol and the
+   nightly run — GO's URL carries a per-case system id that cannot be composed
+   from esdh_noegle, which is the whole reason the column exists. A single
+   shared link is fine for test data: what is being exercised is "does the
+   key render as a link", not where the link goes.
+
+   Set as a separate UPDATE rather than a column on 26 INSERTs, so the value
+   is in one place when someone wants to change it.
+============================================================ */
+
+UPDATE [befordring].[Bevilling]
+SET    esdh_url = 'https://ad.go.aarhuskommune.dk'
+WHERE  created_by = 'test_seed'
+/* A bevilling with no key has nothing to link — and the UI only shows the
+   link where the key is there, so a URL without one would never be seen. */
+AND    NULLIF(LTRIM(RTRIM(esdh_noegle)), '') IS NOT NULL;
+PRINT CONCAT('Bevilling esdh_url: ', @@ROWCOUNT, ' row(s) updated.');
 
 
 /* ============================================================

@@ -238,17 +238,34 @@
       await invalidateAll();
     }
 
-    let brConfirmFor: { bevillingId: number; cpr: string; current: boolean | null } | null = null;
-    let pprConfirmFor: { bevillingId: number; cpr: string; current: boolean | null } | null = null;
+    type VurderingConfirm = {
+      bevillingId: number;
+      cpr: string;
+      current: boolean | null;
+      esdhNoegle?: string | null;
+      esdhUrl?: string | null;
+    };
 
-    function openBrConfirm(bevillingId: number, cpr: string, current: boolean | null) {
-      if (current) { toggleBr(bevillingId, cpr, current); return; }
-      brConfirmFor = { bevillingId, cpr, current };
+    let brConfirmFor: VurderingConfirm | null = null;
+    let pprConfirmFor: VurderingConfirm | null = null;
+
+    // The case link is carried into the dialog rather than looked up when it
+    // renders: approving removes the row from this page, so the link has to be
+    // offered while the case is still in front of the caseworker.
+    function openBrConfirm(bev: any, current: boolean | null) {
+      if (current) { toggleBr(bev.bevilling_id, bev.cpr_elev, current); return; }
+      brConfirmFor = {
+        bevillingId: bev.bevilling_id, cpr: bev.cpr_elev, current,
+        esdhNoegle: bev.esdh_noegle, esdhUrl: bev.esdh_url,
+      };
     }
 
-    function openPprConfirm(bevillingId: number, cpr: string, current: boolean | null) {
-      if (current) { togglePpr(bevillingId, cpr, current); return; }
-      pprConfirmFor = { bevillingId, cpr, current };
+    function openPprConfirm(bev: any, current: boolean | null) {
+      if (current) { togglePpr(bev.bevilling_id, bev.cpr_elev, current); return; }
+      pprConfirmFor = {
+        bevillingId: bev.bevilling_id, cpr: bev.cpr_elev, current,
+        esdhNoegle: bev.esdh_noegle, esdhUrl: bev.esdh_url,
+      };
     }
 
     async function toggleBr(bevillingId: number, cpr: string, current: boolean | null) {
@@ -508,6 +525,23 @@
       </div>
       <div class="px-5 py-5 text-sm text-gray-700 space-y-3">
         <p>Sørg for at du er helt færdig med vurderingen før du godkender.</p>
+        {#if pprConfirmFor.esdhUrl}
+          <a
+            href={pprConfirmFor.esdhUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 text-sky-600 hover:underline font-medium"
+          >
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Åbn sagen i GO{pprConfirmFor.esdhNoegle ? ` (${pprConfirmFor.esdhNoegle})` : ""}
+          </a>
+        {:else if pprConfirmFor.esdhNoegle}
+          <p class="text-xs text-gray-500">
+            Sags-ID {pprConfirmFor.esdhNoegle} — linket er ikke slået op endnu.
+          </p>
+        {/if}
         <p class="font-semibold text-gray-900">Sagen er vurderet</p>
       </div>
       <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
@@ -533,6 +567,27 @@
       </div>
       <div class="px-5 py-5 text-sm text-gray-700 space-y-3">
         <p>Sagen forsvinder fra denne side når du godkender vurderingen. Sørg derfor for at du er helt færdig med vurderingen og har oprettet brev.</p>
+        <!-- Tilbydes FØR godkendelse, ikke efter: sagen forsvinder fra siden,
+             så snart vurderingen er godkendt, og så er linket væk med den.
+             En almindelig <a target="_blank"> frem for en popup — browseren
+             åbner fanen, og sagsbehandleren beholder dialogen. -->
+        {#if brConfirmFor.esdhUrl}
+          <a
+            href={brConfirmFor.esdhUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 text-sky-600 hover:underline font-medium"
+          >
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Åbn sagen i GO{brConfirmFor.esdhNoegle ? ` (${brConfirmFor.esdhNoegle})` : ""}
+          </a>
+        {:else if brConfirmFor.esdhNoegle}
+          <p class="text-xs text-gray-500">
+            Sags-ID {brConfirmFor.esdhNoegle} — linket er ikke slået op endnu.
+          </p>
+        {/if}
         <p class="font-semibold text-gray-900">Sagen er vurderet</p>
       </div>
       <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
@@ -858,7 +913,7 @@
               <button type="button" title="PPR vurderet"
                 class="flex items-center gap-1.5 border-2 rounded px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap
                   {bev.revurderet_af_ppr ? 'bg-green-600 border-green-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-500 hover:border-green-400 hover:text-green-600'}"
-                on:click|stopPropagation={() => openPprConfirm(bev.bevilling_id, bev.cpr_elev, bev.revurderet_af_ppr)}>
+                on:click|stopPropagation={() => openPprConfirm(bev, bev.revurderet_af_ppr)}>
                 <div class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0
                   {bev.revurderet_af_ppr ? 'bg-white/20 border-white/60' : 'border-gray-300'}">
                   {#if bev.revurderet_af_ppr}
@@ -873,7 +928,7 @@
               <button type="button" title="BR vurderet"
                 class="flex items-center gap-1.5 border-2 rounded px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap
                   {bev.revurderet_af_br ? 'bg-green-600 border-green-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-500 hover:border-green-400 hover:text-green-600'}"
-                on:click|stopPropagation={() => openBrConfirm(bev.bevilling_id, bev.cpr_elev, bev.revurderet_af_br)}>
+                on:click|stopPropagation={() => openBrConfirm(bev, bev.revurderet_af_br)}>
                 <div class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0
                   {bev.revurderet_af_br ? 'bg-white/20 border-white/60' : 'border-gray-300'}">
                   {#if bev.revurderet_af_br}
