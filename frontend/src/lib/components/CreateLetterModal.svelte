@@ -9,6 +9,7 @@
   // bevillinger — and reacts to `created` to refresh its own view.
 
   import { createEventDispatcher } from "svelte";
+  import { afgoerelsesbrevKategori } from "$lib/lookupFilters";
 
   import { backendFetch } from "$lib/client/backendFetch";
   import { MIN_DATE, MAX_DATE, firstInvalidDate, firstOutOfRangeDate } from "$lib/dates";
@@ -52,6 +53,20 @@
     selectedBevilling?.befordringsudvalg !== "";
 
   $: erOphoert = selectedBevilling?.status_tekst === "Ophørt";
+
+  // An afslag grants no kørsel, so there is no date on which it starts.
+  //
+  // Verified against the template: not one of the ten afslag or påtænkt-afslag
+  // entries in block 2.1 references {koersel_startdato}, so requiring it asked
+  // the caseworker for a value no letter would ever print — and left them
+  // unable to produce a rejection at all.
+  //
+  // Classified from the AFGØRELSESBREV rather than the bevilling's status:
+  // the letter decides its own content, and the status may still be Ny while
+  // the rejection is being written. afgoerelsesbrevKategori also handles
+  // "Påtænkt afslag", which does not begin with the word.
+  $: erAfslag =
+    afgoerelsesbrevKategori(selectedBevilling?.afgoerelsesbrev_tekst) === "afslag";
 
   // The letter's "startdato for kørsel" is the day the kørsel actually begins:
   // the earliest gyldig_fra across the bevilling's kørselsrækker. ISO dates
@@ -109,7 +124,7 @@
   function firstValidationError(): string | null {
     if (!selectedLetterBevillingId) return "Vælg en bevilling";
     if (!letterType) return "Vælg hvad brevet er i forbindelse med";
-    if (!koerselStartdato) return "Angiv startdato for kørsel";
+    if (!erAfslag && !koerselStartdato) return "Angiv startdato for kørsel";
     if (harBefordringsudvalg && !befordringsudvalgResultat) return "Vælg resultat af befordringsudvalgsmøde";
     if (harBefordringsudvalg && !tidligereAfgoerelseDato) return "Angiv dato for tidligere afgørelse";
     if (erOphoert && !ophoersdato) return "Vælg ophørsdato";
@@ -305,10 +320,12 @@
         </label>
 
         <label class={labelClass}>
-          Startdato for kørsel *
+          Startdato for kørsel {erAfslag ? "" : "*"}
           <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={koerselStartdato} />
           <span class="mt-1 block text-xs font-normal text-gray-500">
-            Udfyldes automatisk med den tidligste "gyldig fra" på bevillingens kørselsrækker.
+            {erAfslag
+              ? "Bruges ikke i et afslag — der bevilges ingen kørsel."
+              : "Udfyldes automatisk med den tidligste \"gyldig fra\" på bevillingens kørselsrækker."}
           </span>
         </label>
 
