@@ -38,3 +38,28 @@ export function bevillingLabelWithId(bevilling: any): string {
 
   return `${bevillingLabel(bevilling)} (${bevillingSystemId(bevilling)})`;
 }
+
+
+/**
+ * "Bevilling 2 - Udløbet" — the label with the bevilling's current status.
+ *
+ * For pickers, where the caseworker is choosing between a child's bevillinger
+ * and the number alone does not say which is which. A child with three
+ * bevillinger typically has one Aktiv and two Udløbet, and that is the thing
+ * being chosen on.
+ *
+ * Deliberately NOT folded into bevillingLabel: that one also labels the badge
+ * on a sagsforløb comment, where the status shown would be the status NOW
+ * rather than when the comment was written — a comment attached to a bevilling
+ * that has since expired would read as if it had always been expired.
+ *
+ * Falls back to the plain label when no status is present, rather than
+ * printing a dangling dash.
+ */
+export function bevillingLabelWithStatus(bevilling: any): string {
+  const status = String(bevilling?.status_tekst ?? "").trim();
+
+  if (!status) return bevillingLabel(bevilling);
+
+  return `${bevillingLabel(bevilling)} - ${status}`;
+}

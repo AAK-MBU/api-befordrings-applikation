@@ -11,7 +11,7 @@
   import ParterTable from "$lib/components/ParterTable.svelte";
   import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
   import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
-  import { bevillingLabel } from "$lib/bevillingLabel";
+  import { bevillingLabel, bevillingLabelWithStatus } from "$lib/bevillingLabel";
   import { aabnSagVindue } from "$lib/client/sagVindue";
   import { lytPaaSagBesked } from "$lib/sagKanal";
   import {
@@ -1197,7 +1197,7 @@
           >
             <option value="">Ingen bevilling</option>
             {#each bevillinger ?? [] as bev}
-              <option value={String(bev.bevilling_id)}>{bevillingLabel(bev)}</option>
+              <option value={String(bev.bevilling_id)}>{bevillingLabelWithStatus(bev)}</option>
             {/each}
           </select>
         </label>
