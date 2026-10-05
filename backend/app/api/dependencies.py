@@ -26,6 +26,7 @@ from oidc_auth.integrations import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import api_key_header, match_api_key
+from app.utils.identitet import visningsnavn
 
 
 # Reusable database session dependency.
@@ -103,8 +104,13 @@ def get_udfoert_af(
         return "System"
 
     # principal is an oidc_auth IDTokenClaims object.
+    #
+    # visningsnavn rather than principal.name: the prod IdP (Entra) carries no
+    # "name" claim at all and spells it "displayname" instead, so reading only
+    # "name" attributed every prod action to an email address while dev showed
+    # a name. See app/utils/identitet.
     name = (
-        getattr(principal, "name", None)
+        visningsnavn(principal)
         or getattr(principal, "email", None)
         or getattr(principal, "sub", None)
     )

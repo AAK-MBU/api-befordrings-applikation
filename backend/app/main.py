@@ -22,6 +22,7 @@ from oidc_auth.integrations import create_oidc_router, get_current_user
 from app.api.dependencies import edit_role_names
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.utils.identitet import visningsnavn
 from app.core.oidc import oidc_config
 from app.middleware.audit_middleware import AuditLogMiddleware
 
@@ -131,7 +132,10 @@ def me(user: IDTokenClaims = Depends(get_current_user)) -> dict:
     """
     return {
         "sub": user.sub,
-        "name": user.name,
+        # visningsnavn, not user.name: the prod IdP has no "name" claim and
+        # spells it "displayname", so the user menu showed an email address
+        # there while dev showed a name. See app/utils/identitet.
+        "name": visningsnavn(user),
         "email": user.email,
         "roles": list(user.roles),
         "groups": list(user.groups),
