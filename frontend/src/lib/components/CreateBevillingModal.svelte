@@ -1020,7 +1020,7 @@
                     {#if parter.some((r: any) => r.type === 'part')}
                       <optgroup label="Øvrige parter">
                         {#each parter.filter((r: any) => r.type === 'part') as r}
-                          <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>
+                          <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}{r.relation ? ` (${r.relation})` : ""}</option>
                         {/each}
                       </optgroup>
                     {/if}

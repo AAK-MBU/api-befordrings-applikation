@@ -714,11 +714,11 @@
               {/if}
               {#if parter.some((r: any) => r.type === 'part')}
                 <optgroup label="Øvrige parter">
-                  {#each parter.filter((r: any) => r.type === 'part') as r}<option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>{/each}
+                  {#each parter.filter((r: any) => r.type === 'part') as r}<option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}{r.relation ? ` (${r.relation})` : ""}</option>{/each}
                 </optgroup>
               {/if}
               {#if !parter.some((r: any) => r.type)}
-                {#each parter as p}<option value="p:{p.part_id}">{p.fulde_navn ?? p.navn ?? p.part_id}</option>{/each}
+                {#each parter as p}<option value="p:{p.part_id}">{p.fulde_navn ?? p.navn ?? p.part_id}{p.relation ? ` (${p.relation})` : ""}</option>{/each}
               {/if}
             </select>
           </label>
@@ -1008,7 +1008,7 @@
                 {#if parter.some((r: any) => r.type === 'part')}
                   <optgroup label="Øvrige parter">
                     {#each parter.filter((r: any) => r.type === 'part') as r}
-                      <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}</option>
+                      <option value="p:{r.part_id}">{r.fulde_navn ?? r.part_id}{r.relation ? ` (${r.relation})` : ""}</option>
                     {/each}
                   </optgroup>
                 {/if}               
