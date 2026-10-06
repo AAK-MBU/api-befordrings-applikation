@@ -391,10 +391,6 @@
   if (genbehandlingConfirmFor) { genbehandlingConfirmFor = null; }
 }} />
 
-<svelte:head>
-  <title>Befordring – Genbehandling</title>
-</svelte:head>
-
 
 {#if genbehandlingConfirmFor}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" tabindex="-1">

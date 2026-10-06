@@ -43,10 +43,6 @@
   }
 </script>
 
-<svelte:head>
-  <title>Opret brev — {data.stamdata?.adresseringsnavn ?? data.cpr}</title>
-</svelte:head>
-
 <CreateLetterModal
   bind:open
   cpr={data.stamdata.cpr}

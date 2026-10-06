@@ -507,10 +507,6 @@
   if (brConfirmFor) { brConfirmFor = null; }
 }} />
 
-<svelte:head>
-  <title>Befordring – Revurdering</title>
-</svelte:head>
-
 
 {#if pprConfirmFor}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" tabindex="-1">
@@ -893,7 +889,7 @@
               </div>
               <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
                 <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Udløbsdato</span>
-                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.gyldig_til) ?? "—"}</span>
+                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.seneste_gyldig_til)}</span>
               </div>
               {#if bev.statusbemaerkning}
                 <div class="flex flex-col min-w-0 flex-1 pl-2 border-l border-amber-200 ml-2">

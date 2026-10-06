@@ -46,10 +46,6 @@
   }
 </script>
 
-<svelte:head>
-  <title>Opret bevilling — {data.stamdata?.adresseringsnavn ?? data.cpr}</title>
-</svelte:head>
-
 <CreateBevillingModal
   cpr={data.stamdata.cpr}
   {mode}

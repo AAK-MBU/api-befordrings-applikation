@@ -227,10 +227,6 @@
 </script>
 
 
-<svelte:head>
-  <title>Befordring – Nye ansøgninger</title>
-</svelte:head>
-
 
 <section>
 

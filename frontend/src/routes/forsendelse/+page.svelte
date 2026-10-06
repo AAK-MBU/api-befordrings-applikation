@@ -107,8 +107,6 @@
   }
 </script>
 
-<svelte:head><title>Forsendelse</title></svelte:head>
-
 <section>
   <ReadOnlyNotice />
 
