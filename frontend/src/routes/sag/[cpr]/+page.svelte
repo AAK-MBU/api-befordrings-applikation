@@ -12,6 +12,7 @@
   import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
   import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
   import { bevillingLabel, bevillingLabelWithStatus } from "$lib/bevillingLabel";
+  import { erEgenKommentar } from "$lib/kommentarEjer";
   import { aabnSagVindue } from "$lib/client/sagVindue";
   import { lytPaaSagBesked } from "$lib/sagKanal";
   import {
@@ -24,6 +25,10 @@
   // can_edit is resolved by the backend from EDIT_ROLES (see GET /me), so the
   // UI cannot drift from what require_edit actually enforces.
   $: canEdit = data.user?.can_edit ?? false;
+  // Deleting a comment is governed by authorship, not by a role — see
+  // erEgenKommentar and the delete endpoint. Everything else on this page
+  // still follows canEdit.
+  $: brugerNavn = data.user?.name ?? null;
 
   // Non-null when the student's measured distance sits within 500 m of the
   // afstandskriterie for their klassetrin — see $lib/afstandskriterie.
@@ -298,9 +303,11 @@
       });
 
       if (!response.ok) {
-        // The backend distinguishes "you may not write" (403 from RequireEdit)
-        // from "this row is not a comment" (403 from the service), and says so
-        // in Danish either way — so show its message rather than a generic one.
+        // The backend distinguishes "this row is not a comment" from "it is
+        // not yours", and says so in Danish either way — so show its message
+        // rather than a generic one. The second should be unreachable from
+        // here, since the button only appears on your own comments, but the
+        // backend is what decides and a stale page could still get there.
         let message = "Kunne ikke slette kommentaren";
 
         try {
@@ -1452,11 +1459,10 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                 <!-- Right: action only. Only comments can be deleted — system
                      entries are the case history, and the backend refuses them. -->
                 <div class="shrink-0">
-                  {#if aktivitet.type_kode === "kommentar" || aktivitet.aktivitetstype === "Kommentar"}
+                  {#if (aktivitet.type_kode === "kommentar" || aktivitet.aktivitetstype === "Kommentar") && erEgenKommentar(aktivitet.udfoert_af, brugerNavn)}
                     <button
                       type="button"
-                      title="Slet kommentar"
-                      disabled={!canEdit}
+                      title="Slet din kommentar"
                       class="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       on:click={() => { confirmingDeleteAktivitetId = aktivitet.aktivitet_id; deleteAktivitetError = null; }}
                     >
