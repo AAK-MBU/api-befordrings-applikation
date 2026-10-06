@@ -38,6 +38,11 @@ SELECT
 
     b.bevilling_id,
     b.esdh_noegle,
+    -- Det opløste link til GO, ved siden af nøglen. Kan ikke udledes af
+    -- esdh_noegle — kun rpa-befordring-kontrol kan slå den op — så uden den
+    -- her kunne stamdatakortet vise sags-id'et, men ikke linke til sagen,
+    -- selv om bevillingskortet lige nedenunder gjorde begge dele.
+    b.esdh_url,
     b.status_tekst,
 
     -- Both the id and the text. The text is what the case page renders; the

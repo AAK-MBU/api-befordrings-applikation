@@ -13,6 +13,9 @@
   // Layout data flows into page data, so the signed-in user is available here.
   // can_edit is resolved by the backend from EDIT_ROLES — see GET /me.
   $: canEdit = data.user?.can_edit ?? false;
+  // Wider than canEdit: PPR Medarbejder ("user-read") may set the PPR column
+  // and nothing else on the row. See PPR_ASSIGN_ROLES and require_ppr_assign.
+  $: canAssignPpr = data.user?.can_assign_ppr ?? false;
 
   let assignError: string | null = null;
 
@@ -45,7 +48,14 @@
 
     assignError = null;
 
-    const res = await backendFetch(`/bevilling/${bevillingId}`, {
+    // The PPR column has its own endpoint so that PPR Medarbejder can use it;
+    // the general PUT stays behind require_edit and would refuse them.
+    const path =
+      field === "ppr_sagsbehandler_id"
+        ? `/bevilling/${bevillingId}/ppr_sagsbehandler`
+        : `/bevilling/${bevillingId}`;
+
+    const res = await backendFetch(path, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
@@ -109,7 +119,9 @@
     field: string,
     currentId: number | null,
     options: { id: number; label: string }[],
-    placeholder: string
+    placeholder: string,
+    // Which permission governs this column. Defaults to the general one.
+    tilladt: boolean = canEdit
   ): string {
     const opts = options
       .map(o => `<option value="${o.id}" ${currentId === o.id ? "selected" : ""}>${o.label}</option>`)
@@ -122,8 +134,8 @@
       data-bevilling-id="${bevillingId}"
       data-field="${field}"
       data-current="${currentId ?? ""}"
-      ${canEdit ? "" : "disabled"}
-      ${canEdit ? "" : 'title="Du har ikke rettigheder til at ændre tildeling"'}
+      ${tilladt ? "" : "disabled"}
+      ${tilladt ? "" : 'title="Du har ikke rettigheder til at ændre tildeling"'}
       class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:border-blue-400 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
     >
       <option value="">${placeholder}</option>
@@ -220,7 +232,8 @@
         "ppr_sagsbehandler_id",
         row.ppr_sagsbehandler_id,
         pprSagsbehandlere,
-        "— Vælg —"
+        "— Vælg —",
+        canAssignPpr
       )
     },
   ] satisfies DataTableColumn[];

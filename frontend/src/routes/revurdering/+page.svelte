@@ -6,6 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
+  import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
     import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
     import { matcherFilter, filterTilQuery, daysUntil, type RevurderingFilter } from "$lib/revurderingFilter";
 
@@ -1057,7 +1058,13 @@
 
                       <div>
                         <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">PPR Sagsbehandler</p>
-                        <p class="text-sm text-gray-800">{bev.ppr_sagsbehandler_tekst ?? "—"}</p>
+                        <!-- Editable for PPR Medarbejder too, who may write
+                             nothing else here. See PprSagsbehandlerSelect. -->
+                        <PprSagsbehandlerSelect
+                          bevillingId={bev.bevilling_id}
+                          valgt={bev.ppr_sagsbehandler_id ?? null}
+                          muligheder={pprSagsbehandlere}
+                        />
                       </div>
 
                       <div>

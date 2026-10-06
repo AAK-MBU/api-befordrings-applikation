@@ -895,9 +895,21 @@
         <!-- SAGS-ID -->
         <div>
           <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Sags-ID</p>
-          <span class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-mono font-medium">
-            {stamdata?.esdh_noegle ?? "—"}
-          </span>
+          <!-- Linket kommer fra bevillingen, som sags-id'et selv gør. Uden
+               esdh_url er der intet at linke til, og nøglen vises som før. -->
+          {#if stamdata?.esdh_noegle && stamdata?.esdh_url}
+            <a
+              href={stamdata.esdh_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Åbn sagen i GO"
+              class="inline-block px-2 py-0.5 rounded bg-slate-100 text-sky-600 hover:bg-slate-200 hover:underline text-xs font-mono font-medium"
+            >{stamdata.esdh_noegle}</a>
+          {:else}
+            <span class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-mono font-medium">
+              {stamdata?.esdh_noegle ?? "—"}
+            </span>
+          {/if}
         </div>
 
         <!-- FOLKEREGISTERADRESSE -->
@@ -1013,11 +1025,11 @@
   <!-- PARTER TAB -->
   {#if activeTab === "parter"}
 
-    <!-- Oplysninger om forældre -->
+    <!-- Oplysninger om forældremyndige -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
       <div class="flex items-center gap-2 mb-4">
         <div class="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></div>
-        <h2 class="font-semibold text-gray-800">Oplysninger om forældre</h2>
+        <h2 class="font-semibold text-gray-800">Oplysninger om forældremyndige</h2>
       </div>
       <DataTable
           data={parents}
