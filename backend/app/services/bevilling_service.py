@@ -1589,23 +1589,33 @@ class BevillingService:
         return int(result["calculated_status_id"])
 
 
-    def get_bevillinger_uden_esdh_noegle(self, maks_antal: int = 200):
-        """Bevillinger that have no ESDH key yet.
+    def get_bevillinger_uden_esdh(self, maks_antal: int = 200):
+        """Bevillinger missing their ESDH key, their link, or both.
 
         Args:
             maks_antal:
                 Upper bound on the number of rows returned.
 
         Returns:
-            A list of dictionaries with bevilling_id, cpr_elev and created_at,
-            oldest first.
+            A list of dictionaries with bevilling_id, cpr_elev, esdh_noegle
+            and created_at, oldest first.
 
         Notes:
             Serves rpa-befordring-kontrol, which looks the case up in GO and
-            writes the key back. A bevilling created from an OS2Forms
-            submission has no key — the submission does not know the GO case —
-            and the nightly run derives esdh_url FROM the key, so without one
-            the bevilling never gets a link into its case either.
+            writes both back. A bevilling created from an OS2Forms submission
+            has no key — the submission does not know the GO case — and the
+            link is derived FROM the key, so without one it gets neither.
+
+            EITHER being missing qualifies. A bevilling can end up with a key
+            but no link: kontrol writes the key even when GO's metadata call
+            fails, deliberately, because a missing link is cosmetic while a
+            missing key means the bevilling has no case at all. Selecting only
+            on the key left those waiting for the nightly run — which is the
+            wait moving this work here was meant to remove.
+
+            esdh_noegle comes back so the caller can tell the two cases apart:
+            with a key in hand there is no need to look the case up again, only
+            to resolve its URL.
 
             Soft-deleted bevillinger are excluded: there is no point resolving
             a case for a bevilling nobody will open.
@@ -1620,12 +1630,16 @@ class BevillingService:
             SELECT TOP (:maks_antal)
                 b.bevilling_id,
                 b.cpr_elev,
+                b.esdh_noegle,
                 b.created_at
             FROM
                 [befordring].[Bevilling] b
             WHERE
                 b.aktiv = 1
-            AND NULLIF(LTRIM(RTRIM(b.esdh_noegle)), '') IS NULL
+            AND (
+                    NULLIF(LTRIM(RTRIM(b.esdh_noegle)), '') IS NULL
+                 OR NULLIF(LTRIM(RTRIM(b.esdh_url)), '') IS NULL
+                )
             ORDER BY
                 b.created_at ASC, b.bevilling_id ASC
         """)

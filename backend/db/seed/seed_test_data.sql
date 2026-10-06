@@ -14,6 +14,42 @@ USE [Befordringssystemet];
 
 SET XACT_ABORT ON;
 
+
+/* ------------------------------------------------------------
+   SERVERSPÆRRE — udfyld @tilladte_servere før scriptet bruges
+
+   USE [Befordringssystemet] siger INTET om hvilken server man står på:
+   databasen hedder det samme på dev og på prod. Uden denne spærre er den
+   eneste beskyttelse ROLLBACK'et nederst — og hele pointen med filen er, at
+   man laver det om til COMMIT. Et vindue, der stod på prod, sletter så hver
+   eneste Koersel, Bevilling, Brev og Elev.
+
+   Fejler LUKKET: listen er tom, så scriptet stopper alle steder, indtil
+   servernavnet er skrevet ind. Det er med vilje. En tom liste, der tillod
+   alt, ville være værre end ingen spærre, fordi den ville se ud som om der
+   var styr på det.
+
+   Find navnet med:   SELECT @@SERVERNAME;
+------------------------------------------------------------ */
+
+DECLARE @tilladte_servere TABLE (servernavn SYSNAME);
+
+INSERT INTO @tilladte_servere (servernavn) VALUES
+    -- ('MIN-DEV-SERVER'),
+    ('srvsql58');
+
+IF NOT EXISTS (SELECT 1 FROM @tilladte_servere WHERE servernavn = @@SERVERNAME)
+BEGIN
+    RAISERROR(
+        'STOPPET: seed_test_data sletter ALLE data og maa ikke koere paa %s. Tilfoej servernavnet til @tilladte_servere, hvis det er en testserver.',
+        16, 1, @@SERVERNAME
+    );
+    RETURN;
+END;
+
+PRINT CONCAT('Serverspaerre OK: ', @@SERVERNAME);
+
+
 BEGIN TRANSACTION;
 
 
@@ -197,11 +233,33 @@ VALUES
 INSERT INTO [befordring].[Ungdomsuddannelse]
     (ungdomsuddannelse_navn, ungdomsuddannelse_adresse, latitude, longitude)
 VALUES
-    ('Dansk Brand og sikringsteknisk Institut, Aarhus', 'Runetoften 16, 8210 Aarhus V',          56.175306, 10.141596),
-    ('Diakonhøjskolen, Social- og Sundhedsudd.',        'Lyseng Allé 15H, 8270 Højbjerg',         56.110066, 10.202479),
-    ('Egå Gymnasium',                                   'Mejlbyvej 4, 8250 Egå',                  56.211969, 10.271199),
-    ('Erhvervsgrunduddannelsen i Århus',                'Olof Palmes Allé 39, 8200 Aarhus N',     56.189424, 10.181944),
-    ('International Training Academy ApS, Beauty & Style', 'Søndergade 45, 8000 Aarhus C',       56.153779, 10.206135);
+    ('Dansk Brand og sikringsteknisk Institut, Aarhus',   'Runetoften 16, 8210 Aarhus V',           56.175306, 10.141596),
+    ('Diakonhøjskolen, Social- og Sundhedsudd.',          'Lyseng Allé 15H, 8270 Højbjerg',         56.110066, 10.202479),
+    ('Egå Gymnasium',                                     'Mejlbyvej 4, 8250 Egå',                  56.211969, 10.271199),
+    ('Erhvervsgrunduddannelsen i Århus',                  'Olof Palmes Allé 39, 8200 Aarhus N',     56.189424, 10.181944),
+    ('International Training Academy ApS, Beauty & Style','Søndergade 45, 8000 Aarhus C',           56.153779, 10.206135),
+    ('Jordbrugets UddannelsesCenter, Beder',              'Damgårds Allé 5, 8330 Beder',            56.058613, 10.200661),
+    ('Jordbrugets UddannelsesCenter, Bredballegård',      'Nymarksvej 65, 8320 Mårslet',            56.050581, 10.167725),
+    ('Marselisborg Gymnasium',                            'Birketinget 9B, 8000 Aarhus C',          56.139194, 10.200802),
+    ('Risskov Gymnasium',                                 'Tranekærvej 70, 8240 Risskov',           56.194389, 10.209748),
+    ('Rudolf Steiner-Skolen i Aarhus',                    'Strandvejen 102, 8000 Aarhus C',         56.135886, 10.207846),
+    ('SOSU Østjylland, Aarhus',                           'Hedeager 33, 8200 Aarhus N',             56.193212, 10.178706),
+    ('UCplus A/S, Højbjerg',                              'Øster Parkvej 15, 8270 Højbjerg',        56.104056, 10.148375),
+    ('UCplus Højbjerg',                                   'Øster Parkvej 15, 8270 Højbjerg',        56.104056, 10.148375),
+    ('Viby Gymnasium',                                    'Søndervangs Allé 45, 8260 Viby J',       56.112858, 10.152582),
+    ('Århus Akademi',                                     'Gøteborg Allé 2-4, 8200 Aarhus N',       56.183016, 10.195658),
+    ('Aarhus Business College, EUX-gymnasiet',            'Sønderhøj 28, 8260 Viby J',              56.119221, 10.157318),
+    ('Aarhus Business College, Handelsfagskolen i Skåde', 'Skåde Skovvej 2, 8270 Højbjerg',         56.097051, 10.218747),
+    ('Aarhus Business College, HHX-gymnasiet i Risskov',  'Vejlby Centervej 50, 8240 Risskov',      56.194126, 10.204940),
+    ('Aarhus Business College, HHX-gymnasiet i Viby',     'Viemosevej 1, 8260 Viby J',              56.129307, 10.153977),
+    ('AARHUS GYMNASIUM, Tilst',                           'Kileparken 25, 8381 Tilst',              56.185741, 10.111676),
+    ('AARHUS GYMNASIUM, Viby',                            'Hasselager Allé 10, 8260 Viby J',        56.115676, 10.122718),
+    ('AARHUS GYMNASIUM, Aarhus C',                        'Dollerupvej 2, 8000 Aarhus C',           56.156053, 10.187526),
+    ('Aarhus Katedralskole',                              'Skolegyde 1, 8000 Aarhus C',             56.156620, 10.211963),
+    ('Århus Statsgymnasium',                              'Fenrisvej 33, 8210 Aarhus V',            56.161895, 10.171398),
+    ('AARHUS TECH, Viby',                                 'Hasselager Allé 2, 8260 Viby J',         56.113751, 10.124950),
+    ('AARHUS TECH, Aarhus C',                             'Dollerupvej 4, 8000 Aarhus C',           56.155449, 10.187265),
+    ('AARHUS TECH, Aarhus N',                             'Halmstadgade 6, 8200 Aarhus N',          56.184376, 10.191661);
 
 
 INSERT INTO [befordring].[Hjaelpemiddel]
@@ -1265,6 +1323,32 @@ VALUES
     NULL, NULL,
     'Afstand', 'test_seed', 'test_seed', 1
 );
+
+
+/* ============================================================
+   ESDH-link.
+
+   One hardcoded URL on every seeded bevilling, so the places that render a
+   link to the case have something to render: the Sags-ID column on Overblik,
+   the bevilling card, and the Forsendelse list.
+
+   In production this is resolved per case by rpa-befordring-kontrol and the
+   nightly run — GO's URL carries a per-case system id that cannot be composed
+   from esdh_noegle, which is the whole reason the column exists. A single
+   shared link is fine for test data: what is being exercised is "does the
+   key render as a link", not where the link goes.
+
+   Set as a separate UPDATE rather than a column on 26 INSERTs, so the value
+   is in one place when someone wants to change it.
+============================================================ */
+
+UPDATE [befordring].[Bevilling]
+SET    esdh_url = 'https://ad.go.aarhuskommune.dk'
+WHERE  created_by = 'test_seed'
+/* A bevilling with no key has nothing to link — and the UI only shows the
+   link where the key is there, so a URL without one would never be seen. */
+AND    NULLIF(LTRIM(RTRIM(esdh_noegle)), '') IS NOT NULL;
+PRINT CONCAT('Bevilling esdh_url: ', @@ROWCOUNT, ' row(s) updated.');
 
 
 /* ============================================================

@@ -23,6 +23,11 @@ SELECT
     e.elevklassetrin,
     e.klassebetegnelse,
     sm.matrikel_navn                AS skole_navn,
+    -- Sags-id og det opløste link til GO. Revurderingssiden tilbyder at åbne
+    -- sagen, før en vurdering godkendes — sagen forsvinder fra siden bagefter,
+    -- så linket skal være der mens den stadig kan ses.
+    b.esdh_noegle,
+    b.esdh_url,
     b.revurderingsdato,
     b.revurderet_af_ppr,
     b.revurderet_af_br,

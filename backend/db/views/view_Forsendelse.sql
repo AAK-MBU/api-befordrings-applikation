@@ -26,6 +26,10 @@ SELECT
     br.bevilling_id,
     b.loebenummer,
     b.esdh_noegle,
+    -- The deep link into GO. Resolved by rpa-befordring-kontrol and the
+    -- nightly run; NULL until one of them has. Exposed so Forsendelse can
+    -- link the sags-id instead of printing it for someone to search by hand.
+    b.esdh_url,
 
     br.cpr_elev,
     e.adresseringsnavn,

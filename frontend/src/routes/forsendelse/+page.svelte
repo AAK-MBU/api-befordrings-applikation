@@ -232,8 +232,22 @@
                      system id follows in grey for bug reports. -->
                 {brev.loebenummer != null ? `Bevilling ${brev.loebenummer}` : `Bevilling #${brev.bevilling_id}`}
                 <span class="font-mono text-[11px] text-gray-400 ml-1">#{brev.bevilling_id}</span>
+                <!-- A link into GO once the url has been resolved, plain text
+                     until then — the same treatment the overview and the
+                     bevilling card give it. The url cannot be built from the
+                     key, so an unresolved one has nothing to link to. -->
                 {#if brev.esdh_noegle}
-                  <span class="block font-mono text-[11px] text-gray-400">{brev.esdh_noegle}</span>
+                  {#if brev.esdh_url}
+                    <a
+                      href={brev.esdh_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Åbn sagen i GO"
+                      class="block font-mono text-[11px] text-sky-600 hover:underline"
+                    >{brev.esdh_noegle}</a>
+                  {:else}
+                    <span class="block font-mono text-[11px] text-gray-400">{brev.esdh_noegle}</span>
+                  {/if}
                 {/if}
               </td>
 

@@ -121,9 +121,9 @@ def get_bevilling(bevilling_id: int, db: DbSession):
     return service.get_bevilling(bevilling_id=bevilling_id)
 
 
-@router.get("/mangler_esdh_noegle")
-def get_bevillinger_uden_esdh_noegle(db: DbSession, maks_antal: int = 200):
-    """List bevillinger that have no ESDH key yet.
+@router.get("/mangler_esdh")
+def get_bevillinger_uden_esdh(db: DbSession, maks_antal: int = 200):
+    """List bevillinger missing their ESDH key, their link, or both.
 
     Args:
         db:
@@ -133,16 +133,20 @@ def get_bevillinger_uden_esdh_noegle(db: DbSession, maks_antal: int = 200):
             Upper bound on the number of rows returned.
 
     Returns:
-        bevilling_id, cpr_elev and created_at for each, oldest first.
+        bevilling_id, cpr_elev, esdh_noegle and created_at for each, oldest
+        first.
 
     Notes:
         Read by rpa-befordring-kontrol, which resolves the case in GO and
-        writes the key back through PUT /bevilling/{bevilling_id}.
+        writes key and link back through PUT /bevilling/{bevilling_id}.
+
+        Either field being empty qualifies: a bevilling can hold a key with no
+        link, and that one only needs the URL resolved.
     """
 
     service = BevillingService(db=db)
 
-    return service.get_bevillinger_uden_esdh_noegle(maks_antal=maks_antal)
+    return service.get_bevillinger_uden_esdh(maks_antal=maks_antal)
 
 
 @router.get("/get_student_bevillinger/{cpr}")
