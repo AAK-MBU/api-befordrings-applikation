@@ -6,6 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
+  import { sorterBevillinger } from "$lib/bevillingSortering";
   import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
     import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
     import { matcherFilter, filterTilQuery, daysUntil, type RevurderingFilter } from "$lib/revurderingFilter";
@@ -421,7 +422,9 @@
             return { ...b, koerselsraekker: kr.ok ? await kr.json() : [] };
           })
         );
-        bevillingerByCpr[cpr] = withKoersels;
+        // Same order as the sag page — active bevilling first. See
+        // $lib/bevillingSortering for why the API order is not enough.
+        bevillingerByCpr[cpr] = sorterBevillinger(withKoersels);
         bevillingerByCpr = { ...bevillingerByCpr };
       } finally {
         loadingBevillingerCpr.delete(cpr);
