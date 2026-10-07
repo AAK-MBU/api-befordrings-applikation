@@ -6,6 +6,7 @@
   import { goto } from '$app/navigation';
   import { backendFetch } from '$lib/client/backendFetch';
   import { formatCpr } from '$lib/tableColumnConfig';
+  import { sidetitel } from '$lib/sidetitel';
 
   let { children, data } = $props();
 
@@ -375,5 +376,9 @@
 </div>
 
 <svelte:head>
+  <title>{sidetitel($page.route.id, {
+    navn: $page.data.stamdata?.adresseringsnavn,
+    cpr: $page.params.cpr,
+  })}</title>
   <link rel="icon" href={favicon} />
 </svelte:head>

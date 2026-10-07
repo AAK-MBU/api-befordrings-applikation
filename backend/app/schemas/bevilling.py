@@ -102,6 +102,21 @@ class BevillingUpdateRequest(BaseModel):
     final: bool | None = None
 
 
+class PprSagsbehandlerUpdateRequest(BaseModel):
+    """Body for the PPR-sagsbehandler endpoint, which writes nothing else.
+
+    Required rather than optional, and nullable: the field has to be present so
+    the caller cannot send an empty body and have it read as "clear it", while
+    an explicit null is how the assignment is removed. That is the whole point
+    of the endpoint - PPR must be able to take a case off someone as well as
+    put one on them.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ppr_sagsbehandler_id: int | None = Field(...)
+
+
 class HjaelpemidlerUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

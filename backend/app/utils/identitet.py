@@ -79,3 +79,40 @@ def visningsnavn(principal: Any) -> str | None:
     samlet = " ".join(del_ for del_ in (fornavn, efternavn) if del_)
 
     return samlet or None
+
+
+def samme_bruger(a: str | None, b: str | None) -> bool:
+    """Whether two udfoert_af values name the same person.
+
+    Sagsaktivitet records who acted only as a display name — there is no user
+    id on the row — so "my own comment" can only be decided by comparing that
+    string against the one the signed-in caller would be attributed with now.
+    Both sides come from visningsnavn, so they agree for the same person.
+
+    Trimmed and case-folded, because the two values are written at different
+    times and a claim that gained or lost whitespace should not cost someone
+    their own comment.
+
+    Fails closed in two cases, both of which must never be anyone's "own":
+      - a blank or missing name, which would otherwise make every row with no
+        attribution deletable by every user whose name also resolved to blank;
+      - "System", the attribution given to API-key callers (RPA bots), which
+        no human may claim.
+
+    Args:
+        a: One udfoert_af value.
+        b: The other.
+
+    Returns:
+        True if both name the same human.
+    """
+    venstre = (a or "").strip().casefold()
+    hoejre = (b or "").strip().casefold()
+
+    if not venstre or not hoejre:
+        return False
+
+    if venstre == "system" or hoejre == "system":
+        return False
+
+    return venstre == hoejre

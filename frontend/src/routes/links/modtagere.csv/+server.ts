@@ -13,11 +13,11 @@ import type { RequestHandler } from "./$types";
  */
 
 const COLUMNS: CsvColumn[] = [
-  { key: "modtager_navn", header: "Navn" },
-  { key: "modtager_cpr", header: "CPR", format: csvCpr },
+  { key: "modtager_navn", header: "Modtager navn" },
+  { key: "modtager_cpr", header: "Modtager CPR", format: csvCpr },
   { key: "modtager_type", header: "Type" },
-  { key: "elever", header: "Elever" },
-  { key: "antal_elever", header: "Antal elever" },
+  { key: "elever", header: "Barn" },
+  { key: "antal_elever", header: "Antal børn" },
   { key: "antal_koerselsraekker", header: "Antal kørselsrækker" },
 ];
 

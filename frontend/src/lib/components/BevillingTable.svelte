@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import KoerselsraekkeTable from "$lib/components/KoerselsraekkeTable.svelte";
   import AddresseSearch from "$lib/components/AddresseSearch.svelte";
+  import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
 
   import {
     getStatusBadgeClass,
@@ -107,6 +108,9 @@
   // From $page rather than a prop: this component is nested and a module-level
   // store would be shared across concurrent SSR requests. See ReadOnlyNotice.
   $: canEdit = $page.data.user?.can_edit ?? false;
+  // Wider than canEdit — see PprSagsbehandlerSelect. PPR Medarbejder cannot
+  // open the edit form at all, so the view mode is their only way in.
+  $: canAssignPpr = $page.data.user?.can_assign_ppr ?? false;
 
   let selectedHjaelpemiddelIds: number[] = [];
   let hjaelpemiddelSelectValue = "";
@@ -1166,6 +1170,12 @@
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>
+            {:else if canAssignPpr}
+              <PprSagsbehandlerSelect
+                bevillingId={bevilling.bevilling_id}
+                valgt={bevilling.ppr_sagsbehandler_id ?? null}
+                muligheder={lookupOptions.pprSagsbehandlere ?? []}
+              />
             {:else}
               <p class="text-sm text-gray-800">{bevilling.ppr_sagsbehandler_tekst ?? "—"}</p>
             {/if}

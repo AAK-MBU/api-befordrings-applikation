@@ -6,6 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
+  import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
     import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
     import { matcherFilter, filterTilQuery, daysUntil, type RevurderingFilter } from "$lib/revurderingFilter";
 
@@ -507,10 +508,6 @@
   if (brConfirmFor) { brConfirmFor = null; }
 }} />
 
-<svelte:head>
-  <title>Befordring – Revurdering</title>
-</svelte:head>
-
 
 {#if pprConfirmFor}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" tabindex="-1">
@@ -893,7 +890,7 @@
               </div>
               <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
                 <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Udløbsdato</span>
-                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.gyldig_til) ?? "—"}</span>
+                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.seneste_gyldig_til)}</span>
               </div>
               {#if bev.statusbemaerkning}
                 <div class="flex flex-col min-w-0 flex-1 pl-2 border-l border-amber-200 ml-2">
@@ -1061,7 +1058,13 @@
 
                       <div>
                         <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">PPR Sagsbehandler</p>
-                        <p class="text-sm text-gray-800">{bev.ppr_sagsbehandler_tekst ?? "—"}</p>
+                        <!-- Editable for PPR Medarbejder too, who may write
+                             nothing else here. See PprSagsbehandlerSelect. -->
+                        <PprSagsbehandlerSelect
+                          bevillingId={bev.bevilling_id}
+                          valgt={bev.ppr_sagsbehandler_id ?? null}
+                          muligheder={pprSagsbehandlere}
+                        />
                       </div>
 
                       <div>

@@ -32,6 +32,8 @@ const COLUMNS: CsvColumn[] = [
     // can be sorted on urgency without the reader doing date arithmetic.
     format: (value) => daysUntil(value as string) ?? "",
   },
+  // Sidste dag en af bevillingens kørselsrækker dækker. Se view_Revurderinger.
+  { key: "seneste_gyldig_til", header: "Udløbsdato" },
   { key: "sagsbehandler_tekst", header: "Sagsbehandler" },
   { key: "ppr_sagsbehandler_tekst", header: "PPR ansvarlig" },
   { key: "status_tekst", header: "Status" },

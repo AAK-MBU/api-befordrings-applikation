@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.citizen import Sagsaktivitet, SagsaktivitetType
 from app.schemas.aktivitet import SagsaktivitetCreateRequest
+from app.utils.identitet import samme_bruger
 
 # type_kode of the only activity type a caseworker may delete.
 DELETABLE_TYPE_KODE = "kommentar"
@@ -66,17 +67,38 @@ class AktivitetService:
             .options(joinedload(Sagsaktivitet.type))
         ).scalar_one()
 
-    def delete_activity(self, aktivitet_id: int) -> dict:
-        """Permanently delete a caseworker comment.
+    def delete_activity(self, aktivitet_id: int, udfoert_af: str) -> dict:
+        """Permanently delete one of the caller's own caseworker comments.
 
         A real DELETE — Sagsaktivitet has no aktiv flag. The DELETE call itself
         lands in PortalAuditLog with the caller's identity, so attribution is
         preserved even though the comment text is gone.
 
+        Two independent rules, both enforced here rather than at the route, so
+        no future caller can reach a delete that skips them:
+
+          1. Only a comment may go. System history ("Bevilling oprettet",
+             "Brev oprettet") is the case's record of what happened and is
+             immutable for everyone.
+          2. Only your own. This is the whole permission — it is deliberately
+             not tied to a role, so a Medarbejder cannot delete a PPR
+             colleague's comment any more than the other way round. Deleting
+             kørselsrækker and bevillinger stays with the edit roles; this one
+             action is governed by authorship instead.
+
+        Args:
+            aktivitet_id:
+                ID of the comment to delete.
+
+            udfoert_af:
+                Display name of the signed-in caller, as get_udfoert_af
+                resolves it — the same value create_activity stored.
+
         Raises:
             HTTPException:
                 404 if the activity does not exist.
                 403 if it is not a comment (system history is immutable).
+                403 if it was written by someone else.
         """
 
         aktivitet = self.db.get(Sagsaktivitet, aktivitet_id)
@@ -99,6 +121,12 @@ class AktivitetService:
                     "Kun kommentarer kan slettes. "
                     "Systemhændelser er en del af sagens historik."
                 ),
+            )
+
+        if not samme_bruger(aktivitet.udfoert_af, udfoert_af):
+            raise HTTPException(
+                status_code=403,
+                detail="Du kan kun slette dine egne kommentarer.",
             )
 
         self.db.delete(aktivitet)
