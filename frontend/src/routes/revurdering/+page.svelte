@@ -111,6 +111,10 @@
 
     let expandedIds = new Set<number>();
 
+    // Which rows have their comment section open. Kept next to
+    // expandedIds because the two move together — see toggleExpand.
+    let expandedCommentsBevIds = new Set<number>();
+
     // Parties per citizen, loaded lazily alongside aktiviteter and bevillinger
     // when a row is expanded. Needed by the egenbefordring kørselsrække, which
     // names one of them as the recipient of the kilometre reimbursement.
@@ -128,8 +132,15 @@
     function toggleExpand(id: number) {
       if (expandedIds.has(id)) {
         expandedIds.delete(id);
+        // Forget the comment state on collapse, so re-opening the row starts
+        // from the default again rather than remembering a close from before.
+        expandedCommentsBevIds.delete(id);
       } else {
         expandedIds.add(id);
+        // Kommentarerne er svære at få øje på, når de ligger foldet sammen i
+        // en i forvejen stor række, så de åbnes sammen med den. Toggle-knappen
+        // virker stadig bagefter — den her sætter kun udgangspunktet.
+        expandedCommentsBevIds.add(id);
         const bev = revurderinger.find((r: any) => r.bevilling_id === id);
         if (bev) {
           if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
@@ -138,10 +149,13 @@
         }
       }
       expandedIds = new Set(expandedIds);
+      expandedCommentsBevIds = new Set(expandedCommentsBevIds);
     }
 
     function expandAll() {
       expandedIds = new Set(filteredRevurderinger.map((b: any) => b.bevilling_id));
+      // Udvid alle åbner også kommentarerne — samme regel som en enkelt række.
+      expandedCommentsBevIds = new Set(expandedIds);
       filteredRevurderinger.forEach((bev: any) => {
         if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
         if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
@@ -151,6 +165,7 @@
 
     function collapseAll() {
       expandedIds = new Set();
+      expandedCommentsBevIds = new Set();
     }
 
     $: allExpanded = filteredRevurderinger.length > 0 && filteredRevurderinger.every((b: any) => expandedIds.has(b.bevilling_id));
@@ -323,7 +338,6 @@
       }
     }
 
-    let expandedCommentsBevIds = new Set<number>();
 
     let copiedCpr: string | null = null;
 
