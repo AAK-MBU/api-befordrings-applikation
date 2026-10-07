@@ -196,27 +196,32 @@ def edit_role_names() -> frozenset[str]:
     )
 
 
-def ppr_assign_role_names() -> frozenset[str]:
-    """Role claim values permitted to set a bevilling's PPR-sagsbehandler."""
+def ppr_role_names() -> frozenset[str]:
+    """Role claim values permitted to perform PPR's own actions."""
     return frozenset(
         role.strip().lower()
-        for role in settings.ppr_assign_roles.split(",")
+        for role in settings.ppr_roles.split(",")
         if role.strip()
     )
 
 
-def require_ppr_assign(
-    principal: Annotated[object, Depends(require_auth)],
-) -> object:
-    """Authorise assigning a PPR-sagsbehandler.
+def require_ppr(principal: Annotated[object, Depends(require_auth)]) -> object:
+    """Authorise one of PPR's own actions on a bevilling.
 
     A separate gate from require_edit because it is deliberately wider. PPR
     Medarbejder is provisioned as "user-read" in Systemregisteret, which grants
-    no write at all, yet PPR hand cases to one another and a team leader
-    distributes them. Rather than promote them to user-edit — which would hand
-    them every field on the bevilling, its kørselsrækker and the delete
-    endpoints — this permits the single field, on the single endpoint that only
-    ever writes that field.
+    no write at all — yet assigning cases to one another and signing off their
+    own vurdering is the work they are there to do. Rather than promote them to
+    user-edit, which would hand them every field on the bevilling, its
+    kørselsrækker and the delete endpoints, this permits a small fixed set of
+    actions, each on an endpoint that writes only its own field.
+
+    Guards:
+      PUT /bevilling/{id}/ppr_sagsbehandler
+      PUT /bevilling/{id}/revurderet_af_ppr
+
+    Note what is NOT here: revurderet_af_br stays on the general update behind
+    require_edit. BR's sign-off is not PPR's to give.
 
     Automated callers pass through untouched, as in require_edit.
     """
@@ -225,13 +230,12 @@ def require_ppr_assign(
 
     roles = {str(role).lower() for role in (getattr(principal, "roles", None) or ())}
 
-    if not roles & ppr_assign_role_names():
+    if not roles & ppr_role_names():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Din bruger har ikke rettigheder til at tildele "
-                "PPR-sagsbehandler. Rettigheder tildeles centralt via "
-                "Systemregisteret."
+                "Din bruger har ikke rettigheder til PPR-handlinger. "
+                "Rettigheder tildeles centralt via Systemregisteret."
             ),
         )
 
@@ -277,5 +281,5 @@ def require_edit(principal: Annotated[object, Depends(require_auth)]) -> object:
 #     @router.put("/{id}", dependencies=[RequireEdit])
 RequireEdit = Depends(require_edit)
 
-# Narrow companion to RequireEdit, for the PPR-sagsbehandler endpoint only.
-RequirePprAssign = Depends(require_ppr_assign)
+# Narrow companion to RequireEdit, for PPR's own actions only.
+RequirePpr = Depends(require_ppr)

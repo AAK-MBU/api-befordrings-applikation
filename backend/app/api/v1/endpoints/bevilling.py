@@ -26,7 +26,7 @@ from app.api.dependencies import (
     CurrentUser,
     DbSession,
     RequireEdit,
-    RequirePprAssign,
+    RequirePpr,
 )
 from app.schemas.bevilling import (
     BevillingCreateRequest,
@@ -38,6 +38,7 @@ from app.schemas.bevilling import (
     KoerselsraekkeUpdateRequest,
     LetterCreateRequest,
     PprSagsbehandlerUpdateRequest,
+    RevurderetAfPprUpdateRequest,
 )
 from app.services.bevilling_service import BevillingService
 from app.services.brev_service import BrevService
@@ -286,7 +287,7 @@ def update_bevilling(
     )
 
 
-@router.put("/{bevilling_id}/ppr_sagsbehandler", dependencies=[RequirePprAssign])
+@router.put("/{bevilling_id}/ppr_sagsbehandler", dependencies=[RequirePpr])
 def update_bevilling_ppr_sagsbehandler(
     bevilling_id: int,
     request: PprSagsbehandlerUpdateRequest,
@@ -327,6 +328,49 @@ def update_bevilling_ppr_sagsbehandler(
     return service.update_bevilling(
         bevilling_id=bevilling_id,
         bevilling_data={"ppr_sagsbehandler_id": request.ppr_sagsbehandler_id},
+        udfoert_af=udfoert_af,
+    )
+
+
+@router.put("/{bevilling_id}/revurderet_af_ppr", dependencies=[RequirePpr])
+def update_bevilling_revurderet_af_ppr(
+    bevilling_id: int,
+    request: RevurderetAfPprUpdateRequest,
+    db: DbSession,
+    udfoert_af: CurrentUser,
+):
+    """Tick or untick "PPR vurderet" on a bevilling.
+
+    Its own endpoint for the same reason as ppr_sagsbehandler above: PPR
+    Medarbejder is "user-read" and cannot reach the general PUT, yet this is
+    their own sign-off to give. Routing it here widens the permission for this
+    field alone.
+
+    The BR counterpart, revurderet_af_br, deliberately has no such endpoint and
+    stays on the general update behind RequireEdit — PPR signing off on BR's
+    behalf is not the same thing at all.
+
+    Args:
+        bevilling_id:
+            The ID of the bevilling to mark.
+
+        request:
+            Whether PPR have now assessed the bevilling.
+
+        db:
+            The database session injected by FastAPI.
+
+    Returns:
+        The result object from the service, as the general update returns.
+    """
+
+    service = BevillingService(db=db)
+
+    # Spelled out rather than model_dump()'d, so that widening the schema later
+    # cannot quietly widen what this endpoint writes.
+    return service.update_bevilling(
+        bevilling_id=bevilling_id,
+        bevilling_data={"revurderet_af_ppr": request.revurderet_af_ppr},
         udfoert_af=udfoert_af,
     )
 

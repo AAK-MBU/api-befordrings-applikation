@@ -19,7 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from oidc_auth import IDTokenClaims
 from oidc_auth.integrations import create_oidc_router
 
-from app.api.dependencies import edit_role_names, ppr_assign_role_names
+from app.api.dependencies import edit_role_names, ppr_role_names
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.api.dependencies import aktiv_session
@@ -152,12 +152,13 @@ def me(user: IDTokenClaims = Depends(aktiv_session)) -> dict:
         "can_edit": bool(
             {str(role).lower() for role in user.roles} & edit_role_names()
         ),
-        # Resolved the same way, against the wider PPR_ASSIGN_ROLES. True for
-        # PPR Medarbejder ("user-read"), who may set a bevilling's
-        # PPR-sagsbehandler and nothing else. Separate from can_edit so the UI
-        # can enable that one control without implying the rest is editable.
-        "can_assign_ppr": bool(
-            {str(role).lower() for role in user.roles} & ppr_assign_role_names()
+        # Resolved the same way, against the wider PPR_ROLES. True for PPR
+        # Medarbejder ("user-read"), who may set a bevilling's PPR-sagsbehandler
+        # and tick "PPR vurderet" — and nothing else. Separate from can_edit so
+        # the UI can enable those controls without implying the rest is
+        # editable.
+        "can_act_as_ppr": bool(
+            {str(role).lower() for role in user.roles} & ppr_role_names()
         ),
         # The whole validated ID token payload. The curated fields above cover
         # the common cases; this is what to read when an expected claim is

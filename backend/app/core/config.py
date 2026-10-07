@@ -62,15 +62,16 @@ class Settings:
     # the set empty and lock every user out of writing.
     edit_roles: str = os.getenv("EDIT_ROLES") or "admin,user-edit"
 
-    # Roles permitted to set a bevilling's PPR-sagsbehandler. Deliberately
-    # wider than edit_roles: PPR Medarbejder holds "user-read", which grants no
-    # other write, but PPR distribute cases among themselves and a team leader
-    # assigns them, so that one field has to be theirs to set. It buys exactly
-    # that field — see require_ppr_assign and the endpoint it guards. Same `or`
+    # Roles permitted to perform PPR's own actions on a bevilling: setting the
+    # PPR-sagsbehandler, and ticking "PPR vurderet" on the revurdering page.
+    # Deliberately wider than edit_roles, because PPR Medarbejder holds
+    # "user-read" and that grants no other write — yet distributing cases among
+    # themselves and signing off their own vurdering is their actual job.
+    #
+    # It buys those fields and nothing else: each one has its own endpoint that
+    # writes only itself. See require_ppr and the endpoints it guards. Same `or`
     # pattern as above, for the same reason.
-    ppr_assign_roles: str = (
-        os.getenv("PPR_ASSIGN_ROLES") or "admin,user-edit,user-read"
-    )
+    ppr_roles: str = os.getenv("PPR_ROLES") or "admin,user-edit,user-read"
 
     # Secret used to sign the Starlette session cookie.
     session_secret: str = os.getenv("SESSION_SECRET", "dev-only-change-in-prod")
