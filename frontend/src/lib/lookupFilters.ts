@@ -39,9 +39,11 @@ const HJEMMEL_AFGOERELSESBREVE: Record<string, string[]> = {
     "Bevilling: § 26, stk. 1, nr. 1 (afstand)",
     "Bevilling: § 26, stk. 1, nr. 2 (farlig skolevej)",
     "Påtænkt afslag: § 26, stk. 1, nr. 2 (farlig skolevej)",
+    "Påtænkt bevilling: § 26, stk. 1 (afstand)",
   ],
   "§ 26, stk. 2 (sygdom)": [
     "Bevilling: § 26, stk. 2 (sygdom)",
+    "Påtænkt bevilling: § 26, stk. 2 (sygdom)",
     // The midlertidig folkeskole letters cite this same paragraph — see their
     // body text: "jf. folkeskolelovens § 26". Without them here, choosing this
     // hjemmel on a Midlertidig kørsel + folkeskole bevilling emptied the

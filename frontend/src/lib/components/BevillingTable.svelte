@@ -110,7 +110,7 @@
   $: canEdit = $page.data.user?.can_edit ?? false;
   // Wider than canEdit — see PprSagsbehandlerSelect. PPR Medarbejder cannot
   // open the edit form at all, so the view mode is their only way in.
-  $: canAssignPpr = $page.data.user?.can_assign_ppr ?? false;
+  $: canAssignPpr = $page.data.user?.can_act_as_ppr ?? false;
 
   let selectedHjaelpemiddelIds: number[] = [];
   let hjaelpemiddelSelectValue = "";

@@ -11,6 +11,8 @@
 
 import { error } from "@sveltejs/kit";
 
+import { sorterBevillinger } from "$lib/bevillingSortering";
+
 import { backendUserFetcher } from "$lib/server/backendApi";
 
 import type { RequestEvent } from "@sveltejs/kit";
@@ -39,10 +41,9 @@ export async function assertResponseOk(response: Response, errorMessage: string)
 /**
  * The student's bevillinger, each with its kørselsrækker attached.
  *
- * Ordering: the active bevilling always comes first (active trumps a future
- * or more recently created one). The rest follow, sorted by the latest
- * gyldig_til across their koerselsraekker, descending (most recent end date
- * first). Bevillinger with no koerselsraekker sort to the bottom.
+ * Ordering comes from $lib/bevillingSortering, shared with the revurdering and
+ * genbehandling panels so the same student is not listed in two different
+ * orders depending on which page you opened them from.
  */
 async function hentBevillinger(api: ReturnType<typeof backendUserFetcher>, cpr: string) {
   const bevillingerRes = await api(`/bevilling/get_student_bevillinger/${cpr}`);
@@ -71,24 +72,7 @@ async function hentBevillinger(api: ReturnType<typeof backendUserFetcher>, cpr: 
     })
   );
 
-  const maxGyldigTil = (b: BevillingRecord & { koerselsraekker: any[] }): string =>
-    b.koerselsraekker.reduce(
-      (max: string, k: any) => (k.gyldig_til > max ? k.gyldig_til : max),
-      ""
-    );
-
-  const isActive = (b: BevillingRecord): number => (b.status_tekst === "Aktiv" ? 1 : 0);
-
-  return [...bevillingerWithKoerselsraekker].sort((a, b) => {
-    // Active first.
-    const activeDiff = isActive(b) - isActive(a);
-    if (activeDiff !== 0) {
-      return activeDiff;
-    }
-
-    // Then by latest gyldig_til, descending.
-    return maxGyldigTil(b).localeCompare(maxGyldigTil(a));
-  });
+  return sorterBevillinger(bevillingerWithKoerselsraekker);
 }
 
 

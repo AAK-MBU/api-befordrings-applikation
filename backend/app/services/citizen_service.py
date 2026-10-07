@@ -190,19 +190,30 @@ class CitizenService:
                 could not be reached.
 
         Notes:
-            The same two steps the nightly run performs, in the same order:
+            The two steps the nightly run performs, in the same order, plus
+            one it deliberately does not:
 
               1. usp_sync_elev_matrikel_from_bevilling derives the school from
                  the student's bevillinger. Narrowed to this one student by
                  @cpr; the rules are the procedure's, not repeated here.
 
+             1b. Where that leaves no school at all, the student's own
+                 skolekode is used — but only where it names exactly one
+                 Skolematrikel. See _entydig_matrikel_fra_skolekode.
+
+                 This step is unique to the button. The nightly run could do
+                 it for every student in the municipality, and that is the
+                 reason it does not: it would resolve tens of thousands of
+                 students and queue a distance lookup for each. Here it is one
+                 student, asked for by a caseworker looking at them.
+
               2. The walking distance from the student's address to that
                  school, written to skoleafstand.
 
             Step 1 is authoritative and may CLEAR the school where no bevilling
-            qualifies — a stale school being worse than none. There is then
-            nothing to measure, and the caller is told so rather than being
-            left with a distance to a school the child has left.
+            qualifies — a stale school being worse than none. Where step 1b
+            cannot help either, there is nothing to measure, and the caller is
+            told which of the two situations they are in.
 
             Only after a successful measurement is kraever_genberegning
             cleared, so a student whose distance could not be calculated is
@@ -229,17 +240,47 @@ class CitizenService:
 
         self.db.refresh(elev)
 
+        # Step 1b — the student has no bevilling to derive from, or none that
+        # qualifies. Where their own skolekode names exactly one school, that
+        # is answer enough; this is the case the nightly run deliberately does
+        # not chase, because resolving every such student in the municipality
+        # would queue tens of thousands of distance lookups nobody asked for.
+        # Asked for one student, by a caseworker looking at them, it is cheap
+        # and it is the number they came for.
+        #
+        # The sync procedure above will not undo it: it leaves a matrikel whose
+        # skolekode matches the student's own. A real school change still wipes
+        # it, from usp_upsert_elev_from_stg, before this ever runs again.
+        if elev.matrikel_id is None and elev.ungdomsuddannelse_id is None:
+            matrikel_id = self._entydig_matrikel_fra_skolekode(elev)
+
+            if matrikel_id is not None:
+                elev.matrikel_id = matrikel_id
+                self.db.commit()
+                self.db.refresh(elev)
+
         koordinater = self._skole_koordinater(elev)
 
         if koordinater is None:
+            # Two different situations, and a caseworker can act on only one of
+            # them, so they are not told the same thing.
+            if elev.matrikel_id is None and elev.ungdomsuddannelse_id is None:
+                besked = (
+                    "Ingen skole kunne udledes. Eleven har ingen bevilling at "
+                    "udlede fra, og skolekoden peger ikke på præcis én "
+                    "skolematrikel."
+                )
+            else:
+                besked = (
+                    "Elevens skole mangler koordinater, så afstanden kan "
+                    "ikke beregnes."
+                )
+
             return {
                 "matrikel_id": elev.matrikel_id,
                 "ungdomsuddannelse_id": elev.ungdomsuddannelse_id,
                 "skoleafstand": elev.skoleafstand,
-                "besked": (
-                    "Ingen skole kunne udledes af elevens bevillinger, "
-                    "så afstanden kan ikke beregnes."
-                ),
+                "besked": besked,
             }
 
         adresse = self._adresse_koordinater(elev)
@@ -279,6 +320,39 @@ class CitizenService:
             "skoleafstand": elev.skoleafstand,
             "besked": None,
         }
+
+
+    def _entydig_matrikel_fra_skolekode(self, elev: Elev) -> int | None:
+        """The student's school, resolved from their skolekode alone.
+
+        Only where the skolekode matches EXACTLY ONE Skolematrikel row. Several
+        rows means the school has several sites, and choosing between them is
+        the decision a bevilling exists to record — guessing one would be the
+        confidently wrong answer the whole derivation is built to avoid.
+
+        Elev.skolekode is the data worker's load and is the authority on which
+        school the child attends — usp_sync_elev_matrikel_from_bevilling says so
+        itself, and uses it to reject a bevilling that disagrees. Where it
+        points at a single site there is nothing left to decide, so a student
+        with no bevilling at all can still be given a school.
+
+        Returns:
+            The matrikel_id, or None when the skolekode is missing, unknown or
+            matches more than one row.
+        """
+
+        if not elev.skolekode:
+            return None
+
+        sql = text("""
+            SELECT   matrikel_id
+            FROM     [befordring].[Skolematrikel]
+            WHERE    skolekode = :skolekode
+        """)
+
+        rows = self.db.execute(sql, {"skolekode": elev.skolekode}).fetchall()
+
+        return rows[0][0] if len(rows) == 1 else None
 
 
     def _skole_koordinater(self, elev: Elev):

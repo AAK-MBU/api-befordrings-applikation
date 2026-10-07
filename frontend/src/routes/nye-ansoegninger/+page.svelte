@@ -15,7 +15,7 @@
   $: canEdit = data.user?.can_edit ?? false;
   // Wider than canEdit: PPR Medarbejder ("user-read") may set the PPR column
   // and nothing else on the row. See PPR_ASSIGN_ROLES and require_ppr_assign.
-  $: canAssignPpr = data.user?.can_assign_ppr ?? false;
+  $: canAssignPpr = data.user?.can_act_as_ppr ?? false;
 
   let assignError: string | null = null;
 

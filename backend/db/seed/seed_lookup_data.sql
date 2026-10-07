@@ -328,7 +328,7 @@ FROM (VALUES
 PRINT CONCAT('Hjemmel: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
--- Afgoerelsesbrev  (18 rows)
+-- Afgoerelsesbrev  (20 rows)
 INSERT INTO [befordring].[Afgoerelsesbrev] (afgoerelsesbrev_tekst, beskrivelse, aktiv)
 SELECT v.afgoerelsesbrev_tekst, v.beskrivelse, v.aktiv
 FROM (VALUES
@@ -345,6 +345,8 @@ FROM (VALUES
     ('Påtænkt afslag: § 26, stk. 1, nr. 2 (farlig skolevej)',                    '', 1),
     ('Påtænkt afslag: § 26, stk. 2 (sygdom)',                                    '', 1),
     ('Påtænkt afslag: § 26, stk. 2, § 36, stk. 4 (retten til at forblive)',      '', 1),
+    ('Påtænkt bevilling: § 26, stk. 1 (afstand)',                                '', 1),
+    ('Påtænkt bevilling: § 26, stk. 2 (sygdom)',                                 '', 1),
     ('Påtænkt ophør: § 26, stk. 2 (sygdom)',                                     '', 1),
     ('Midlertidig kørsel bevilling: § 26, stk. 2 (brækket ben folkeskole)',      '', 1),
     ('Midlertidig kørsel afslag: § 26, stk. 2 (brækket ben folkeskole)',         '', 1),
