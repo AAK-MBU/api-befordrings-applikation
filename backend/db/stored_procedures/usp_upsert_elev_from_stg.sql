@@ -37,14 +37,16 @@ GO
 
       skoleafstand          Written by the walking-distance step at the end of
                             the nightly run. Copying a stale value from STG
-                            would overwrite last night's calculation.
+                            would overwrite last night's calculation. This
+                            procedure does CLEAR it when the skolekode changes
+                            — see below.
 
       kraever_genberegning  Set by THIS procedure when a watched column
                             changes. Copying it from STG would clobber the flag
                             we just raised, or raise one nothing asked for.
 
-    When skolekode changes, matrikel_id and ungdomsuddannelse_id are cleared
-    and kraever_genberegning is raised.
+    When skolekode changes, matrikel_id, ungdomsuddannelse_id and skoleafstand
+    are cleared and kraever_genberegning is raised.
 
     Clearing matters because those two are derived from a bevilling, and a
     bevilling that has not caught up with the child's new school now points at
@@ -179,14 +181,27 @@ BEGIN
                where only the name changed.
 
                matrikel_id and ungdomsuddannelse_id are cleared rather than
-               left: both are derived from a bevilling, and the child has just
-               moved school, so whatever a bevilling said before now points at
-               the wrong one. The sync procedure that runs next re-derives them
-               where a bevilling exists; where none does, cleared is correct. */
+               left: the child has just moved school, so whatever supplied them
+               before now points at the wrong one. The sync procedure that runs
+               next re-derives them where a bevilling exists; where none does,
+               cleared is correct.
+
+               skoleafstand is cleared with them, and that is not optional. The
+               distance step only recalculates a student whose school has
+               coordinates, so a student left WITHOUT a school is skipped — and
+               would otherwise keep showing last term's distance, measured to a
+               school the child has left, with kraever_genberegning stuck at 1
+               and nothing able to clear it.
+
+               It never used to matter: a student with no bevilling had no
+               distance to go stale. genberegn_skole can now resolve one from
+               an unambiguous skolekode alone, so they can, and this is what
+               stops that value outliving the school it was measured to. */
             UPDATE e
             SET    e.kraever_genberegning = 1,
                    e.matrikel_id          = NULL,
-                   e.ungdomsuddannelse_id = NULL
+                   e.ungdomsuddannelse_id = NULL,
+                   e.skoleafstand         = NULL
             FROM   [befordring].[Elev] e
             JOIN   #NeedsRecalc n ON n.cpr = e.cpr;
 
