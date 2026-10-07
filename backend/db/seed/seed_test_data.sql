@@ -502,7 +502,7 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
 
 
 /* ============================================================
-   Elev  (26 total)
+   Elev  (31 total)
    1  Kasper Søndergaard   — Aktiv
    2  Kristian Holm        — Aktiv
    3  Rikke Nørgaard       — Aktiv (revurdering)  (adressebeskyttelse)
@@ -530,6 +530,15 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
    24 Malthe Overgaard     — Ny  (ungdomsuddannelse)
    25 Liva Rask            — Ny
    26 Storm Bendtsen       — Ny
+
+   27 Sofie Entydig        — INGEN bevilling, entydig skolekode
+   28 Mads Flertydig       — INGEN bevilling, skolekode med tre matrikler
+   29 Emma Ukendt          — INGEN bevilling, ukendt skolekode
+   30 Victor Bevaret       — INGEN bevilling, matrikel sat og gyldig
+   31 Liva Stale           — INGEN bevilling, matrikel sat men forældet
+
+   27-31 findes udelukkende for at teste udledningen af skole uden bevilling —
+   se deres eget afsnit længere nede.
 ============================================================ */
 
 INSERT INTO [befordring].[Elev]
@@ -716,6 +725,89 @@ VALUES
     3.9, 'Normalklasse', '3', '3D',
     'SFO - Bavnehøj Skole', 'Bavnehøj Skole',
     @matrikel_2, NULL, 751016
+);
+
+
+/* ============================================================
+   Elev 27-31 — skolekode-udledning UDEN bevilling
+
+   Fem elever med INGEN bevilling overhovedet. De findes for at teste
+   genberegn_skole-knappen på stamdata og den natlige synkronisering:
+
+     27  Entydig skolekode.      Beder Skole (751004) har præcis én matrikel,
+                                 og den har koordinater. Knappen skal sætte
+                                 matrikel_id og beregne gåafstand.
+
+     28  Flertydig skolekode.    Kaløvigskolen (751020) har TRE matrikler.
+                                 Knappen skal nægte at gætte og sige, at
+                                 skolekoden ikke peger på præcis én matrikel.
+
+     29  Ukendt skolekode.       759999 findes ikke i Skolematrikel. Samme
+                                 besked som 28 — der er intet at slå op.
+
+     30  Allerede udledt, gyldig. matrikel_id er sat i forvejen og hører til
+                                 elevens egen skolekode. usp_sync_elev_matrikel
+                                 _from_bevilling må IKKE rydde den, selv om der
+                                 ingen bevilling er. Kør proceduren og tjek at
+                                 den overlever.
+
+     31  Allerede udledt, STALE. matrikel_id peger på Beder Skole (751004),
+                                 men eleven er registreret på Holme Skole
+                                 (751017). Den SKAL ryddes af samme procedure.
+
+   kraever_genberegning = 1 på 27-29: sådan ser en ny elev ud. De skal stadig
+   IKKE samles op af nattens afstandsberegning, fordi den kræver en skole med
+   koordinater — og de har ingen matrikel. Det er den afgrænsning, der gør, at
+   de 26.000 elever uden bevilling ikke pludselig står i kø til ORS.
+
+   Adresserne er genbrugt fra eleverne ovenfor, af samme grund som der: seedet
+   indsætter ikke i Adresse, så adresse_id skal være en tabellen allerede har.
+============================================================ */
+
+DECLARE @matrikel_beder int =
+    (SELECT TOP 1 matrikel_id FROM [befordring].[Skolematrikel]
+      WHERE skolekode = 751004 ORDER BY matrikel_id);
+
+INSERT INTO [befordring].[Elev]
+    (cpr, adresseringsnavn, navne_adresse_beskyttelse, adresse_id,
+     skoleafstand, klasseart, elevklassetrin, klassebetegnelse,
+     institution, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode,
+     kraever_genberegning)
+VALUES
+-- 27: entydig skolekode, intet udledt endnu -> knappen skal kunne klare den
+(
+    '2727101234', 'Sofie Entydig', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
+    NULL, 'Normalklasse', '3', '3A',
+    '', 'Beder Skole',
+    NULL, NULL, 751004, 1
+),
+-- 28: tre matrikler på samme skolekode -> knappen skal nægte at vælge
+(
+    '2828101234', 'Mads Flertydig', 0, '00002732-733C-433A-A5DA-A7D428A980CF',
+    NULL, 'Normalklasse', '5', '5A',
+    '', 'Kaløvigskolen',
+    NULL, NULL, 751020, 1
+),
+-- 29: skolekoden findes slet ikke i Skolematrikel
+(
+    '2929101234', 'Emma Ukendt', 0, '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0',
+    NULL, 'Normalklasse', '2', '2A',
+    '', '',
+    NULL, NULL, 759999, 1
+),
+-- 30: udledt i forvejen og i overensstemmelse med skolekoden -> skal bevares
+(
+    '3030101234', 'Victor Bevaret', 0, '000059B7-1FE6-4ED2-8386-D9578B2A8859',
+    3.3, 'Normalklasse', '4', '4A',
+    '', 'Beder Skole',
+    @matrikel_beder, NULL, 751004, 0
+),
+-- 31: udledt i forvejen, men peger på en anden skole end skolekoden -> ryddes
+(
+    '3131101234', 'Liva Stale', 0, '0000670C-4F89-4C07-B77B-F9B82AF01C80',
+    9.9, 'Normalklasse', '6', '6A',
+    '', 'Holme Skole',
+    @matrikel_beder, NULL, 751017, 0
 );
 
 
