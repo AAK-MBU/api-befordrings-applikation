@@ -21,7 +21,13 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.dependencies import CanDelete, CurrentUser, DbSession, RequireEdit
+from app.api.dependencies import (
+    CanDelete,
+    CurrentUser,
+    DbSession,
+    RequireEdit,
+    RequirePprAssign,
+)
 from app.schemas.bevilling import (
     BevillingCreateRequest,
     BevillingUpdateRequest,
@@ -31,6 +37,7 @@ from app.schemas.bevilling import (
     KoerselsraekkeCreateRequest,
     KoerselsraekkeUpdateRequest,
     LetterCreateRequest,
+    PprSagsbehandlerUpdateRequest,
 )
 from app.services.bevilling_service import BevillingService
 from app.services.brev_service import BrevService
@@ -275,6 +282,51 @@ def update_bevilling(
     return service.update_bevilling(
         bevilling_id=bevilling_id,
         bevilling_data=request.model_dump(exclude_unset=True),
+        udfoert_af=udfoert_af,
+    )
+
+
+@router.put("/{bevilling_id}/ppr_sagsbehandler", dependencies=[RequirePprAssign])
+def update_bevilling_ppr_sagsbehandler(
+    bevilling_id: int,
+    request: PprSagsbehandlerUpdateRequest,
+    db: DbSession,
+    udfoert_af: CurrentUser,
+):
+    """Set or clear the PPR-sagsbehandler on a bevilling.
+
+    A separate endpoint from the general update purely for authorisation. PPR
+    Medarbejder is "user-read" in Systemregisteret and may not write, but PPR
+    redistribute cases among themselves and a team leader assigns them. Routing
+    that one field through its own endpoint means the permission can be widened
+    for it alone: the general PUT keeps RequireEdit, so nothing else on the
+    bevilling - dates, hjemmel, letters, the delete endpoints - comes with it.
+
+    It is the endpoint, not the body, that constrains what can be written. A
+    caller cannot reach another field through here, because only this one is
+    ever passed on.
+
+    Args:
+        bevilling_id:
+            The ID of the bevilling to assign.
+
+        request:
+            The PPR-sagsbehandler to set, or null to remove the assignment.
+
+        db:
+            The database session injected by FastAPI.
+
+    Returns:
+        The result object from the service, as the general update returns.
+    """
+
+    service = BevillingService(db=db)
+
+    # Spelled out rather than model_dump()'d, so that widening the schema later
+    # cannot quietly widen what this endpoint writes.
+    return service.update_bevilling(
+        bevilling_id=bevilling_id,
+        bevilling_data={"ppr_sagsbehandler_id": request.ppr_sagsbehandler_id},
         udfoert_af=udfoert_af,
     )
 

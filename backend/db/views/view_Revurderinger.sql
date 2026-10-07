@@ -29,6 +29,13 @@ SELECT
     b.esdh_noegle,
     b.esdh_url,
     b.revurderingsdato,
+    -- Den sidste dag bevillingen dækker nogen som helst. En bevilling har
+    -- ingen slutdato selv — det er kørselsrækkerne, der bærer datoerne, og en
+    -- bevilling kan have flere med hver sin periode. Derfor MAX: den dato,
+    -- hvor den sidste række udløber, er den dato, hvor bevillingen i praksis
+    -- holder op. Det er også den, usp_recalculate_bevilling_status bruger til
+    -- at sætte status Udløbet.
+    kr.seneste_gyldig_til,
     b.revurderet_af_ppr,
     b.revurderet_af_br,
     b.revurdering,
@@ -53,6 +60,16 @@ LEFT  JOIN [befordring].[Hjemmel]            h   ON h.hjemmel_id             = b
 LEFT  JOIN [befordring].[Afgoerelsesbrev]    ab  ON ab.afgoerelsesbrev_id    = b.afgoerelsesbrev_id
 LEFT  JOIN [befordring].[PPR_Sagsbehandler]  ppr ON ppr.ppr_sagsbehandler_id = b.ppr_sagsbehandler_id
 LEFT  JOIN [befordring].[Sagsbehandler]      sb  ON sb.sagsbehandler_id      = b.sagsbehandler_id
+-- OUTER APPLY frem for et JOIN med GROUP BY: rækkerne skal ikke multiplicere
+-- bevillingen. Soft-slettede rækker tælles ikke med — ellers kunne en slettet
+-- række forlænge udløbsdatoen ud over det, bevillingen reelt dækker. Samme
+-- mønster som rangeringen af bevillinger i view_Student_Bevillinger.
+OUTER APPLY (
+    SELECT MAX(k.gyldig_til) AS seneste_gyldig_til
+    FROM   [befordring].[Koersel] k
+    WHERE  k.bevilling_id = b.bevilling_id
+    AND    k.aktiv        = 1
+) kr
 -- Soft-deleted bevillinger keep their revurdering flag, so without
 -- b.aktiv = 1 a deleted bevilling still appears on the Revurdering page.
 WHERE      b.aktiv = 1

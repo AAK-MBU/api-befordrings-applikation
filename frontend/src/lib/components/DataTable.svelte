@@ -56,6 +56,13 @@
 
   export let rowStyle: ((row: any) => string) | null = null;
 
+  // Read-only output, meant for bind:. The filtering happens in here, so a
+  // caller that puts a heading or a count above the table has no other way to
+  // know what is actually on screen — which is how "Alle bevillinger" came to
+  // keep saying "alle" over a filtered list.
+  export let filteredCount = 0;
+  export let filtersActive = false;
+
 
   // -----------------------------
   // Table state
@@ -192,6 +199,9 @@
       return rowValue.includes(filterValue.toLowerCase());
     });
   });
+
+  $: filteredCount = filteredData.length;
+  $: filtersActive = filterable && hasActiveFilters;
 
   $: totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
 

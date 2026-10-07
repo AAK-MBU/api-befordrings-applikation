@@ -196,6 +196,48 @@ def edit_role_names() -> frozenset[str]:
     )
 
 
+def ppr_assign_role_names() -> frozenset[str]:
+    """Role claim values permitted to set a bevilling's PPR-sagsbehandler."""
+    return frozenset(
+        role.strip().lower()
+        for role in settings.ppr_assign_roles.split(",")
+        if role.strip()
+    )
+
+
+def require_ppr_assign(
+    principal: Annotated[object, Depends(require_auth)],
+) -> object:
+    """Authorise assigning a PPR-sagsbehandler.
+
+    A separate gate from require_edit because it is deliberately wider. PPR
+    Medarbejder is provisioned as "user-read" in Systemregisteret, which grants
+    no write at all, yet PPR hand cases to one another and a team leader
+    distributes them. Rather than promote them to user-edit — which would hand
+    them every field on the bevilling, its kørselsrækker and the delete
+    endpoints — this permits the single field, on the single endpoint that only
+    ever writes that field.
+
+    Automated callers pass through untouched, as in require_edit.
+    """
+    if isinstance(principal, dict):
+        return principal
+
+    roles = {str(role).lower() for role in (getattr(principal, "roles", None) or ())}
+
+    if not roles & ppr_assign_role_names():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Din bruger har ikke rettigheder til at tildele "
+                "PPR-sagsbehandler. Rettigheder tildeles centralt via "
+                "Systemregisteret."
+            ),
+        )
+
+    return principal
+
+
 def require_edit(principal: Annotated[object, Depends(require_auth)]) -> object:
     """Authorise a write. Reads are open to every role, writes are not.
 
@@ -234,3 +276,6 @@ def require_edit(principal: Annotated[object, Depends(require_auth)]) -> object:
 #
 #     @router.put("/{id}", dependencies=[RequireEdit])
 RequireEdit = Depends(require_edit)
+
+# Narrow companion to RequireEdit, for the PPR-sagsbehandler endpoint only.
+RequirePprAssign = Depends(require_ppr_assign)

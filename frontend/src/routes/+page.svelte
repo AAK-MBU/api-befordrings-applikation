@@ -96,6 +96,11 @@
   );
 
   $: totalCount = sortedBevillinger.length;
+
+  // Bound from DataTable, which owns the filtering. The heading says "Alle
+  // bevillinger" only while that is true.
+  let visteBevillinger = 0;
+  let bevillingFiltreAktive = false;
   $: fejledeBevillinger = sortedBevillinger.filter((b: any) => b.status === "Fejlet");
 
 </script>
@@ -176,19 +181,28 @@
   <!-- All bevillinger -->
   <div class="mb-6">
     <div class="flex items-center gap-2.5 mb-3 px-3 py-2 bg-white rounded-lg border border-gray-300 shadow-sm">
-      <h2 class="font-semibold text-gray-700">Alle bevillinger</h2>
-      <span
-        class="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-white text-xs font-bold"
-        style="background-color: #032A42;"
-      >
-        {totalCount}
-      </span>
+      <h2 class="font-semibold text-gray-700">
+        {bevillingFiltreAktive ? "Filtrerede bevillinger" : "Alle bevillinger"}
+      </h2>
+      <div class="ml-auto flex items-center gap-1.5">
+        <span
+          class="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-white text-xs font-bold"
+          style="background-color: #032A42;"
+        >
+          {bevillingFiltreAktive ? visteBevillinger : totalCount}
+        </span>
+        {#if bevillingFiltreAktive}
+          <span class="text-xs text-gray-500 whitespace-nowrap">af {totalCount}</span>
+        {/if}
+      </div>
     </div>
     <div class="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
       <DataTable
         data={sortedBevillinger}
         columns={columns}
         filterable={true}
+        bind:filteredCount={visteBevillinger}
+        bind:filtersActive={bevillingFiltreAktive}
       />
     </div>
   </div>
