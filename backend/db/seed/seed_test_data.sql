@@ -539,6 +539,11 @@ DECLARE @dag_alle    int = (SELECT TOP 1 dag_id FROM [befordring].[Ugedag] WHERE
 
    27-31 findes udelukkende for at teste udledningen af skole uden bevilling —
    se deres eget afsnit længere nede.
+
+   De fleste "Ny"-bevillinger får desuden OS2Forms-ansøgningsdata, så
+   forudfyldningen af "+ Ny kørselsrække" kan afprøves gren for gren. 5 Janni
+   og 6 Jakob får bevidst ingen — de står for de håndlavede. Se afsnittet
+   "OS2Forms-ansøgningsdata" nederst.
 ============================================================ */
 
 INSERT INTO [befordring].[Elev]
@@ -1443,6 +1448,136 @@ WHERE  created_by = 'test_seed'
    link where the key is there, so a URL without one would never be seen. */
 AND    NULLIF(LTRIM(RTRIM(esdh_noegle)), '') IS NOT NULL;
 PRINT CONCAT('Bevilling esdh_url: ', @@ROWCOUNT, ' row(s) updated.');
+
+
+/* ============================================================
+   OS2Forms-ansøgningsdata  (migration 029)
+
+   De fleste "Ny"-bevillinger simuleres som om de kom ind gennem OS2Forms, så
+   forudfyldningen af "+ Ny kørselsrække" kan afprøves. Reglerne den afprøves
+   mod står i $lib/ansoegningsdata.ts:
+
+     * kørselstype forudfyldes KUN når ansøgningen nævner præcis én
+     * tidspunkt forudfyldes når de nævnte tidspunkter er enige
+     * gyldig_fra forudfyldes altid fra foerste_koersel_dato
+     * ugedage og gyldig_til forudfyldes aldrig
+
+   Hver række herunder rammer én gren. Tag dem i rækkefølge, så ses hele
+   adfærden — og de to sidste findes for at bevise, at dårlige data ikke
+   vælter formularen.
+
+   os2forms_id skal være unikt (filtreret unikt indeks), derfor en pr. række.
+============================================================ */
+
+/* 15 Astrid — én type, ét tidspunkt.
+   FORVENTET: Rutekørsel + Morgen + startdato forudfyldt. Ingen besked. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0015-0000-4000-8000-000000000015',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Rutekørsel","tidspunkt":"Morgen"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '1515101234' AND created_by = 'test_seed';
+
+/* 16 Oliver — én type, begge veje.
+   FORVENTET: Egen befordring + "Morgen og eftermiddag". Ingen besked. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0016-0000-4000-8000-000000000016',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Egen befordring","tidspunkt":"Morgen og eftermiddag"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '1616101234' AND created_by = 'test_seed';
+
+/* 17 Freja — skolerejsekort alene. Formularen spørger ikke om tidspunkt.
+   FORVENTET: Skolerejsekort forudfyldt, tidspunkt BLANKT. Ingen besked. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0017-0000-4000-8000-000000000017',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolerejsekort","tidspunkt":null}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '1717101234' AND created_by = 'test_seed';
+
+/* 18 Noah — midlertidig kørsel, type krydset af men intet tidspunkt sat.
+   FORVENTET: Rutekørsel forudfyldt, tidspunkt BLANKT — null er ikke "begge". */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0018-0000-4000-8000-000000000018',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Rutekørsel","tidspunkt":null}],"formular":"ny_ansoegning_om_midlertidig_koe","version":1}'
+WHERE cpr_elev = '1818101234' AND created_by = 'test_seed';
+
+/* 19 Clara — to typer, SAMME tidspunkt.
+   FORVENTET: type BLANK + besked, men tidspunkt Morgen forudfyldt. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0019-0000-4000-8000-000000000019',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Egen befordring","tidspunkt":"Morgen"},{"befordringstype":"Rutekørsel","tidspunkt":"Morgen"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '1919101234' AND created_by = 'test_seed';
+
+/* 20 Villads — to typer, FORSKELLIGE tidspunkter.
+   FORVENTET: både type og tidspunkt BLANKE + besked. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0020-0000-4000-8000-000000000020',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Egen befordring","tidspunkt":"Morgen"},{"befordringstype":"Rutekørsel","tidspunkt":"Eftermiddag"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '2020101234' AND created_by = 'test_seed';
+
+/* 21 Alma — alle tre typer.
+   FORVENTET: alt blankt + besked der nævner 3 kørselstyper. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0021-0000-4000-8000-000000000021',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolerejsekort","tidspunkt":null},{"befordringstype":"Egen befordring","tidspunkt":"Eftermiddag"},{"befordringstype":"Rutekørsel","tidspunkt":"Morgen"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '2121101234' AND created_by = 'test_seed';
+
+/* 22 Elias — skolerejsekort (uden tidspunkt) + rutekørsel (morgen).
+   FORVENTET: tidspunkt Morgen forudfyldt ALLIGEVEL. Skolerejsekortets null
+   betyder "ikke spurgt", ikke "noget andet", og tæller derfor ikke som
+   uenighed. Type blank + besked. Den gren er nem at få galt i halsen. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0022-0000-4000-8000-000000000022',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolerejsekort","tidspunkt":null},{"befordringstype":"Rutekørsel","tidspunkt":"Morgen"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '2222101234' AND created_by = 'test_seed';
+
+/* 23 Ida — skolebusformularen. Typen står ikke som et felt; det at man
+   indsender DEN formular er ønsket.
+   FORVENTET: Skolebus + "Morgen og eftermiddag". */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0023-0000-4000-8000-000000000023',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolebus","tidspunkt":"Morgen og eftermiddag"}],"formular":"ansoegning_om_koersel_med_skoleb","version":1}'
+WHERE cpr_elev = '2323101234' AND created_by = 'test_seed';
+
+/* 24 Malthe — ungdomsuddannelse, og UDEN ønsket startdato.
+   FORVENTET: Egen befordring forudfyldt, men gyldig_fra BLANK. Viser at de
+   to forudfyldninger er uafhængige. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0024-0000-4000-8000-000000000024',
+    foerste_koersel_dato = NULL,
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Egen befordring","tidspunkt":"Morgen og eftermiddag"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '2424101234' AND created_by = 'test_seed';
+
+/* 25 Liva — en kørselstype der ikke findes i opslagstabellen.
+   FORVENTET: INTET forudfyldt for type, og ingen fejl. idForLabel kræver
+   præcis ét match; alt andet lader feltet stå. Kan opstå hvis formularen får
+   en ny mulighed, før opslagstabellen gør. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0025-0000-4000-8000-000000000025',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Ladcykelkørsel","tidspunkt":"Morgen"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '2525101234' AND created_by = 'test_seed';
+
+/* 26 Storm — ødelagt JSON.
+   FORVENTET: tom formular som før, ingen fejl i konsollen, ingen besked.
+   parseAnsoegningsdata fanger det; en forudfyldning må aldrig kunne spærre
+   for at oprette en kørselsrække. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0026-0000-4000-8000-000000000026',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":'
+WHERE cpr_elev = '2626101234' AND created_by = 'test_seed';
+
+/* 1 Kasper — AKTIV bevilling der allerede HAR kørselsrækker, med to ønskede
+   typer.
+   FORVENTET: forudfyldningen kommer fra den seneste kørselsrække som hidtil —
+   ansøgningsdata bruges ikke — MEN beskeden om de to typer vises stadig. Det
+   er med vilje: når først én række findes, er der ellers ikke længere noget
+   der nævner de øvrige ønsker. */
+UPDATE [befordring].[Bevilling]
+SET os2forms_id = 'aaaa0001-0000-4000-8000-000000000001',
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Rutekørsel","tidspunkt":"Morgen"},{"befordringstype":"Egen befordring","tidspunkt":"Eftermiddag"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+WHERE cpr_elev = '0101101234' AND created_by = 'test_seed';
+
+/* 5 Janni og 6 Jakob får BEVIDST ingen ansøgningsdata: de står for de
+   bevillinger en sagsbehandler har oprettet i hånden, og for alt fra før
+   migration 029. FORVENTET: tom formular, ingen besked — nøjagtig som i dag. */
+
+PRINT 'Bevilling ansoegningsdata: 13 row(s) updated (12 ansoegningsdata-cases + 1 kontrol).';
 
 
 /* ============================================================

@@ -4,6 +4,7 @@
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
   import { backendFetch } from "$lib/client/backendFetch";
   import { formatDanishDate, getStatusBadgeClass, formatCpr } from "$lib/tableColumnConfig";
+  import { isMidlertidigKoersel } from "$lib/lookupFilters";
 
   export let data;
 
@@ -205,9 +206,21 @@
     },
     {
       key: "ansoegningstype",
-      label: "Kørsel",
+      label: "Midlertidig kørsel",
       filterType: "select",
-      multiSelect: true
+      multiSelect: true,
+      // "Kørsel" holding "Fast kørsel"/"Midlertidig kørsel" read as a question
+      // about the kørselstype rather than about the ansøgningstype. Asked as a
+      // yes/no it cannot: almost everything is Nej, so the few Ja rows are the
+      // information, and they are the ones given the colour.
+      //
+      // filterValues, not just render: the filter dropdown is built from it
+      // too, so it offers Ja/Nej instead of the raw values behind them.
+      filterValues: (row: any) => [isMidlertidigKoersel(row.ansoegningstype) ? "Ja" : "Nej"],
+      render: (row: any) =>
+        isMidlertidigKoersel(row.ansoegningstype)
+          ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">Ja</span>`
+          : `<span class="text-gray-400">Nej</span>`
     },
     {
       key: "sagsbehandler",

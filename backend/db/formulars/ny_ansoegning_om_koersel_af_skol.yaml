@@ -1,0 +1,987 @@
+markup_kvittering_til_ansoeger:
+  '#type': markup
+  '#display_on': view
+  '#markup': '<p>Kære [webform_submission:values:navn_mitid:raw]<br><br>Tak for din ansøgning om kørsel.<br>Vi behandler din ansøgning hurtigst muligt. Der kan gå op til 3-6 uger, før du hører fra os. Vi giver besked i din digitale postkasse, når vi har truffet afgørelse i sagen.</p><p>Har du spørgsmål til kørsel så <a href="https://post.borger.dk/send/2ea2e7ff-bad5-471d-a5c0-a63cbbd076d6/c1b1779c-9286-44d1-8361-461a34d1f6ad/" target="_blank">skriv sikkert til os her (post.borger.dk)&nbsp;</a></p><p><br>Venlig hilsen&nbsp;</p><p><strong>Kørsel af skoleelever</strong><br>Børn og Unge&nbsp;<br>Aarhus Kommune<br>&nbsp;</p><p>Nedenfor kan du se de oplysninger du har givet os i din ansøgning.</p>'
+kvittering_til_foraeldremyndighedsindehaver:
+  '#type': os2forms_attachment
+  '#title': 'Kvittering til forældremyndighedsindehaver'
+  '#filename': 'Kvittering for ansøgning om kørsel af skoleelev i Aarhus Kommune.pdf'
+  '#export_type': pdf
+  '#digital_signature': 0
+  '#excluded_elements':
+    kvittering_paa_ansoegning_til_budget_regnskab: kvittering_paa_ansoegning_til_budget_regnskab
+    markup_indledning: markup_indledning
+  '#exclude_empty': true
+  '#exclude_empty_checkbox': true
+kvittering_paa_ansoegning_til_budget_regnskab:
+  '#type': os2forms_attachment
+  '#title': 'Kvittering på ansøgning til Budget & Regnskab'
+  '#filename': 'Kvittering til B&R for ansøgning om kørsel af skoleelev i Aarhus Kommune.pdf'
+  '#export_type': pdf
+  '#digital_signature': 0
+  '#excluded_elements':
+    markup_kvittering_til_ansoeger: markup_kvittering_til_ansoeger
+    markup_indledning: markup_indledning
+  '#exclude_empty': true
+  '#exclude_empty_checkbox': true
+side_1:
+  '#type': wizard_page
+  '#title': 'Indledende oplysninger'
+  section_intro:
+    '#type': section
+    '#title': Intro
+    '#title_display': invisible
+    '#attributes':
+      style: 'background: #7f7f7f; padding: 25px;'
+    markup_indledning:
+      '#type': markup
+      '#wrapper_attributes':
+        style: 'color: white;'
+      '#markup': |
+        <p>
+          Du er i gang med at ansøge om kørsel i Aarhus Kommune. Du kan ansøge om bevilling af kørsel til dit barn, når dit barn går på distriktsskolen eller er henvist til et andet skoletilbud. Du kan kun få bevilling til kørsel, hvis skolevejen er for lang eller trafikfarlig, eller dit barn har en sygdom, funktionsnedsættelse eller handicap i en sådan grad, at dit barn kun kan komme i skole, hvis det bevilges kørsel. Hvis du ansøger om bevilling til taxakørsel, skal du oplyse dit barns skoleskema (ringetider), så det er en god idé at have ved hånden. Du har også mulighed for at vedhæfte dokumentation for dit barns funktionsnedsættelse.
+        </p>
+
+        <p>
+          Vi behandler din ansøgning hurtigst muligt. Der kan gå 3-6 uger, før du hører fra os. Du får besked i din digitale postkasse, når vi har truffet afgørelse i din/dit barns sag.
+        </p>
+
+        <p>
+          Du kan læse om behandling af personoplysninger i Børn og Unge <a href="https://www.aarhus.dk/om-kommunen/databeskyttelse/behandling-af-personoplysninger-i-boern-og-unge/" target="_blank">her</a> - og specifikt om vores behandling ved ansøgning om kørsel <a href="https://aarhus.dk/om-kommunen/databeskyttelse/behandling-af-personoplysninger-i-boern-og-unge/koersel-af-skoleelever" target="_blank">her</a>.
+          (Modtager du brevet fysisk, kan du finde informationen på <a href="http://www.aarhus.dk/personoplysningerimbu" target="_blank">www.aarhus.dk/personoplysningerimbu</a>).
+        </p>
+  section_dine_oplysninger:
+    '#type': section
+    '#title': 'Dine oplysninger'
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    navn_mitid:
+      '#type': os2forms_nemid_name
+      '#title': Navn
+      '#multiple': false
+      '#readonly': true
+    cpr_nummer_mitid:
+      '#type': os2forms_nemid_cpr
+      '#title': CPR-nummer
+      '#multiple': false
+      '#readonly': true
+    er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v:
+      '#type': radios
+      '#title': 'Er du forældremyndighedsindehaver til barnet der ansøges på vegne af?'
+      '#options':
+        Ja: Ja
+        Nej: Nej
+      '#required': true
+    angiv_dine_kontaktoplysinger:
+      '#type': textfield
+      '#title': Kontaktoplysninger
+      '#description': '<p>Dit telefonnummer</p>'
+      '#input_mask': '+45 99999999'
+    angiv_din_tilknytning_til_barnet:
+      '#type': select
+      '#title': 'Angiv din tilknytning til barnet'
+      '#options':
+        Værge: Værge
+        Plejeforælder: Plejeforælder
+        Uddannelsesinstitution: Uddannelsesinstitution
+        Sagsbehandler: Sagsbehandler
+        Bosted: Bosted
+      '#states':
+        visible:
+          ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+            value: Nej
+        required:
+          ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+            value: Nej
+  section_oplysninger_om_barnet:
+    '#type': section
+    '#title': 'Oplysninger om barnet'
+    '#states':
+      visible:
+        - ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+            value: Ja
+        - xor
+        - ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+            value: Nej
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    vaelg_barn:
+      '#type': os2forms_nemid_children_select
+      '#title': 'Vælg dit barn fra listen'
+      '#states':
+        disabled:
+          ':input[name="mit_barn_kommer_ikke_frem_i_listen"]':
+            checked: true
+        visible:
+          ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+            value: Ja
+    mit_barn_kommer_ikke_frem_i_listen:
+      '#type': checkbox
+      '#title': 'Mit barn kommer ikke frem i listen'
+      '#states':
+        visible:
+          ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+            value: Ja
+        disabled:
+          ':input[name="vaelg_barn"]':
+            filled: true
+    barnets_oplysninger_mitid:
+      '#type': container
+      '#states':
+        visible:
+          ':input[name="vaelg_barn"]':
+            filled: true
+      barnets_navn_mitid:
+        '#type': os2forms_mitid_child_name
+        '#title': 'Barnets navn'
+        '#multiple': false
+        '#readonly': true
+      cpr_nummer_barn_mitid:
+        '#type': os2forms_mitid_child_cpr
+        '#title': 'Barnets CPR-nummer'
+        '#multiple': false
+        '#readonly': true
+      barnets_adresse_mitid:
+        '#type': os2forms_mitid_child_address
+        '#title': Adresse
+        '#multiple': false
+        '#readonly': true
+    barnets_oplysninger_manuelt:
+      '#type': container
+      '#states':
+        visible:
+          - ':input[name="mit_barn_kommer_ikke_frem_i_listen"]':
+              checked: true
+          - xor
+          - ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+              value: Nej
+      barnets_navn_manuelt:
+        '#type': textfield
+        '#title': 'Barnets navn'
+        '#states':
+          required:
+            - ':input[name="mit_barn_kommer_ikke_frem_i_listen"]':
+                checked: true
+            - xor
+            - ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+                value: Nej
+      cpr_nummer_barn_manuelt:
+        '#type': textfield
+        '#title': 'Barnets CPR-nummer'
+        '#input_mask': '9999999999'
+        '#pattern': '^(?:(?:31(?:0[13578]|1[02])|(?:30|29)(?:0[13-9]|1[0-2])|(?:0[1-9]|1[0-9]|2[0-8])(?:0[1-9]|1[0-2]))[0-9]{2}-?[0-9]|290200-?[4-9]|2902(?:(?!00)[02468][048]|[13579][26])-?[0-3])[0-9]{3}|000000-?0000$'
+        '#pattern_error': 'Angiv et korrekt cpr-nummer.'
+        '#states':
+          required:
+            - ':input[name="mit_barn_kommer_ikke_frem_i_listen"]':
+                checked: true
+            - xor
+            - ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+                value: Nej
+      barnets_adresse_manuelt:
+        '#type': os2forms_dawa_address
+        '#title': 'Barnets folkeregisteradresse'
+        '#description': '<p><strong>Skriv venligst hele adressen, før du vælger den i listen.</strong><br>Eksempel: <em>Søndergade 12, 1. th., 8000 Aarhus C</em></p>'
+        '#states':
+          required:
+            - ':input[name="mit_barn_kommer_ikke_frem_i_listen"]':
+                checked: true
+            - xor
+            - ':input[name="er_du_foraeldremyndighedsindehaver_til_barnet_der_ansoeges_paa_v"]':
+                value: Nej
+        '#remove_place_name': 0
+    barnet_skal_koeres_til_fra_anden_adresse:
+      '#type': checkbox
+      '#title': 'Jeg ønsker at barnet bliver kørt til/fra en anden adresse end folkeregisteradresse'
+    container_anden_adresse:
+      '#type': container
+      '#states':
+        visible:
+          ':input[name="barnet_skal_koeres_til_fra_anden_adresse"]':
+            checked: true
+      barnets_anden_adresse:
+        '#type': os2forms_dawa_address
+        '#title': 'Ønsket adresse'
+        '#description': '<p>Der køres kun mellem distriktsskole/henvisningsskole og folkeregisteradresse&nbsp;</p><p><strong>Skriv venligst hele adressen, før du vælger den i listen.</strong><br>Eksempel: <em>Søndergade 12, 1. th., 8000 Aarhus C</em></p>'
+        '#states':
+          required:
+            ':input[name="barnet_skal_koeres_til_fra_anden_adresse"]':
+              checked: true
+        '#remove_place_name': 0
+      begrundelse_for_valg_af_anden_adresse:
+        '#type': textarea
+        '#title': 'Begrundelse for valg af anden adresse'
+        '#states':
+          required:
+            ':input[name="barnet_skal_koeres_til_fra_anden_adresse"]':
+              checked: true
+  page_1_next_page:
+    '#type': webform_actions
+    '#title': 'Side 1 - Næste side'
+side_2:
+  '#type': wizard_page
+  '#title': 'Skole og begrundelse for ansøgning'
+  section_oplysninger_om_skole:
+    '#type': section
+    '#title': 'Oplysninger om skole'
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    barnets_skole:
+      '#type': remote_select_element
+      '#title': Skole
+      '#description': '<p>Den skole, der søges om kørsel til og fra</p>'
+      '#attributes':
+        style: 'width:30em'
+      '#endpoint': 'https://mbuweb.adm.aarhuskommune.dk/dataapi/entities?type=kommunalskoleFlereLokationer'
+      '#data_key': value
+      '#data_value': value
+      '#use_empty_option': true
+      '#empty_option': Vælg
+      '#use_select2': true
+      '#required': true
+    barnets_klassetrin:
+      '#type': select
+      '#title': Klassetrin
+      '#options':
+        '0. klasse': '0. klasse'
+        '1. klasse': '1. klasse'
+        '2. klasse': '2. klasse'
+        '3. klasse': '3. klasse'
+        '4. klasse': '4. klasse'
+        '5. klasse': '5. klasse'
+        '6. klasse': '6. klasse'
+        '7. klasse': '7. klasse'
+        '8. klasse': '8. klasse'
+        '9. klasse': '9. klasse'
+        '10. klasse': '10. klasse'
+      '#required': true
+    vaelg_klassetype:
+      '#type': select
+      '#title': 'Vælg klassetype'
+      '#options':
+        Specialklasse: Specialklasse
+        Modtagelsesklasse: Modtagelsesklasse
+        'Nest Klasse': 'Nest Klasse'
+        'Almen Klasse': 'Almen Klasse'
+      '#required': true
+    kontaktperson_paa_skolen:
+      '#type': textfield
+      '#title': 'Kontaktperson på skolen'
+      '#description': |
+        <p>Hvis du kender kontaktperson på skolen, kan du skrive det her</p>
+  section_hvorfor_ansoeges_der_om_koersel:
+    '#type': section
+    '#title': 'Hvorfor ansøger du om kørsel  på vegne af dit barn?'
+    '#description': '<p>Sæt kryds:</p>'
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    langt_mellem_skole_og_hjem:
+      '#type': checkbox
+      '#title': 'Mit barn har langt mellem skole og hjem'
+      '#description': '<p>Elever, der har længere skolevej end 2,5 km i børnehaveklasse og på 1.-3. klassetrin, 6 km på 4.-6. klassetrin, 7 km på 7.-9. klassetrin og 9 km i 10. klasse.</p>'
+      '#states':
+        required:
+          ':input[name="sygdom_funktionsnedsaettelse_handicap"]':
+            unchecked: true
+          ':input[name="trafikfarlig_vej"]':
+            unchecked: true
+    trafikfarlig_vej:
+      '#type': checkbox
+      '#title': 'Mit barn har en skolevej, som Aarhus Kommune har vurderet som trafikfarlig vej'
+      '#description': '<p>Der er i udgangspunktet ikke tale om farlig skolevej, hvis:</p><ul><li>Der er fortov</li><li>Der er cykelsti</li><li>Vejkryds er trafikregulerede eller der er afmærkede fodgængerfelter</li></ul><p>Det er dit ansvar som forælder, at dit barn har modtaget den nødvendige færdselsundervisning / træning i trafikken, så skolevejen er velkendt og barnet er modent til at færdes til og fra skole.</p>'
+      '#states':
+        required:
+          ':input[name="sygdom_funktionsnedsaettelse_handicap"]':
+            unchecked: true
+          ':input[name="langt_mellem_skole_og_hjem"]':
+            unchecked: true
+    sygdom_funktionsnedsaettelse_handicap:
+      '#type': checkbox
+      '#title': 'Mit barn har en sygdom, funktionsnedsættelse, handicap, der nødvendiggør kørsel'
+      '#states':
+        required:
+          ':input[name="langt_mellem_skole_og_hjem"]':
+            unchecked: true
+          ':input[name="trafikfarlig_vej"]':
+            unchecked: true
+    begrundelse:
+      '#type': textarea
+      '#title': Begrundelse
+      '#description': 'Max 500 tegn'
+      '#maxlength': 500
+      '#placeholder': 'Skriv hvilken sygdom / funktionsnedsættelse / handicap dit barn har'
+      '#attributes':
+        style: 'width:70em'
+      '#states':
+        visible:
+          ':input[name="sygdom_funktionsnedsaettelse_handicap"]':
+            checked: true
+        required:
+          ':input[name="sygdom_funktionsnedsaettelse_handicap"]':
+            checked: true
+    vedhaeft_relevant_dokumentation:
+      '#type': managed_file
+      '#title': 'Vedhæft evt. relevant dokumentation '
+      '#multiple': 5
+      '#states':
+        visible:
+          ':input[name="sygdom_funktionsnedsaettelse_handicap"]':
+            checked: true
+      '#file_placeholder': |
+        <p>Fx udtalelse fra hospital, læge eller lignende.</p>
+      '#sanitize': true
+  page_2_next_page:
+    '#type': webform_actions
+    '#title': 'Side 2 - Næste side'
+side_3:
+  '#type': wizard_page
+  '#title': 'Valg af kørsel'
+  section_hvilken_type_koersel_ansoeger_du_om_til_dit_barn_:
+    '#type': section
+    '#title': 'Hvilken type kørsel ansøger du om til dit barn?'
+    '#description': |
+      <p>
+        Aarhus Kommune bevilger i udgangspunktet den mindst indgribende kørselstype. Der bevilges kun taxa/minibus i særlige tilfælde. Bemærk at sagsbehandlingstiden ved ansøgning om taxa/minibus er op til tre uger.
+        <em><strong>Sæt kryds, ved den eller de kørselstyper der ansøges om.</strong></em>
+      </p>
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    buskort_til_offentlig_transport:
+      '#type': checkbox
+      '#title': 'Buskort til offentlig transport'
+      '#states':
+        required:
+          ':input[name="koerselsgodtgoerelse_for_egen_befordring"]':
+            unchecked: true
+          ':input[name="rutekoersel_med_taxa_minibus"]':
+            unchecked: true
+    koerselsgodtgoerelse_for_egen_befordring:
+      '#type': checkbox
+      '#title': 'Kørselsgodtgørelse for egen befordring af dit barn til og fra skole'
+      '#states':
+        required:
+          ':input[name="rutekoersel_med_taxa_minibus"]':
+            unchecked: true
+          ':input[name="buskort_til_offentlig_transport"]':
+            unchecked: true
+    container_koerselsgodtgoerelse_yderligere_information:
+      '#type': container
+      '#states':
+        visible:
+          ':input[name="koerselsgodtgoerelse_for_egen_befordring"]':
+            checked: true
+      flexbox_koerselsgodtgoerelse_morgen_eftermiddag:
+        '#type': flexbox
+        '#attributes':
+          style: 'width:30em;background: white;'
+        container_koerselsgodtgoerelse_aflevering_morgen:
+          '#type': container
+          koerselsgodtgoerelse_aflevering_morgen:
+            '#type': checkbox
+            '#title': 'Aflevering morgen'
+        container_koerselsgodtgoerelse_afhentning_eftermiddag:
+          '#type': container
+          koerselsgodtgoerelse_afhentning_eftermiddag:
+            '#type': checkbox
+            '#title': 'Afhentning eftermiddag'
+    rutekoersel_med_taxa_minibus:
+      '#type': checkbox
+      '#title': 'Rutekørsel med taxa/minibus'
+      '#states':
+        required:
+          ':input[name="koerselsgodtgoerelse_for_egen_befordring"]':
+            unchecked: true
+          ':input[name="buskort_til_offentlig_transport"]':
+            unchecked: true
+    container_rutekoersel_yderligere_information:
+      '#type': container
+      '#states':
+        visible:
+          ':input[name="rutekoersel_med_taxa_minibus"]':
+            checked: true
+      flexbox_rutekoersel_morgen_eftermiddag:
+        '#type': flexbox
+        '#attributes':
+          style: 'width:30em;background: white;'
+        container_rutekoersel_aflevering_morgen:
+          '#type': container
+          rutekoersel_aflevering_morgen:
+            '#type': checkbox
+            '#title': 'Aflevering morgen'
+        container_rutekoersel_afhentning_eftermiddag:
+          '#type': container
+          rutekoersel_afhentning_eftermiddag:
+            '#type': checkbox
+            '#title': 'Afhentning eftermiddag'
+      container_livstruende_sygdom_handicap:
+        '#type': container
+        kan_sygdom_handicap_give_anledning_til_livstruende_situationer:
+          '#type': radios
+          '#title': 'Kan dit barns sygdom/handicap give anledning til livstruende situationer?'
+          '#options': yes_no
+          '#states':
+            required:
+              ':input[name="rutekoersel_med_taxa_minibus"]':
+                checked: true
+        skriv_hvilke_udfordringer_sygdom_funktionsnedsaettelse_kan_give_anledning_tl:
+          '#type': textarea
+          '#title': 'Skriv hvilke udfordringer dit barns sygdom /funktionsnedsættelse / handicap giver anledning til i forbindelse med kørsel'
+          '#description': 'Maks 500 tegn'
+          '#maxlength': 500
+          '#states':
+            visible:
+              ':input[name="kan_sygdom_handicap_give_anledning_til_livstruende_situationer"]':
+                value: Ja
+            required:
+              ':input[name="kan_sygdom_handicap_give_anledning_til_livstruende_situationer"]':
+                value: Ja
+      container_hjaelpemiddel:
+        '#type': container
+        er_der_et_hjaelpemiddel_der_skal_med_under_koersel_:
+          '#type': radios
+          '#title': 'Har dit barn et hjælpemiddel der skal med under kørsel?'
+          '#options': yes_no
+          '#states':
+            required:
+              ':input[name="rutekoersel_med_taxa_minibus"]':
+                checked: true
+        container_hjaelpemiddel_yderligere_information:
+          '#type': container
+          '#states':
+            visible:
+              ':input[name="er_der_et_hjaelpemiddel_der_skal_med_under_koersel_"]':
+                value: Ja
+          angiv_hjaelpemiddel:
+            '#type': checkboxes
+            '#title': 'Vælg hjælpemiddel'
+            '#description': '<p>Du må gerne vælge flere hjælpemidler</p>'
+            '#options':
+              Kørestol: Kørestol
+              Krykker: Krykker
+              Magnetsele: Magnetsele
+              Krampeplan: Krampeplan
+              Selekappe: Selekappe
+              Autostol: Autostol
+              El-kørestol: El-kørestol
+            '#states':
+              required:
+                ':input[name="er_der_et_hjaelpemiddel_der_skal_med_under_koersel_"]':
+                  value: Ja
+          skal_hjaelpemiddel_med_under_koersel_alle_dage_:
+            '#type': radios
+            '#title': 'Skal hjælpemidlet med under kørsel alle dage?'
+            '#options': yes_no
+            '#states':
+              required:
+                ':input[name="er_der_et_hjaelpemiddel_der_skal_med_under_koersel_"]':
+                  value: Ja
+          fieldset_dage_hvor_hjaelpemiddel_skal_med:
+            '#type': fieldset
+            '#title': 'Sæt kryds ved hvilke dage'
+            '#attributes':
+              style: 'background: white;'
+            '#states':
+              visible:
+                ':input[name="skal_hjaelpemiddel_med_under_koersel_alle_dage_"]':
+                  value: Nej
+            flexbox_hjaelpemidler_dage:
+              '#type': flexbox
+              container_hjaelpemiddel_mandag:
+                '#type': container
+                '#flex': 10
+                hjaelpemiddel_mandag:
+                  '#type': checkbox
+                  '#title': Mandag
+              container_hjaelpemiddel_tirsdag:
+                '#type': container
+                '#flex': 10
+                hjaelpemiddel_tirsdag:
+                  '#type': checkbox
+                  '#title': Tirsdag
+              container_hjaelpemiddel_onsdag:
+                '#type': container
+                '#flex': 10
+                hjaelpemiddel_onsdag:
+                  '#type': checkbox
+                  '#title': Onsdag
+              container_hjaelpemiddel_torsdag:
+                '#type': container
+                '#flex': 10
+                hjaelpemiddel_torsdag:
+                  '#type': checkbox
+                  '#title': Torsdag
+              container_hjaelpemiddel_fredag:
+                '#type': container
+                '#flex': 10
+                hjaelpemiddel_fredag:
+                  '#type': checkbox
+                  '#title': Fredag
+          kan_hjaelpemiddel_klappes_sammen_under_transport_:
+            '#type': radios
+            '#title': 'Kan hjælpemidlet klappes sammen under transport?'
+            '#options': yes_no
+            '#states':
+              required:
+                ':input[name="er_der_et_hjaelpemiddel_der_skal_med_under_koersel_"]':
+                  value: Ja
+          skal_der_siddes_i_koerestol_under_koerslen_:
+            '#type': radios
+            '#title': 'Skal dit barn sidde i kørestol under kørslen?'
+            '#options': yes_no
+            '#states':
+              required:
+                ':input[name="er_der_et_hjaelpemiddel_der_skal_med_under_koersel_"]':
+                  value: Ja
+      container_sms_service:
+        '#type': container
+        tilmelding_til_sms_service:
+          '#type': radios
+          '#title': 'Tilmelding til sms-service'
+          '#description': |
+            <p>Kørselskontoret kan sende information om dit barns kørsel på sms</p>
+          '#options': yes_no
+        kontaktoplysninger_sms_service:
+          '#type': custom_composite
+          '#title': 'Oplysninger på kontaktpersoner'
+          '#multiple': 3
+          '#states':
+            visible:
+              ':input[name="tilmelding_til_sms_service"]':
+                value: Ja
+            required:
+              ':input[name="tilmelding_til_sms_service"]':
+                value: Ja
+          '#multiple__sorting': false
+          '#multiple__add': false
+          '#wrapper_attributes':
+            style: 'width:50em'
+          '#element':
+            navn_sms:
+              '#type': textfield
+              '#title': Navn
+            telefonnummer_sms:
+              '#type': tel
+              '#title': Telefonnummer
+    section_dato_for_foerste_koersel:
+      '#type': section
+      '#title': 'Dato for første kørsel'
+      '#title_display': invisible
+      '#format': container
+      dato_for_foerste_koersel:
+        '#type': date
+        '#title': 'Dato for første kørsel'
+        '#description': '<p>Der er 3-6 ugers sagsbehandlingstid fra ansøgningstidspunktet. Du kan derfor ikke vælge en dato før om 3 uger.</p>'
+        '#required': true
+        '#format': d-m-Y
+        '#date_date_min': '+3 weeks'
+        '#date_date_format': ''
+  page_3_next_page:
+    '#type': webform_actions
+    '#title': 'Side 3 - Næste side'
+side_4:
+  '#type': wizard_page
+  '#title': 'Planlægning af kørsel'
+  section_planlaegning_af_koerslen:
+    '#type': section
+    '#title': 'Planlægning af kørslen'
+    '#description': '<p>Hjemkørsel planlægges som fast rutekørsel efter sidste time. Kørslen planlægges som udgangspunkt for et skoleår ad gangen og kan ikke ændres fra dag til dag. Hvis dit barns skoleskema ændres, giver skolen besked til Kørselskontoret.</p>'
+    '#states':
+      visible:
+        ':input[name="twig_koersel_visibility"]':
+          '!value': '1'
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    fieldset_skema_ringetid_morgen_eftermiddag:
+      '#type': fieldset
+      '#title': 'Angiv ringetid for morgen og efter sidste lektion'
+      '#attributes':
+        style: 'background: white;'
+      markup_oplysninger_om_barnets_skoleskema:
+        '#type': markup
+        '#markup': |
+          <p>
+            Det er kun muligt at indtaste barnets undervisningstider. Tider før kl. 08.00 og efter kl. 16.00 kan ikke registreres i systemet.
+            Hvis der ønskes kørsel til morgen-SFO eller efter kl. 16.00, skal dette ansøges særskilt hos Familiecentret.
+          </p>
+      markup_ikke_oplyst_tidspunkter_for_koersel_paa_forrige_side:
+        '#type': markup
+        '#markup': |
+          <p>OBS! Du har ikke markeret om rutekørsel skal finde sted om morgenen og/eller eftermiddagen!</p>
+        '#states':
+          visible:
+            ':input[name="rutekoersel_aflevering_morgen"]':
+              checked: false
+            ':input[name="rutekoersel_afhentning_eftermiddag"]':
+              checked: false
+      skoleskema_kendes_ikke:
+        '#type': checkbox
+        '#title': 'Jeg kender ikke mit barns skoleskema'
+      koersel_morgen:
+        '#type': flexbox
+        '#states':
+          visible:
+            ':input[name="twig_koersel_visibility"]':
+              '!value': '4'
+            ':input[name="skoleskema_kendes_ikke"]':
+              unchecked: true
+        mandag_fra:
+          '#type': time
+          '#title': 'Mandag morgen'
+          '#min': '08:00:00'
+          '#max': '10:00:00'
+          '#attributes':
+            style: 'width:9em;'
+        tirsdag_fra:
+          '#type': time
+          '#title': 'Tirsdag morgen'
+          '#min': '08:00:00'
+          '#max': '10:00:00'
+          '#attributes':
+            style: 'width:9em;'
+        onsdag_fra:
+          '#type': time
+          '#title': 'Onsdag morgen'
+          '#min': '08:00:00'
+          '#max': '10:00:00'
+          '#attributes':
+            style: 'width:9em;'
+        torsdag_fra:
+          '#type': time
+          '#title': 'Torsdag morgen'
+          '#min': '08:00:00'
+          '#max': '10:00:00'
+          '#attributes':
+            style: 'width:9em;'
+        fredag_fra:
+          '#type': time
+          '#title': 'Fredag morgen'
+          '#min': '08:00:00'
+          '#max': '10:00:00'
+          '#attributes':
+            style: 'width:9em;'
+      koersel_eftermiddag:
+        '#type': flexbox
+        '#states':
+          visible:
+            ':input[name="twig_koersel_visibility"]':
+              '!value': '3'
+            ':input[name="skoleskema_kendes_ikke"]':
+              unchecked: true
+        mandag_til:
+          '#type': time
+          '#title': 'Mandag eftermiddag'
+          '#attributes':
+            style: 'width:9em;'
+          '#min': '11:00:00'
+          '#max': '16:00:00'
+        tirsdag_til:
+          '#type': time
+          '#title': 'Tirsdag eftermiddag'
+          '#min': '11:00:00'
+          '#max': '16:00:00'
+          '#attributes':
+            style: 'width:9em;'
+        onsdag_til:
+          '#type': time
+          '#title': 'Onsdag eftermiddag'
+          '#min': '11:00:00'
+          '#max': '16:00:00'
+          '#attributes':
+            style: 'width:9em;'
+        torsdag_til:
+          '#type': time
+          '#title': 'Torsdag eftermiddag'
+          '#min': '11:00:00'
+          '#max': '16:00:00'
+          '#attributes':
+            style: 'width:9em;'
+        fredag_til:
+          '#type': time
+          '#title': 'Fredag eftermiddag'
+          '#min': '11:00:00'
+          '#max': '16:00:00'
+          '#attributes':
+            style: 'width:9em;'
+  section_sfo:
+    '#type': section
+    '#title': SFO
+    '#states':
+      visible:
+        ':input[name="twig_sfo_visibility"]':
+          '!value': '3'
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    er_barnet_tilmeldt_sfo_:
+      '#type': radios
+      '#title': 'Er barnet tilmeldt SFO?'
+      '#options': yes_no
+      '#states':
+        required:
+          ':input[name="twig_sfo_visibility"]':
+            '!value': '3'
+    container_oensket_afhentningstidspunkt_fra_sfo:
+      '#type': container
+      '#title': 'Ønsket afhentningstidspunkt fra SFO'
+      '#states':
+        visible:
+          - ':input[name="er_barnet_tilmeldt_sfo_"]':
+              value: Ja
+          - or
+          - ':input[name="twig_sfo_visibility"]':
+              value: '1'
+      markup:
+        '#type': markup
+        '#markup': |
+          <p>
+            <strong>Ønsket afhentningstidspunkt</strong>
+            Bemærk kørslen planlægges som rutekørsel, så der kan være ventetid. Der køres kun hjem fra SFO hvis det kan ske uden etablering af særskilt kørsel. Kan hjemkørselstidspunktet ikke imødekommes henvises til familiecenteret i Sociale forhold og beskæftigelse.
+          </p>
+      skema_sfo:
+        '#type': fieldset
+        '#title': 'Angiv ønsket hjemkørselstidspunkt efter SFO'
+        '#description': '<p>Hvis der ønskes hjemkørselstidspunkt efter kl. 16 henvises til familiecentret i Sociale forhold og beskæftigelse.</p>'
+        '#states':
+          visible:
+            ':input[name="er_barnet_tilmeldt_sfo_"]':
+              value: Ja
+        '#attributes':
+          style: 'background: white;'
+        flexbox_sfo:
+          '#type': flexbox
+          container_mandag__sfo:
+            '#type': container
+            '#flex': 7
+            mandag__sfo:
+              '#type': time
+              '#title': Mandag
+              '#min': '12:00:00'
+              '#max': '16:00:00'
+          container_tirsdag__sfo:
+            '#type': container
+            '#flex': 7
+            tirsdag__sfo:
+              '#type': time
+              '#title': Tirsdag
+              '#min': '12:00:00'
+              '#max': '16:00:00'
+          container_onsdag__sfo:
+            '#type': container
+            '#flex': 7
+            onsdag__sfo:
+              '#type': time
+              '#title': Onsdag
+              '#min': '12:00:00'
+              '#max': '16:00:00'
+          container_torsdag__sfo:
+            '#type': container
+            '#flex': 7
+            torsdag__sfo:
+              '#type': time
+              '#title': Torsdag
+              '#min': '12:00:00'
+              '#max': '16:00:00'
+          container_fredag__sfo:
+            '#type': container
+            '#flex': 7
+            fredag__sfo:
+              '#type': time
+              '#title': Fredag
+              '#min': '12:00:00'
+              '#max': '16:00:00'
+  section_klubhs:
+    '#type': section
+    '#title': 'Klubben Holme Søndergård'
+    '#states':
+      visible:
+        ':input[name="er_barnet_tilmeldt_sfo_"]':
+          value: Nej
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    er_barnet_tilmeldt_klubhs_:
+      '#type': radios
+      '#title': 'Er barnet henvist til Klubben Holme Søndergård?'
+      '#options': yes_no
+      '#states':
+        required:
+          ':input[name="er_barnet_tilmeldt_sfo_"]':
+            value: Nej
+    container_oensket_afhentningstidspunkt_fra_klubhs:
+      '#type': container
+      '#title': 'Ønsket afhentningstidspunkt fra Klubben Holme Søndergård'
+      '#states':
+        visible:
+          ':input[name="er_barnet_tilmeldt_klubhs_"]':
+            value: Ja
+          ':input[name="twig_sfo_visibility"]':
+            value: '1'
+      markup_klubhs:
+        '#type': markup
+      skema_klubhs:
+        '#type': fieldset
+        '#title': 'Angiv ønsket hjemkørselstidspunkt fra Klubben Holme Søndergård'
+        '#states':
+          visible:
+            ':input[name="er_barnet_tilmeldt_klubhs_"]':
+              value: Ja
+        '#attributes':
+          style: 'background: white;'
+        flexbox_klubhs:
+          '#type': flexbox
+          container_mandag__klubhs:
+            '#type': container
+            '#flex': 7
+            mandag__klubhs:
+              '#type': time
+              '#title': Mandag
+          container_tirsdag__klubhs:
+            '#type': container
+            '#flex': 7
+            tirsdag__klubhs:
+              '#type': time
+              '#title': Tirsdag
+          container_onsdag__klubhs:
+            '#type': container
+            '#flex': 7
+            onsdag__klubhs:
+              '#type': time
+              '#title': Onsdag
+          container_torsdag__klubhs:
+            '#type': container
+            '#flex': 7
+            torsdag__klubhs:
+              '#type': time
+              '#title': Torsdag
+          container_fredag__klubhs:
+            '#type': container
+            '#flex': 7
+            fredag__klubhs:
+              '#type': time
+              '#title': Fredag
+  andre_relevante_oplysninger_sektion:
+    '#type': section
+    '#title': 'Andre relevante oplysninger'
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    '#format': container
+    andre_relevante_oplysninger:
+      '#type': textarea
+      '#title': '<h4>Andre relevante oplysninger</h4>'
+      '#description': '<p>Eventuelle andre oplysninger, som du mener er vigtige for ansøgningen</p>'
+      '#title_display': none
+      '#placeholder': 'Eventuelle andre oplysninger, som du mener er vigtige for ansøgningen'
+  page_4_next_page:
+    '#type': webform_actions
+    '#title': 'Side 4 - Næste side'
+side_5:
+  '#type': wizard_page
+  '#title': Samtykke
+  section_samtykke:
+    '#type': section
+    '#title': Samtykke
+    '#description': '<p>Skal udfyldes, da vi ikke kan behandle din ansøgning uden at indhente oplysninger.</p>'
+    '#attributes':
+      style: 'background: #E5EFFA; padding: 25px;'
+    jeg_giver_samtykke_til_at_der_maa_indhentes_oplysninger_om_mit_b:
+      '#type': checkbox
+      '#title': 'Jeg giver samtykke til, at der må indhentes oplysninger om mit barn fra skole og andre afdelinger i Børn og Unge f.eks. PPR'
+      '#required': true
+    jeg_giver_samtykke_til_at_boern_og_unge_maa_dele_oplysninger_om:
+      '#type': checkbox
+      '#title': 'Jeg giver samtykke til at Børn og Unge må dele oplysninger om mit barn med Familiecenteret i Sociale Forhold og beskæftigelse.'
+  page_5_submit:
+    '#type': webform_actions
+    '#title': 'Side 5 - Gennemse'
+twigs:
+  '#type': section
+  '#title': TWIGS
+  '#title_display': invisible
+  '#description_display': invisible
+  '#attributes':
+    style: 'display:none'
+  '#format': container
+  twig_koersel_visibility:
+    '#type': computed_twig
+    '#title': twig_koersel_visibility
+    '#states_clear': false
+    '#display_on': form
+    '#template': |-
+      {# Return values:
+        1 = skjul_alt
+        2 = skjul_intet
+        3 = skjul_morgen
+        4 = skjul_eftermiddag
+      #}
+
+      {# If rutekørsel is NOT selected → hide everything #}
+      {% if data.rutekoersel_med_taxa_minibus != '1' %}
+        {{ 1 }}
+      {% else %}
+
+        {% set morgen = (data.rutekoersel_aflevering_morgen == '1') %}
+        {% set eftermiddag = (data.rutekoersel_afhentning_eftermiddag == '1') %}
+
+        {# No selections → show nothing (skjul_intet) #}
+        {% if not morgen and not eftermiddag %}
+          {{ 2 }}
+
+        {# Morning only → hide afternoon #}
+        {% elseif morgen and not eftermiddag %}
+          {{ 3 }}
+
+        {# Afternoon only → hide morning #}
+        {% elseif eftermiddag and not morgen %}
+          {{ 4 }}
+
+        {# Both selected → equivalent of "show everything" #}
+        {% else %}
+          {{ 2 }}
+        {% endif %}
+      {% endif %}
+    '#whitespace': trim
+    '#store': true
+  twig_sfo_visibility:
+    '#type': computed_twig
+    '#title': twig_sfo_visibility
+    '#states_clear': false
+    '#display_on': form
+    '#template': |-
+      {% set rutekoersel = (data.rutekoersel_med_taxa_minibus == '1') %}
+      {% set buskort = (data.buskort_til_offentlig_transport == '1') %}
+      {% set morgen = (data.rutekoersel_aflevering_morgen == '1') %}
+      {% set eftermiddag = (data.rutekoersel_afhentning_eftermiddag == '1') %}
+
+      {# 1. Eftermiddag always wins #}
+      {% if eftermiddag %}
+        {{ 1 }}
+
+      {# 2. Nothing selected at all #}
+      {% elseif not rutekoersel and not buskort %}
+        {{ 3 }}
+
+      {# 3. Only buskort #}
+      {% elseif not rutekoersel and buskort %}
+        {{ 2 }}
+
+      {# 4. Rutekørsel + morgen only (no buskort) #}
+      {% elseif rutekoersel and morgen and not eftermiddag and not buskort %}
+        {{ 3 }}
+
+      {# 5. Rutekørsel but no selections #}
+      {% elseif rutekoersel and not morgen and not eftermiddag %}
+        {{ 1 }}
+
+      {% elseif rutekoersel and morgen and not eftermiddag and buskort %}
+        {{ 2 }}
+
+      {# fallback #}
+      {% else %}
+        {{ 3 }}
+      {% endif %}
+    '#whitespace': trim
+    '#store': true
+  twig_barn_navn:
+    '#type': computed_twig
+    '#title': twig_barn_navn
+    '#states_clear': false
+    '#display_on': form
+    '#template': '{{ data.barnets_navn_mitid ?: data.barnets_navn_manuelt }}'

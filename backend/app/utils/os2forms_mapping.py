@@ -195,6 +195,148 @@ def get_ansoegningstype(payload: dict) -> str:
     return "Fast kørsel"
 
 
+# The three kørselstype checkboxes, in the order the form presents them, and
+# the Befordringstype each one means. They are independent: a citizen may tick
+# one, two or all three.
+#
+# The morning/afternoon pair belongs to the kørselstype, not to the
+# application — egen befordring and rutekørsel each carry their own. Buskort
+# has none at all, which is why its entry is None rather than a pair of field
+# names that do not exist.
+_KOERSELSTYPE_FELTER: list[tuple[str, str, tuple[str, str] | None]] = [
+    (
+        "buskort_til_offentlig_transport",
+        "Skolerejsekort",
+        None,
+    ),
+    (
+        "koerselsgodtgoerelse_for_egen_befordring",
+        "Egen befordring",
+        (
+            "koerselsgodtgoerelse_aflevering_morgen",
+            "koerselsgodtgoerelse_afhentning_eftermiddag",
+        ),
+    ),
+    (
+        "rutekoersel_med_taxa_minibus",
+        "Rutekørsel",
+        (
+            "rutekoersel_aflevering_morgen",
+            "rutekoersel_afhentning_eftermiddag",
+        ),
+    ),
+]
+
+# The skolebus form asks no kørselstype question — submitting it IS the
+# request. It asks about morning and afternoon as Ja/Nej radios rather than
+# checkboxes.
+_SKOLEBUS_WEBFORM = "ansoegning_om_koersel_med_skoleb"
+_SKOLEBUS_TIDSPUNKT = ("morgenkoersel", "eftermiddagskoersel")
+
+# The Tidspunkt lookup texts. Matched by the frontend against the lookup list,
+# so they have to read exactly as the lookup spells them.
+_TIDSPUNKT_MORGEN = "Morgen"
+_TIDSPUNKT_EFTERMIDDAG = "Eftermiddag"
+_TIDSPUNKT_BEGGE = "Morgen og eftermiddag"
+
+ANSOEGNINGSDATA_VERSION = 1
+
+
+def _tidspunkt(morgen: bool, eftermiddag: bool) -> str | None:
+    """A Tidspunkt label from a morning/afternoon pair.
+
+    None when neither was ticked. That is not the same as "both" and must not
+    become a default: the caseworker should choose rather than accept a value
+    nobody stated.
+    """
+
+    if morgen and eftermiddag:
+        return _TIDSPUNKT_BEGGE
+
+    if morgen:
+        return _TIDSPUNKT_MORGEN
+
+    if eftermiddag:
+        return _TIDSPUNKT_EFTERMIDDAG
+
+    return None
+
+
+def get_ansoegningsdata(payload: dict) -> dict | None:
+    """What the citizen asked for, curated for Bevilling.ansoegningsdata.
+
+    Args:
+        payload:
+            Parsed OS2Forms submission data.
+
+    Returns:
+        A dictionary ready to serialise, or None when the submission states no
+        kørselstype at all — there is nothing to prefill from, and an empty
+        list would claim otherwise.
+
+    Notes:
+        Deliberately narrow. It holds only what the "+ Ny kørselsrække" form
+        can be prefilled from, and nothing that duplicates a column the
+        bevilling already has:
+
+          * dato_for_foerste_koersel is already Bevilling.foerste_koersel_dato.
+            Two sources for one value is how they drift.
+          * ugedage are NOT derived. The forms carry a ringetid grid, but a
+            school timetable is not a statement of which days kørsel is
+            granted for, and the caseworker enters those by hand.
+          * tillæg are not here because no form asks: Fast forsæde, Co-driver
+            and the rest are decisions, not wishes.
+
+        Checkbox values are read through is_checked, the same "1" convention
+        the rest of this module relies on. Nesting does not matter — a field
+        three containers deep arrives flat, as angiv_hjaelpemiddel already
+        proves from this very branch of this very form.
+    """
+
+    webform_id = payload.get("webform_id")
+
+    if webform_id == _SKOLEBUS_WEBFORM:
+        morgen_felt, eftermiddag_felt = _SKOLEBUS_TIDSPUNKT
+
+        koerselstyper = [
+            {
+                "befordringstype": "Skolebus",
+                "tidspunkt": _tidspunkt(
+                    str(payload.get(morgen_felt, "")).strip() == "Ja",
+                    str(payload.get(eftermiddag_felt, "")).strip() == "Ja",
+                ),
+            }
+        ]
+    else:
+        koerselstyper = []
+
+        for felt, befordringstype, tidspunkt_felter in _KOERSELSTYPE_FELTER:
+            if not is_checked(payload.get(felt)):
+                continue
+
+            if tidspunkt_felter is None:
+                tidspunkt = None
+            else:
+                morgen_felt, eftermiddag_felt = tidspunkt_felter
+                tidspunkt = _tidspunkt(
+                    is_checked(payload.get(morgen_felt)),
+                    is_checked(payload.get(eftermiddag_felt)),
+                )
+
+            koerselstyper.append(
+                {"befordringstype": befordringstype, "tidspunkt": tidspunkt}
+            )
+
+    if not koerselstyper:
+        return None
+
+    return {
+        "koerselstyper": koerselstyper,
+        "formular": webform_id,
+        "version": ANSOEGNINGSDATA_VERSION,
+    }
+
+
 def get_os2forms_id(payload: dict) -> str | None:
     """The OS2Forms submission id, if the caller sent one.
 
