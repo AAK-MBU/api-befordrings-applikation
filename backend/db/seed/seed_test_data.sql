@@ -1483,11 +1483,19 @@ SET os2forms_id = 'aaaa0016-0000-4000-8000-000000000016',
     ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Egen befordring","tidspunkt":"Morgen og eftermiddag"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
 WHERE cpr_elev = '1616101234' AND created_by = 'test_seed';
 
-/* 17 Freja — skolerejsekort alene. Formularen spørger ikke om tidspunkt.
-   FORVENTET: Skolerejsekort forudfyldt, tidspunkt BLANKT. Ingen besked. */
+/* 17 Freja — skolebusformularen. Typen står ikke som et felt; det at man
+   indsender DEN formular er ønsket.
+   FORVENTET: Skolebus + "Morgen og eftermiddag".
+
+   Ligger på en FAST kørsel med vilje. Skolebus kan ikke optræde på en
+   midlertidig: get_ansoegningstype sender kun ny_ansoegning_om_midlertidig_koe
+   til "Midlertidig kørsel", alt andet — skolebusformularen med — bliver
+   "Fast kørsel". Og availableKoerselstyper skærer skolebus væk på en
+   midlertidig bevilling, så kombinationen ville hverken kunne opstå eller
+   kunne forudfyldes. */
 UPDATE [befordring].[Bevilling]
 SET os2forms_id = 'aaaa0017-0000-4000-8000-000000000017',
-    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolerejsekort","tidspunkt":null}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolebus","tidspunkt":"Morgen og eftermiddag"}],"formular":"ansoegning_om_koersel_med_skoleb","version":1}'
 WHERE cpr_elev = '1717101234' AND created_by = 'test_seed';
 
 /* 18 Noah — midlertidig kørsel, type krydset af men intet tidspunkt sat.
@@ -1527,12 +1535,17 @@ SET os2forms_id = 'aaaa0022-0000-4000-8000-000000000022',
     ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolerejsekort","tidspunkt":null},{"befordringstype":"Rutekørsel","tidspunkt":"Morgen"}],"formular":"ny_ansoegning_om_koersel_af_skol","version":1}'
 WHERE cpr_elev = '2222101234' AND created_by = 'test_seed';
 
-/* 23 Ida — skolebusformularen. Typen står ikke som et felt; det at man
-   indsender DEN formular er ønsket.
-   FORVENTET: Skolebus + "Morgen og eftermiddag". */
+/* 23 Ida — MIDLERTIDIG kørsel, skolerejsekort alene. Formularen spørger ikke
+   om tidspunkt for skolerejsekort.
+   FORVENTET: Skolerejsekort forudfyldt, tidspunkt BLANKT. Ingen besked.
+
+   Pointen er at den forudfyldes: availableKoerselstyper skærer listen ned på
+   en midlertidig bevilling, men skolerejsekort er på MIDLERTIDIG_ALLOWED, så
+   filteret må ikke stå i vejen. Sammenlign med 18 Noah, der er den anden
+   midlertidige. */
 UPDATE [befordring].[Bevilling]
 SET os2forms_id = 'aaaa0023-0000-4000-8000-000000000023',
-    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolebus","tidspunkt":"Morgen og eftermiddag"}],"formular":"ansoegning_om_koersel_med_skoleb","version":1}'
+    ansoegningsdata = N'{"koerselstyper":[{"befordringstype":"Skolerejsekort","tidspunkt":null}],"formular":"ny_ansoegning_om_midlertidig_koe","version":1}'
 WHERE cpr_elev = '2323101234' AND created_by = 'test_seed';
 
 /* 24 Malthe — ungdomsuddannelse, og UDEN ønsket startdato.
