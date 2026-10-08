@@ -6,6 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
+  import Elevoplysninger from "$lib/components/Elevoplysninger.svelte";
   import { sorterBevillinger } from "$lib/bevillingSortering";
   import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
     import { filterHjemler } from "$lib/lookupFilters";
@@ -963,42 +964,14 @@
                 </div>
                 <div class="px-4 pb-3">
                   <div class="bg-white border border-gray-300 rounded-lg shadow overflow-hidden">
-                    <div class="px-6 py-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-5">
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Folkeregisteradresse</p>
-                        <p class="text-sm text-gray-800 break-words" title={bev.folkeregister_adresse ?? ""}>{bev.folkeregister_adresse ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skolekode</p>
-                        <p class="text-sm text-gray-800">{bev.skolekode ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skole</p>
-                        <p class="text-sm text-gray-800 break-words" title={bev.skole_navn ?? ""}>{bev.skole_navn ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Gåafstand (km)</p>
-                        <p class="text-sm text-gray-800">{bev.gaaafstand_km ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klasseart</p>
-                        <p class="text-sm text-gray-800">{bev.klasseart ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klassebetegnelse</p>
-                        <p class="text-sm text-gray-800">{bev.klassebetegnelse ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Personligt klassetrin</p>
-                        <p class="text-sm text-gray-800">{bev.elevklassetrin ?? "—"}</p>
-                      </div>
+                    <div class="px-6 py-5">
+                      <!-- Samme komponent som elevens egen side bruger, så de
+                           to udgaver ikke kan vise forskellige ting. Feltnavnene
+                           afviger mellem view_Stamdata og dette view, derfor
+                           oversættes de her. -->
+                      <!-- Rækken sendes som den er: de tre views staver
+                           felterne ens, så der er intet at oversætte. -->
+                      <Elevoplysninger titel={null} elev={bev} {skolematrikler} />
 
                     </div>
                   </div>
