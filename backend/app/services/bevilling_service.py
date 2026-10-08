@@ -430,14 +430,30 @@ class BevillingService:
 
 
     def get_student_bevillinger(self, cpr: str):
-        """Get all bevillinger connected to a citizen.
+        """Get all bevillinger connected to a citizen, with their kørselsrækker.
 
         Args:
             cpr:
                 Citizen CPR.
 
         Returns:
-            A list of bevillinger from view_Student_Bevillinger.
+            A list of bevillinger from view_Student_Bevillinger, each with a
+            ``koerselsraekker`` key holding that bevilling's rows.
+
+        Notes:
+            Two statements for a student, never one per bevilling. Every caller
+            wanted the rækker immediately and fetched them itself, one request
+            per bevilling: the sag page did it on every load, and the
+            Revurdering and Genbehandling worklists did it for every expanded
+            row. Expanding 80 rows that way was roughly a hundred extra
+            requests, each taking a connection out of a pool of thirty.
+
+            Same shape as get_revurderinger builds, and the same join, so a
+            bevilling's rækker read identically wherever they come from.
+
+            There is no per-bevilling endpoint any more. One existed for the
+            conversion RPA, which is finished; with the frontend no longer
+            fanning out, nothing was left calling it.
         """
 
         sql = text("""
@@ -451,44 +467,49 @@ class BevillingService:
                 created_at DESC
         """)
 
-        result = self.db.execute(sql, {"cpr": cpr})
+        bevillinger = self._rows_to_dicts(self.db.execute(sql, {"cpr": cpr}))
 
-        return self._rows_to_dicts(result)
+        if not bevillinger:
+            return []
 
-
-    def get_bevilling_koerselsraekker(self, bevilling_id: int):
-        """Get all koerselsraekker for a bevilling.
-
-        Args:
-            bevilling_id:
-                ID of the bevilling.
-
-        Returns:
-            A list of koerselsraekker from view_Bevilling_Koerselsraekker.
-        """
-
-        sql = text("""
+        # Scoped by cpr rather than by the ids just read: one parameter instead
+        # of a generated IN-list, and the join to Bevilling is needed anyway to
+        # keep soft-deleted ones out.
+        koersel_sql = text("""
             SELECT
                 vbk.*,
-                k.final
+                k.final,
+                bt.befordringstype_tekst
             FROM
                 [befordring].[view_Bevilling_Koerselsraekker] vbk
             INNER JOIN
                 [befordring].[Koersel] k
                 ON k.koersel_id = vbk.koersel_id
                 AND k.aktiv = 1
+            INNER JOIN
+                [befordring].[Bevilling] b
+                ON b.bevilling_id = vbk.bevilling_id
+                AND b.aktiv = 1
             WHERE
-                vbk.bevilling_id = :bevilling_id
+                b.cpr_elev = :cpr
             ORDER BY
+                vbk.bevilling_id,
                 vbk.gyldig_til DESC
         """)
 
-        result = self.db.execute(
-            sql,
-            {"bevilling_id": bevilling_id},
-        )
+        koersler = self._rows_to_dicts(self.db.execute(koersel_sql, {"cpr": cpr}))
 
-        return self._rows_to_dicts(result)
+        koersel_map: dict = {}
+
+        for koersel in koersler:
+            koersel_map.setdefault(koersel["bevilling_id"], []).append(koersel)
+
+        for bevilling in bevillinger:
+            bevilling["koerselsraekker"] = koersel_map.get(
+                bevilling.get("bevilling_id"), []
+            )
+
+        return bevillinger
 
 
     def _next_loebenummer(self, cpr: str) -> int:

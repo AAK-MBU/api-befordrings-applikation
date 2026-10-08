@@ -542,6 +542,57 @@ class OverviewService:
         )
 
 
+    def get_worklist_counts(self) -> dict:
+        """How many rows each worklist holds, for the badges in the nav.
+
+        Returns:
+            {"nye": int, "revurderinger": int, "genbehandlinger": int,
+             "forsendelser": int}
+
+        Notes:
+            The nav used to get these by fetching all four worklists in full
+            and taking .length — four complete datasets, including
+            get_revurderinger's nested kørselsrækker query and the object graph
+            built on top of it, to render four small numbers.
+
+            That is a layout load, so it runs again on every invalidateAll, and
+            this codebase calls that in 37 places: every bevilling save, every
+            kørselsrække edit, every comment, every "PPR vurderet" tick re-read
+            all four lists end to end. During an incident on 2026-10-08 those
+            four endpoints were timing out alongside everything else, competing
+            for the same 30 connections.
+
+            One statement rather than four, so the badges cost a single
+            connection out of the pool instead of four. The counts come from
+            the same views the lists themselves read, so a badge cannot
+            disagree with the page it links to — which is the thing that would
+            otherwise rot as the view definitions change.
+        """
+
+        sql = text("""
+            SELECT
+                (SELECT COUNT(*) FROM [befordring].[view_New_Applications]) AS nye,
+                (SELECT COUNT(*) FROM [befordring].[view_Revurderinger])    AS revurderinger,
+                (SELECT COUNT(*) FROM [befordring].[view_Genbehandling])    AS genbehandlinger,
+                (SELECT COUNT(*) FROM [befordring].[view_Forsendelse])      AS forsendelser
+        """)
+
+        row = self.db.execute(sql).mappings().first()
+
+        # A missing row cannot happen with scalar subqueries, but a badge is
+        # not worth a 500: zeros read as "nothing waiting", which is the safe
+        # thing for a number nobody acts on directly.
+        if row is None:
+            return {
+                "nye": 0,
+                "revurderinger": 0,
+                "genbehandlinger": 0,
+                "forsendelser": 0,
+            }
+
+        return {key: int(value or 0) for key, value in row.items()}
+
+
     def get_reports(self):
         """Get report overview data.
 

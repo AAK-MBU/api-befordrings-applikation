@@ -37,6 +37,8 @@ class BevillingCreateRequest(BaseModel):
 
     # The OS2Forms submission id, so a resubmitted or re-driven form cannot
     # produce a second bevilling. Only the OS2Forms path sets it.
+    # Curated submission data, serialised JSON. See migration 029.
+    ansoegningsdata: str | None = None
     os2forms_id: str | None = None
 
     sagsbehandler_id: int | None = None

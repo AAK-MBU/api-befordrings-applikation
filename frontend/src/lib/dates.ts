@@ -62,13 +62,27 @@ export function firstInvalidDate(
 }
 
 /**
- * The plausible date window for this application: ±10 calendar years around
- * today, snapped to year boundaries (1 Jan … 31 Dec).
+ * The plausible date window for this application, snapped to year boundaries
+ * (1 Jan … 31 Dec).
  *
- * Bevillinger and kørselsrækker are school-year scoped, so nothing legitimate
- * falls outside this. The range exists to catch typos — a mistyped year is the
- * common failure, and `isValidDate` alone accepts 1998 or 2071 happily because
- * both are real calendar dates.
+ * The range exists to catch typos — a mistyped year is the common failure, and
+ * `isValidDate` alone accepts 1998 or 2071 happily because both are real
+ * calendar dates.
+ *
+ * The forward half is +15 years, not +10, because +10 was narrower than a date
+ * this application computes for itself. afstandskriterie_dato runs to the end
+ * of the school year in which the student leaves their distance band, and the
+ * worst case is a long way out:
+ *
+ *     skoleaarSlutter   today's year + 1 from August onwards
+ *   + (10 - 0)          a børnehaveklasse pupil over 9 km, who qualifies all
+ *                       the way to 10. klassetrin
+ *   = today's year + 11, on 30 June
+ *
+ * At +10 the ceiling was 31 December of year + 10, so that pupil's own
+ * correctly calculated 30 June of year + 11 was rejected as an implausible
+ * year — on a field the caseworker cannot edit their way out of. +15 clears it
+ * with room to spare and still catches a four-digit slip, which is the point.
  *
  * Use both halves together at every date input:
  *   - `MIN_DATE` / `MAX_DATE` as the `min`/`max` attributes, which bound the
@@ -78,13 +92,13 @@ export function firstInvalidDate(
  *     pasted or typed value from being read through `bind:value`.
  *
  * Computed once at module load. A session spanning New Year keeps the window it
- * started with, which is immaterial at ±10 years.
+ * started with, which is immaterial at this width.
  */
 export const MIN_DATE = new Date(new Date().getFullYear() - 10, 0, 1)
   .toISOString()
   .slice(0, 10);
 
-export const MAX_DATE = new Date(new Date().getFullYear() + 10, 11, 31)
+export const MAX_DATE = new Date(new Date().getFullYear() + 15, 11, 31)
   .toISOString()
   .slice(0, 10);
 

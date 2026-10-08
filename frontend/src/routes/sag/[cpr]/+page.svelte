@@ -3,7 +3,6 @@
   import { invalidateAll } from "$app/navigation";
 
   import { backendFetch } from "$lib/client/backendFetch";
-  import { afstandsMargin, formatAfstandsMargin } from "$lib/afstandskriterie";
 
   import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import DataTable, { type DataTableColumn } from "$lib/components/DataTable.svelte";
@@ -13,6 +12,7 @@
   import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
   import { bevillingLabel, bevillingLabelWithStatus } from "$lib/bevillingLabel";
   import { erEgenKommentar } from "$lib/kommentarEjer";
+  import Elevoplysninger from "$lib/components/Elevoplysninger.svelte";
   import { aabnSagVindue } from "$lib/client/sagVindue";
   import { lytPaaSagBesked } from "$lib/sagKanal";
   import {
@@ -32,7 +32,6 @@
 
   // Non-null when the student's measured distance sits within 500 m of the
   // afstandskriterie for their klassetrin — see $lib/afstandskriterie.
-  $: skoleafstandMargin = afstandsMargin(stamdata?.elevklassetrin, stamdata?.skoleafstand);
 
 
   // -----------------------------
@@ -893,136 +892,39 @@
     <!-- Elevoplysninger card -->
     <div class="bg-white border border-gray-300 rounded-lg shadow px-4 md:px-6 py-5 mb-4">
 
-      <div class="mb-6">
-        <h2 class="font-semibold text-gray-800">Elevoplysninger</h2>
-      </div>
+      <!-- Definitionen bor i komponenten, som Revurderings- og
+           Genbehandlingssiden deler. Genberegn-knappen bliver her: den skriver
+           og genindlæser, og det er kun på elevens egen side, resultatet har et
+           sted at lande. -->
+      <Elevoplysninger elev={stamdata} skolematrikler={lookupOptions?.skolematrikler ?? []}>
+        <!-- Resolves Skole and Skoleafstand together: the distance is measured
+             to the derived school, so there is nothing to recalculate
+             separately. -->
+        <button
+          slot="genberegn"
+          type="button"
+          class="text-sky-600 hover:text-sky-800 disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={!canEdit || genberegnerSkole}
+          on:click={genberegnSkole}
+          title="Genberegn skole og skoleafstand nu"
+          aria-label="Genberegn skole og skoleafstand"
+        >
+          <svg
+            class="w-3.5 h-3.5 {genberegnerSkole ? 'animate-spin' : ''}"
+            fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-5">
-
-        <!-- SAGS-ID -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Sags-ID</p>
-          <!-- Linket kommer fra bevillingen, som sags-id'et selv gør. Uden
-               esdh_url er der intet at linke til, og nøglen vises som før. -->
-          {#if stamdata?.esdh_noegle && stamdata?.esdh_url}
-            <a
-              href={stamdata.esdh_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Åbn sagen i GO"
-              class="inline-block px-2 py-0.5 rounded bg-slate-100 text-sky-600 hover:bg-slate-200 hover:underline text-xs font-mono font-medium"
-            >{stamdata.esdh_noegle}</a>
-          {:else}
-            <span class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-mono font-medium">
-              {stamdata?.esdh_noegle ?? "—"}
-            </span>
-          {/if}
-        </div>
-
-        <!-- FOLKEREGISTERADRESSE -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Folkeregisteradresse</p>
-          <p class="text-sm text-gray-800">{stamdata?.adresse_tekst ?? "—"}</p>
-        </div>
-
-        <!-- SKOLEKODE -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skolekode</p>
-          <p class="text-sm text-gray-800">
-            {stamdata?.skolekode || "—"}{#if stamdata?.skolekode && skolekodeNavn}<span
-                class="ml-1 text-gray-500">({skolekodeNavn})</span
-              >{/if}
-          </p>
-        </div>
-
-        <!-- SKOLE -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skole</p>
-          <p class="text-sm text-gray-800">{stamdata?.skole_navn ?? stamdata?.skolematrikel ?? "—"}</p>
-          {#if stamdata?.skole_type}
-            <span class="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
-              {stamdata.skole_type}
-            </span>
-          {/if}
-        </div>
-
-        <!-- SKOLEAFSTAND -->
-        <div>
-          <div class="flex items-center gap-1.5 mb-1.5">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Gåafstand (km)</p>
-            <!-- Resolves Skole and Skoleafstand together: the distance is
-                 measured to the derived school, so there is nothing to
-                 recalculate separately. -->
-            <button
-              type="button"
-              class="text-sky-600 hover:text-sky-800 disabled:opacity-40 disabled:cursor-not-allowed"
-              disabled={!canEdit || genberegnerSkole}
-              on:click={genberegnSkole}
-              title="Genberegn skole og skoleafstand nu"
-              aria-label="Genberegn skole og skoleafstand"
-            >
-              <svg
-                class="w-3.5 h-3.5 {genberegnerSkole ? 'animate-spin' : ''}"
-                fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </div>
-          <p class="text-sm text-gray-800">{stamdata?.skoleafstand ?? "—"}</p>
-
+        <svelte:fragment slot="genberegn-besked">
           {#if genberegnFejl}
             <p class="mt-1 text-[11px] text-red-700">{genberegnFejl}</p>
           {:else if genberegnBesked}
             <p class="mt-1 text-[11px] text-amber-700">{genberegnBesked}</p>
           {/if}
-          <!-- Flagged when the distance sits within 500 m of the afstandskriterie
-               for the student's klassetrin, either side: a recalculation could
-               move them across it. -->
-          {#if skoleafstandMargin}
-            <p
-              class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-50 text-red-900 border border-red-500"
-              title="Afstanden ligger tæt på afstandskriteriet for elevens klassetrin"
-            >
-              <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-              Tæt på grænsen — {formatAfstandsMargin(skoleafstandMargin)}
-            </p>
-          {/if}
-        </div>
-
-        <!-- KLASSEART -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klasseart</p>
-          <p class="text-sm text-gray-800">{stamdata?.klasseart ?? "—"}</p>
-        </div>
-
-        <!-- KLASSEBETEGNELSE -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klassebetegnelse</p>
-          <p class="text-sm text-gray-800">{stamdata?.klassebetegnelse ?? "—"}</p>
-        </div>
-
-        <!-- PERSONLIGT KLASSETRIN -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Personligt klassetrin</p>
-          <p class="text-sm text-gray-800">{stamdata?.elevklassetrin ?? "—"}</p>
-        </div>
-
-        <!-- Institution (SFO / klub) -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Institution</p>
-          <p class="text-sm text-gray-800">{stamdata?.institution ?? "—"}</p>
-        </div>
-
-        <!-- BOPÆLSDISTRIKT -->
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Bopælsdistrikt</p>
-          <p class="text-sm text-gray-800">{stamdata?.bopaelsdistrikt ?? "—"}</p>
-        </div>
-
-      </div>
+        </svelte:fragment>
+      </Elevoplysninger>
     </div>
 
 
@@ -1112,7 +1014,7 @@
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
         elevklassetrin={stamdata?.elevklassetrin ?? null}
-        skoleafstand={stamdata?.skoleafstand ?? null}
+        skoleafstand={stamdata?.gaaafstand_km ?? null}
         parter={recipients}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}

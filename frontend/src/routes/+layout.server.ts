@@ -4,6 +4,20 @@ import { getLogoutUrl } from "$lib/server/auth";
 import type { LayoutServerLoad } from "./$types";
 
 
+type Counts = {
+  nye: number;
+  revurderinger: number;
+  genbehandlinger: number;
+  forsendelser: number;
+};
+
+const INGEN_COUNTS: Counts = {
+  nye: 0,
+  revurderinger: 0,
+  genbehandlinger: 0,
+  forsendelser: 0,
+};
+
 /**
  * Badge counts for the nav tabs.
  *
@@ -12,34 +26,32 @@ import type { LayoutServerLoad } from "./$types";
  * load. Fetched in onMount they were read exactly once per full page load, so a
  * bevilling entering genbehandling left the badge stale until F5.
  *
- * Counts are decorative — a failed fetch yields 0 rather than breaking the
+ * ONE request, not four. This used to fetch all four worklists in full and
+ * take .length — four complete datasets, including the nested kørselsrækker
+ * that /overview/revurderinger builds, to render four small numbers. Because
+ * it is a layout load it ran again on every invalidateAll, which this codebase
+ * calls in 37 places, so every save in the application re-read all four lists
+ * end to end. /overview/counts answers the same question in one statement.
+ *
+ * Counts are decorative — a failed fetch yields zeros rather than breaking the
  * layout, which would take every page down with it.
  */
-async function loadCounts(event: Parameters<LayoutServerLoad>[0]) {
+async function loadCounts(event: Parameters<LayoutServerLoad>[0]): Promise<Counts> {
   const api = backendUserFetcher(event);
 
-  const paths = {
-    nye: "/overview/new_applications",
-    revurderinger: "/overview/revurderinger",
-    genbehandlinger: "/overview/genbehandlinger",
-    forsendelser: "/brev/forsendelse",
-  } as const;
+  try {
+    const res = await api("/overview/counts");
 
-  const entries = await Promise.all(
-    Object.entries(paths).map(async ([key, path]) => {
-      try {
-        const res = await api(path);
-        if (!res.ok) return [key, 0] as const;
+    if (!res.ok) return INGEN_COUNTS;
 
-        const rows = await res.json();
-        return [key, Array.isArray(rows) ? rows.length : 0] as const;
-      } catch {
-        return [key, 0] as const;
-      }
-    })
-  );
+    const counts = await res.json();
 
-  return Object.fromEntries(entries) as Record<keyof typeof paths, number>;
+    // Spread over the defaults rather than trusting the body: a missing key
+    // should show 0, not "undefined" in the badge.
+    return { ...INGEN_COUNTS, ...counts };
+  } catch {
+    return INGEN_COUNTS;
+  }
 }
 
 

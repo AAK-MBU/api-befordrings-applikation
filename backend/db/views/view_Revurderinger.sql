@@ -19,6 +19,17 @@ SELECT
     e.adresseringsnavn,
     a.adresse_tekst                 AS folkeregister_adresse,
     e.skoleafstand                  AS gaaafstand_km,
+    -- Skolekoden, ikke bare skolens navn. Elevdata-panelet på Revurderings- og
+    -- Genbehandlingssiden viser den, så panelet kan vise det samme som elevens
+    -- stamdatakort — og på genbehandling er netop skolekoden tit grunden til,
+    -- at sagen står på listen.
+    e.skolekode,
+    -- Institution og bopælsdistrikt hører til elevens stamdata og vises i
+    -- Elevoplysninger-komponenten, som Revurderings- og Genbehandlingssiden
+    -- deler med elevens egen side. Står de ikke her, er panelet en delmængde
+    -- af kortet — og så er de tre udgaver drevet fra hinanden igen.
+    e.institution,
+    e.bopaelsdistrikt,
     e.klasseart,
     e.elevklassetrin,
     e.klassebetegnelse,
