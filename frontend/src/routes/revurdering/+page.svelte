@@ -8,7 +8,7 @@
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import { sorterBevillinger } from "$lib/bevillingSortering";
   import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
-    import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
+    import { filterHjemler } from "$lib/lookupFilters";
     import { matcherFilter, filterTilQuery, daysUntil, type RevurderingFilter } from "$lib/revurderingFilter";
 
     export let data;
@@ -475,69 +475,6 @@
       showCreateLetterModal = true;
     }
 
-    let editingBevillingFields: number | null = null;
-    let editFields = {
-      hjemmel_id: null as number | null,
-      afgoerelsesbrev_id: null as number | null,
-      afstandskriterie_dato: "",
-      revurderingsdato: "",
-    };
-
-    function startEditFields(bev: any) {
-      editingBevillingFields = bev.bevilling_id;
-      editFields = {
-        hjemmel_id: bev.hjemmel_id ?? null,
-        afgoerelsesbrev_id: bev.afgoerelsesbrev_id ?? null,
-        afstandskriterie_dato: bev.afstandskriterie_dato ? bev.afstandskriterie_dato.slice(0, 10) : "",
-        revurderingsdato: bev.revurderingsdato ? bev.revurderingsdato.slice(0, 10) : "",
-      };
-    }
-
-    function cancelEditFields() { editingBevillingFields = null; }
-
-    const labelFor = (options: any[] | undefined, id: any): string | null =>
-      id === null || id === undefined || id === ""
-        ? null
-        : (options ?? []).find((o: any) => Number(o.id) === Number(id))?.label ?? null;
-
-    // Changing hjemmel narrows the valid afgørelsesbreve, so a letter chosen
-    // under the previous hjemmel must not silently survive. Same rule as the
-    // bevilling card; this form has no status select, so the bevilling's saved
-    // status is what the status filter uses.
-    function changeHjemmel(bev: any, rawValue: string) {
-      const hjemmelId = rawValue ? Number(rawValue) : null;
-      const skoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole';
-
-      const gyldige = filterAfgoerelsesbreveByStatus(
-        filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, skoleType, labelFor(hjemler, hjemmelId)),
-        bev.status_tekst,
-        null,
-      );
-
-      const valgt = labelFor(afgoerelsesbreve, editFields.afgoerelsesbrev_id);
-
-      editFields = {
-        ...editFields,
-        hjemmel_id: hjemmelId,
-        afgoerelsesbrev_id: valgt && !containsLabel(gyldige, valgt) ? null : editFields.afgoerelsesbrev_id,
-      };
-    }
-
-    async function saveEditFields(bevillingId: number) {
-      const res = await backendFetch(`/bevilling/${bevillingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          hjemmel_id: editFields.hjemmel_id,
-          afgoerelsesbrev_id: editFields.afgoerelsesbrev_id,
-          afstandskriterie_dato: editFields.afstandskriterie_dato || null,
-          revurderingsdato: editFields.revurderingsdato || null,
-        }),
-      });
-      if (!res.ok) { console.error("Failed to update bevilling fields:", res.status); return; }
-      cancelEditFields();
-      await invalidateAll();
-    }
   </script>
 
 
@@ -996,7 +933,6 @@
 
 
           {#if isExpanded}
-            {@const isEditingFields = editingBevillingFields === bev.bevilling_id}
             {@const commentsOpen = expandedCommentsBevIds.has(bev.bevilling_id)}
             <div class="border-t border-gray-100" style="border-left: 3px solid {color};">
 
@@ -1024,21 +960,30 @@
                       </svg>
                     </a>
                   </div>
-                  {#if isEditingFields}
-                    <div class="flex items-center gap-2">
-                      <button type="button" class="px-3 py-1.5 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
-                        on:click={() => saveEditFields(bev.bevilling_id)}>Gem ændringer</button>
-                      <button type="button" class="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors bg-white"
-                        on:click={cancelEditFields}>Annullér</button>
-                    </div>
-                  {:else}
-                    <button type="button" class="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors bg-white"
-                      on:click={() => startEditFields(bev)}>Redigér</button>
-                  {/if}
                 </div>
                 <div class="px-4 pb-3">
                   <div class="bg-white border border-gray-300 rounded-lg shadow overflow-hidden">
                     <div class="px-6 py-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-5">
+
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Folkeregisteradresse</p>
+                        <p class="text-sm text-gray-800 break-words" title={bev.folkeregister_adresse ?? ""}>{bev.folkeregister_adresse ?? "—"}</p>
+                      </div>
+
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skolekode</p>
+                        <p class="text-sm text-gray-800">{bev.skolekode ?? "—"}</p>
+                      </div>
+
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Skole</p>
+                        <p class="text-sm text-gray-800 break-words" title={bev.skole_navn ?? ""}>{bev.skole_navn ?? "—"}</p>
+                      </div>
+
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Gåafstand (km)</p>
+                        <p class="text-sm text-gray-800">{bev.gaaafstand_km ?? "—"}</p>
+                      </div>
 
                       <div>
                         <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klasseart</p>
@@ -1046,93 +991,13 @@
                       </div>
 
                       <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klasse / trin</p>
-                        <p class="text-sm text-gray-800">
-                          {bev.klassebetegnelse ?? "—"}{#if bev.elevklassetrin}&nbsp;· trin {bev.elevklassetrin}{/if}
-                        </p>
-                      </div>
-
-                      <div class="col-span-2 sm:col-span-1">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Adresse</p>
-                        <p class="text-sm text-gray-800 truncate" title={bev.folkeregister_adresse}>{bev.folkeregister_adresse ?? "—"}</p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Klassebetegnelse</p>
+                        <p class="text-sm text-gray-800">{bev.klassebetegnelse ?? "—"}</p>
                       </div>
 
                       <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Gåafstand</p>
-                        <p class="text-sm text-gray-800">{bev.gaaafstand_km != null ? Number(bev.gaaafstand_km).toFixed(1) + ' km' : '—'}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Hjemmel</p>
-                        {#if isEditingFields}
-                          {@const editSkoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
-                          <select class="w-full border border-gray-300 rounded pl-1.5 pr-6 py-0.5 text-xs focus:border-blue-400 focus:ring-0 bg-white"
-                            value={editFields.hjemmel_id ?? ""}
-                            on:change={(e) => changeHjemmel(bev, e.currentTarget.value)}>
-                            <option value="">—</option>
-                            {#each filterHjemler(hjemler, bev.ansoegningstype, editSkoleType) as opt}
-                              <option value={opt.id}>{opt.label}</option>
-                            {/each}
-                          </select>
-                        {:else}
-                          <p class="text-sm text-gray-800">{bev.hjemmel_tekst ?? "—"}</p>
-                        {/if}
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Afgørelsesbrev</p>
-                        {#if isEditingFields}
-                          {@const editSkoleType = bev.ungdomsuddannelse_id && !bev.matrikel_id ? 'ungdomsuddannelse' : 'folkeskole'}
-                          <select class="w-full border border-gray-300 rounded pl-1.5 pr-6 py-0.5 text-xs focus:border-blue-400 focus:ring-0 bg-white"
-                            value={editFields.afgoerelsesbrev_id ?? ""}
-                            on:change={(e) => editFields = { ...editFields, afgoerelsesbrev_id: e.currentTarget.value ? Number(e.currentTarget.value) : null }}>
-                            <option value="">—</option>
-                            <!-- This form has no status select, so the bevilling's saved status decides. -->
-                            {#each filterAfgoerelsesbreveByStatus(
-                              filterAfgoerelsesbreve(afgoerelsesbreve, bev.ansoegningstype, editSkoleType, labelFor(hjemler, editFields.hjemmel_id)),
-                              bev.status_tekst,
-                              afgoerelsesbreve.find((o: any) => Number(o.id) === Number(editFields.afgoerelsesbrev_id))?.label ?? null,
-                            ) as opt}
-                              <option value={opt.id}>{opt.label}</option>
-                            {/each}
-                          </select>
-                        {:else}
-                          <p class="text-sm text-gray-800">{bev.afgoerelsesbrev_tekst ?? "—"}</p>
-                        {/if}
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Afstandskriterie dato</p>
-                        {#if isEditingFields}
-                          <input type="date" max="9999-12-31" class="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:border-blue-400 focus:ring-0" bind:value={editFields.afstandskriterie_dato} />
-                        {:else}
-                          <p class="text-sm text-gray-800">{formatDanishDate(bev.afstandskriterie_dato) ?? "—"}</p>
-                        {/if}
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">PPR Sagsbehandler</p>
-                        <!-- Editable for PPR Medarbejder too, who may write
-                             nothing else here. See PprSagsbehandlerSelect. -->
-                        <PprSagsbehandlerSelect
-                          bevillingId={bev.bevilling_id}
-                          valgt={bev.ppr_sagsbehandler_id ?? null}
-                          muligheder={pprSagsbehandlere}
-                        />
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Sagsbehandler</p>
-                        <p class="text-sm text-gray-800">{bev.sagsbehandler_tekst ?? "—"}</p>
-                      </div>
-
-                      <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Revurderingsdato</p>
-                        {#if isEditingFields}
-                          <input type="date" max="9999-12-31" class="w-full border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:border-blue-400 focus:ring-0" bind:value={editFields.revurderingsdato} />
-                        {:else}
-                          <p class="text-sm text-gray-800">{formatDanishDate(bev.revurderingsdato) ?? "—"}</p>
-                        {/if}
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Personligt klassetrin</p>
+                        <p class="text-sm text-gray-800">{bev.elevklassetrin ?? "—"}</p>
                       </div>
 
                     </div>
