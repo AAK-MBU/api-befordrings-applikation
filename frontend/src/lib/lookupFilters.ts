@@ -26,7 +26,7 @@ function normalize(text: string): string {
 // stores them without brackets: "§ 26, stk. 1 afstand". Matching on the exact
 // text meant five of the six mappings never fired, and the dropdown silently
 // showed everything. Dropping brackets and case makes both spellings meet.
-export function canonicalLabel(text: string | null | undefined): string {
+function canonicalLabel(text: string | null | undefined): string {
   return normalize(String(text ?? "").replace(/[()]/g, ""))
     .toLowerCase();
 }

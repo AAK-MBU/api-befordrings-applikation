@@ -8,6 +8,7 @@
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
   import Elevoplysninger from "$lib/components/Elevoplysninger.svelte";
   import { sorterBevillinger } from "$lib/bevillingSortering";
+  import { iBatches } from "$lib/batching";
   import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
     import { filterHjemler } from "$lib/lookupFilters";
 
@@ -104,15 +105,38 @@
       expandedCommentsBevIds = new Set(expandedCommentsBevIds);
     }
 
-    function expandAll() {
+    // True while "Udvid alle" is still loading, so the button can say so and
+    // cannot be pressed again into the same queue.
+    let udvider = false;
+
+    async function expandAll() {
+      if (udvider) return;
+
+      // The rows open immediately. Only the loading is paced — a caseworker
+      // should see the list expand at once, not watch it fill in.
       expandedIds = new Set(filteredGenbehandlinger.map((b: any) => b.bevilling_id));
       // Udvid alle åbner også kommentarerne — samme regel som en enkelt række.
       expandedCommentsBevIds = new Set(expandedIds);
-      filteredGenbehandlinger.forEach((bev: any) => {
-        if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
-        if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
-        if (!parterByCpr[bev.cpr_elev]) loadParter(bev.cpr_elev);
-      });
+
+      // A few students at a time. Unbounded, this fired three requests per row
+      // — and loading one student's bevillinger fans out again, one request per
+      // bevilling — so 80 rows meant roughly 400 requests at once. The API's
+      // connection pool holds 30; the rest queued until they timed out, and
+      // because the pool is shared it returned 500s to other users too.
+      // See $lib/batching.
+      udvider = true;
+
+      try {
+        await iBatches(filteredGenbehandlinger, async (bev: any) => {
+          await Promise.all([
+            aktiviteterByCpr[bev.cpr_elev] ? null : loadAktiviteter(bev.cpr_elev),
+            bevillingerByCpr[bev.cpr_elev] ? null : loadBevillinger(bev.cpr_elev),
+            parterByCpr[bev.cpr_elev] ? null : loadParter(bev.cpr_elev),
+          ]);
+        });
+      } finally {
+        udvider = false;
+      }
     }
 
     function collapseAll() {
@@ -324,18 +348,15 @@
       loadingBevillingerCpr.add(cpr);
       loadingBevillingerCpr = new Set(loadingBevillingerCpr);
       try {
+        // One request. The endpoint nests koerselsraekker itself — this used
+        // to fetch them one bevilling at a time, which on an expanded worklist
+        // was around a hundred extra requests against a pool of thirty.
         const res = await backendFetch(`/bevilling/get_student_bevillinger/${cpr}`);
         if (!res.ok) return;
         const bevillinger = await res.json();
-        const withKoersels = await Promise.all(
-          bevillinger.map(async (b: any) => {
-            const kr = await backendFetch(`/bevilling/get_bevilling_koerselsraekker/${b.bevilling_id}`);
-            return { ...b, koerselsraekker: kr.ok ? await kr.json() : [] };
-          })
-        );
         // Same order as the sag page — active bevilling first. See
         // $lib/bevillingSortering for why the API order is not enough.
-        bevillingerByCpr[cpr] = sorterBevillinger(withKoersels);
+        bevillingerByCpr[cpr] = sorterBevillinger(bevillinger);
         bevillingerByCpr = { ...bevillingerByCpr };
       } finally {
         loadingBevillingerCpr.delete(cpr);
@@ -523,9 +544,11 @@
       {/if}
 
       {#if filteredGenbehandlinger.length > 0}
-        <button type="button" class="text-xs font-medium text-sky-700 hover:underline whitespace-nowrap"
+        <button type="button"
+          class="text-xs font-medium text-sky-700 hover:underline whitespace-nowrap disabled:text-gray-400 disabled:no-underline disabled:cursor-wait"
+          disabled={udvider}
           on:click={() => allExpanded ? collapseAll() : expandAll()}>
-          {allExpanded ? 'Fold alle' : 'Udvid alle'}
+          {udvider ? 'Henter…' : allExpanded ? 'Fold alle' : 'Udvid alle'}
         </button>
       {/if}
 

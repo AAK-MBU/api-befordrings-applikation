@@ -20,6 +20,12 @@ import type { RequestEvent } from "@sveltejs/kit";
 
 export type BevillingRecord = Record<string, any> & {
   bevilling_id: number;
+  /**
+   * Nested by the API, not assembled here. get_student_bevillinger returns a
+   * bevilling's kørselsrækker with it; declaring the key keeps
+   * sorterBevillinger's generic from widening away bevilling_id.
+   */
+  koerselsraekker: { gyldig_til?: string | null }[];
 };
 
 
@@ -46,33 +52,17 @@ export async function assertResponseOk(response: Response, errorMessage: string)
  * orders depending on which page you opened them from.
  */
 async function hentBevillinger(api: ReturnType<typeof backendUserFetcher>, cpr: string) {
+  // One request. The endpoint nests koerselsraekker itself — this used to
+  // fetch them one bevilling at a time, so a student with three bevillinger
+  // cost four round trips on every single load of their page, and on every
+  // invalidateAll after a save.
   const bevillingerRes = await api(`/bevilling/get_student_bevillinger/${cpr}`);
 
   await assertResponseOk(bevillingerRes, "Failed to fetch bevillinger");
 
   const bevillinger: BevillingRecord[] = await bevillingerRes.json();
 
-  const bevillingerWithKoerselsraekker = await Promise.all(
-    bevillinger.map(async (bevilling) => {
-      const koerselsraekkerRes = await api(
-        `/bevilling/get_bevilling_koerselsraekker/${bevilling.bevilling_id}`
-      );
-
-      if (!koerselsraekkerRes.ok) {
-        console.error("Failed to fetch koerselsraekker");
-        console.error("Bevilling ID:", bevilling.bevilling_id);
-        console.error("Status:", koerselsraekkerRes.status);
-        console.error("Response:", await koerselsraekkerRes.text());
-
-        return { ...bevilling, koerselsraekker: [] };
-      }
-
-      const koerselsraekker = await koerselsraekkerRes.json();
-      return { ...bevilling, koerselsraekker };
-    })
-  );
-
-  return sorterBevillinger(bevillingerWithKoerselsraekker);
+  return sorterBevillinger(bevillinger);
 }
 
 
