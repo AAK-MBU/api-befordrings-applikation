@@ -117,6 +117,18 @@ class PprSagsbehandlerUpdateRequest(BaseModel):
     ppr_sagsbehandler_id: int | None = Field(...)
 
 
+class RevurderetAfPprUpdateRequest(BaseModel):
+    """Body for the "PPR vurderet" endpoint, which writes nothing else.
+
+    Required rather than optional: the revurdering page toggles the flag both
+    ways, so an absent field must not be read as either value.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    revurderet_af_ppr: bool = Field(...)
+
+
 class HjaelpemidlerUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

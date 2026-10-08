@@ -40,15 +40,22 @@ GO
                             so there is nothing to cross-check; the bevilling is
                             taken at face value.
 
-    Where NOTHING qualifies, both columns are CLEARED. That is the point of the
-    procedure as much as the copying is: a stale school is worse than no
-    school. It skips the walking-distance step (which needs coordinates) rather
+    Where NOTHING qualifies, both columns are CLEARED — with one exception: a
+    matrikel whose skolekode equals the student's own is left alone, because it
+    names the school the child is registered at and is therefore not stale. See
+    the #Delta filter. That exception is what lets genberegn_skole resolve a
+    school for a student who has no bevilling at all, without the next nightly
+    run undoing it.
+
+    Otherwise the clearing is the point of the procedure as much as the copying
+    is: a stale school is worse than no school. It skips the walking-distance step (which needs coordinates) rather
     than producing a confidently wrong number, and the mismatch is already on
     the Genbehandling page for a caseworker to resolve. Once the bevilling is
     corrected, the next night derives the school again.
 
-    This procedure is therefore AUTHORITATIVE over both columns: after it runs,
-    they mirror the chosen bevilling or they are NULL. Nothing else writes them.
+    This procedure is AUTHORITATIVE over both columns with that one exception:
+    after it runs, they mirror the chosen bevilling, or they hold a matrikel
+    that matches the student's own skolekode, or they are NULL.
 
     What this is for, and what it is NOT for:
 
@@ -211,6 +218,41 @@ BEGIN
                       c.cpr_elev             IS NOT NULL
                    OR e.matrikel_id          IS NOT NULL
                    OR e.ungdomsuddannelse_id IS NOT NULL
+                  )
+              /* Do not clear a school that is not stale.
+
+                 No bevilling qualifies, but the matrikel already on the
+                 student belongs to the very skolekode the student is
+                 registered at — so it names the right school, whatever the
+                 bevillinger do or do not say. genberegn_skole resolves exactly
+                 this where a skolekode has only one matrikel, and without this
+                 the next nightly run would wipe it.
+
+                 "Stale" has always meant "points at a school the child does
+                 not attend", and skolekode is this procedure's own stated
+                 authority on which school that is. A matrikel agreeing with it
+                 cannot be stale by that definition.
+
+                 A real school change is still caught, and earlier:
+                 usp_upsert_elev_from_stg clears matrikel_id, skoleafstand and
+                 ungdomsuddannelse_id the moment the skolekode moves, so by the
+                 time this runs there is nothing left to protect.
+
+                 ungdomsuddannelse_id must be NULL for the protection to apply.
+                 The pair is written from one bevilling and is therefore always
+                 (matrikel, NULL) or (NULL, ungdomsuddannelse); should both ever
+                 be set, the row is not protected and is cleared as before. */
+              AND NOT (
+                      c.cpr_elev             IS NULL
+                  AND e.matrikel_id          IS NOT NULL
+                  AND e.ungdomsuddannelse_id IS NULL
+                  AND ISNULL(e.skolekode, 0) <> 0
+                  AND EXISTS (
+                          SELECT 1
+                          FROM   [befordring].[Skolematrikel] sm
+                          WHERE  sm.matrikel_id = e.matrikel_id
+                          AND    sm.skolekode   = e.skolekode
+                      )
                   )
               AND EXISTS (
                       SELECT e.matrikel_id, e.ungdomsuddannelse_id

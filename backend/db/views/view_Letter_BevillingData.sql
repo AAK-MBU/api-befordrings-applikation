@@ -14,12 +14,29 @@ SELECT
     b.bevilling_id,
     e.cpr                           AS barnets_cpr,
     e.adresseringsnavn              AS barnets_fulde_navn,
-    ad.adresse_tekst                AS folkeregisteradresse,
+    -- Barnets adresse, som brevet skriver den. Bevillingens adresse vinder
+    -- over folkeregisterets: en flytning meldes til os før den slår igennem i
+    -- folkeregisteret, og sagsbehandleren skriver så den nye adresse direkte
+    -- på bevillingen. Uden COALESCE her blev brevet sendt med den gamle.
+    --
+    -- Navnet er bevaret fordi skabelonerne i api-skabelonmotor slår op på
+    -- {folkeregisteradresse}; at omdøbe det her ville tømme feltet i hvert
+    -- eneste brev. Den rigtige oprydning er at omdøbe pladsholderen dér og
+    -- her samtidig — se adresse_for_bevilling nedenfor, som er den samme
+    -- værdi under et ærligt navn.
+    --
+    -- Fallback, ikke erstatning: adresse_id er nullable på Bevilling, og en
+    -- bevilling uden adresse skal give folkeregisteradressen frem for et
+    -- tomt felt i et afgørelsesbrev.
+    COALESCE(bad.adresse_tekst, ad.adresse_tekst) AS folkeregisteradresse,
     e.institution,
     e.klasseart,
     e.klassebetegnelse,
     e.elevklassetrin                AS personligt_klassetrin,
     e.bopaelsdistrikt,
+    -- Samme værdi som folkeregisteradresse ovenfor, bortset fra fallbacket:
+    -- her er NULL stadig NULL, så det er muligt at se, om bevillingen
+    -- faktisk bærer en adresse.
     bad.adresse_tekst               AS adresse_for_bevilling,
     b.esdh_noegle                   AS sags_nummer,
     st.status_tekst                 AS status,

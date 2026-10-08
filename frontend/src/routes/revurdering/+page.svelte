@@ -6,6 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
+  import { sorterBevillinger } from "$lib/bevillingSortering";
   import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
     import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, containsLabel } from "$lib/lookupFilters";
     import { matcherFilter, filterTilQuery, daysUntil, type RevurderingFilter } from "$lib/revurderingFilter";
@@ -110,6 +111,10 @@
 
     let expandedIds = new Set<number>();
 
+    // Which rows have their comment section open. Kept next to
+    // expandedIds because the two move together — see toggleExpand.
+    let expandedCommentsBevIds = new Set<number>();
+
     // Parties per citizen, loaded lazily alongside aktiviteter and bevillinger
     // when a row is expanded. Needed by the egenbefordring kørselsrække, which
     // names one of them as the recipient of the kilometre reimbursement.
@@ -127,8 +132,15 @@
     function toggleExpand(id: number) {
       if (expandedIds.has(id)) {
         expandedIds.delete(id);
+        // Forget the comment state on collapse, so re-opening the row starts
+        // from the default again rather than remembering a close from before.
+        expandedCommentsBevIds.delete(id);
       } else {
         expandedIds.add(id);
+        // Kommentarerne er svære at få øje på, når de ligger foldet sammen i
+        // en i forvejen stor række, så de åbnes sammen med den. Toggle-knappen
+        // virker stadig bagefter — den her sætter kun udgangspunktet.
+        expandedCommentsBevIds.add(id);
         const bev = revurderinger.find((r: any) => r.bevilling_id === id);
         if (bev) {
           if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
@@ -137,10 +149,13 @@
         }
       }
       expandedIds = new Set(expandedIds);
+      expandedCommentsBevIds = new Set(expandedCommentsBevIds);
     }
 
     function expandAll() {
       expandedIds = new Set(filteredRevurderinger.map((b: any) => b.bevilling_id));
+      // Udvid alle åbner også kommentarerne — samme regel som en enkelt række.
+      expandedCommentsBevIds = new Set(expandedIds);
       filteredRevurderinger.forEach((bev: any) => {
         if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
         if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
@@ -150,6 +165,7 @@
 
     function collapseAll() {
       expandedIds = new Set();
+      expandedCommentsBevIds = new Set();
     }
 
     $: allExpanded = filteredRevurderinger.length > 0 && filteredRevurderinger.every((b: any) => expandedIds.has(b.bevilling_id));
@@ -228,15 +244,37 @@
 
 
 
-    async function togglePpr(bevillingId: number, cpr: string, current: boolean | null) {
-      const res = await backendFetch(`/bevilling/${bevillingId}`, {
+    // Its own endpoint, not the general PUT: that one is behind require_edit
+    // and PPR Medarbejder ("user-read") cannot reach it. See require_ppr.
+    //
+    // Returns the failure message rather than swallowing it. It used to only
+    // console.error, so a refused write looked exactly like a successful one —
+    // the dialog closed and the tick never appeared.
+    async function togglePpr(
+      bevillingId: number, cpr: string, current: boolean | null
+    ): Promise<string | null> {
+      const res = await backendFetch(`/bevilling/${bevillingId}/revurderet_af_ppr`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ revurderet_af_ppr: !current }),
       });
-      if (!res.ok) { console.error("Failed to update revurderet_af_ppr:", res.status); return; }
+
+      if (!res.ok) {
+        let message = "Vurderingen kunne ikke gemmes";
+
+        try {
+          const body = await res.json();
+          const detail = body?.detail?.message ?? body?.detail;
+          if (typeof detail === "string") message = detail;
+        } catch { /* keep fallback */ }
+
+        console.error("Failed to update revurderet_af_ppr:", res.status, message);
+        return message;
+      }
+
       await loadAktiviteter(cpr);
       await invalidateAll();
+      return null;
     }
 
     type VurderingConfirm = {
@@ -249,6 +287,7 @@
 
     let brConfirmFor: VurderingConfirm | null = null;
     let pprConfirmFor: VurderingConfirm | null = null;
+    let pprConfirmError: string | null = null;
 
     // The case link is carried into the dialog rather than looked up when it
     // renders: approving removes the row from this page, so the link has to be
@@ -263,6 +302,7 @@
 
     function openPprConfirm(bev: any, current: boolean | null) {
       if (current) { togglePpr(bev.bevilling_id, bev.cpr_elev, current); return; }
+      pprConfirmError = null;
       pprConfirmFor = {
         bevillingId: bev.bevilling_id, cpr: bev.cpr_elev, current,
         esdhNoegle: bev.esdh_noegle, esdhUrl: bev.esdh_url,
@@ -298,7 +338,6 @@
       }
     }
 
-    let expandedCommentsBevIds = new Set<number>();
 
     let copiedCpr: string | null = null;
 
@@ -397,7 +436,9 @@
             return { ...b, koerselsraekker: kr.ok ? await kr.json() : [] };
           })
         );
-        bevillingerByCpr[cpr] = withKoersels;
+        // Same order as the sag page — active bevilling first. See
+        // $lib/bevillingSortering for why the API order is not enough.
+        bevillingerByCpr[cpr] = sorterBevillinger(withKoersels);
         bevillingerByCpr = { ...bevillingerByCpr };
       } finally {
         loadingBevillingerCpr.delete(cpr);
@@ -540,11 +581,24 @@
           </p>
         {/if}
         <p class="font-semibold text-gray-900">Sagen er vurderet</p>
+        {#if pprConfirmError}
+          <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            {pprConfirmError}
+          </p>
+        {/if}
       </div>
       <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
         <button type="button" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg" on:click={() => (pprConfirmFor = null)}>Annullér</button>
         <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg"
-          on:click={async () => { if (pprConfirmFor) { await togglePpr(pprConfirmFor.bevillingId, pprConfirmFor.cpr, pprConfirmFor.current); pprConfirmFor = null; } }}>Godkend</button>
+          on:click={async () => {
+            if (!pprConfirmFor) return;
+            pprConfirmError = await togglePpr(
+              pprConfirmFor.bevillingId, pprConfirmFor.cpr, pprConfirmFor.current
+            );
+            // Only close on success — closing on a refusal is what made this
+            // look like nothing happened at all.
+            if (!pprConfirmError) pprConfirmFor = null;
+          }}>Godkend</button>
       </div>
     </div>
   </div>

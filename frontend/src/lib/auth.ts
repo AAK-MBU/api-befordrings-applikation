@@ -28,13 +28,14 @@ export type CurrentUser = {
    */
   can_edit: boolean;
   /**
-   * Whether this user may set a bevilling's PPR-sagsbehandler, as decided by
-   * the backend's PPR_ASSIGN_ROLES setting.
+   * Whether this user may perform PPR's own actions — setting the
+   * PPR-sagsbehandler, and ticking "PPR vurderet" — as decided by the
+   * backend's PPR_ROLES setting.
    *
    * Wider than can_edit: PPR Medarbejder is "user-read" and may write nothing
-   * else, but PPR hand cases to one another and a team leader distributes
-   * them. Same courtesy-not-enforcement caveat as above — require_ppr_assign
-   * guards the one endpoint that writes this field.
+   * else, but assigning cases and signing off their own vurdering is the work
+   * they are there to do. Same courtesy-not-enforcement caveat as above —
+   * require_ppr guards the endpoints, each of which writes one field.
    */
-  can_assign_ppr: boolean;
+  can_act_as_ppr: boolean;
 };

@@ -6,6 +6,7 @@
     import CreateBevillingModal from "$lib/components/CreateBevillingModal.svelte";
     import CreateLetterModal from "$lib/components/CreateLetterModal.svelte";
     import ReadOnlyNotice from "$lib/components/ReadOnlyNotice.svelte";
+  import { sorterBevillinger } from "$lib/bevillingSortering";
   import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
     import { filterHjemler, filterAfgoerelsesbreve } from "$lib/lookupFilters";
 
@@ -66,6 +67,10 @@
     $: anyFilterActive = !!(selectedSkole || selectedSagsbehandler || selectedPprSagsbehandler || selectedKoerselstype);
 
     let expandedIds = new Set<number>();
+
+    // Which rows have their comment section open. Kept next to
+    // expandedIds because the two move together — see toggleExpand.
+    let expandedCommentsBevIds = new Set<number>();
     let parterByCpr: Record<string, any[]> = {};
 
     async function loadParter(cpr: string) {
@@ -78,8 +83,15 @@
     function toggleExpand(id: number) {
       if (expandedIds.has(id)) {
         expandedIds.delete(id);
+        // Forget the comment state on collapse, so re-opening the row starts
+        // from the default again rather than remembering a close from before.
+        expandedCommentsBevIds.delete(id);
       } else {
         expandedIds.add(id);
+        // Kommentarerne er svære at få øje på, når de ligger foldet sammen i
+        // en i forvejen stor række, så de åbnes sammen med den. Toggle-knappen
+        // virker stadig bagefter — den her sætter kun udgangspunktet.
+        expandedCommentsBevIds.add(id);
         const bev = genbehandlinger.find((r: any) => r.bevilling_id === id);
         if (bev) {
           if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
@@ -88,10 +100,13 @@
         }
       }
       expandedIds = new Set(expandedIds);
+      expandedCommentsBevIds = new Set(expandedCommentsBevIds);
     }
 
     function expandAll() {
       expandedIds = new Set(filteredGenbehandlinger.map((b: any) => b.bevilling_id));
+      // Udvid alle åbner også kommentarerne — samme regel som en enkelt række.
+      expandedCommentsBevIds = new Set(expandedIds);
       filteredGenbehandlinger.forEach((bev: any) => {
         if (!aktiviteterByCpr[bev.cpr_elev]) loadAktiviteter(bev.cpr_elev);
         if (!bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev);
@@ -101,6 +116,7 @@
 
     function collapseAll() {
       expandedIds = new Set();
+      expandedCommentsBevIds = new Set();
     }
 
     $: allExpanded = filteredGenbehandlinger.length > 0 && filteredGenbehandlinger.every((b: any) => expandedIds.has(b.bevilling_id));
@@ -226,7 +242,6 @@
       }
     }
 
-    let expandedCommentsBevIds = new Set<number>();
     let copiedCpr: string | null = null;
 
     async function copyCpr(cpr: string, e: Event) {
@@ -317,7 +332,9 @@
             return { ...b, koerselsraekker: kr.ok ? await kr.json() : [] };
           })
         );
-        bevillingerByCpr[cpr] = withKoersels;
+        // Same order as the sag page — active bevilling first. See
+        // $lib/bevillingSortering for why the API order is not enough.
+        bevillingerByCpr[cpr] = sorterBevillinger(withKoersels);
         bevillingerByCpr = { ...bevillingerByCpr };
       } finally {
         loadingBevillingerCpr.delete(cpr);

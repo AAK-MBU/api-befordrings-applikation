@@ -13,7 +13,7 @@
   // Not can_edit. PPR Medarbejder holds "user-read" and may write nothing else
   // on the bevilling, but may set this field — see PPR_ASSIGN_ROLES and
   // require_ppr_assign. Disabling here is a courtesy; the endpoint decides.
-  $: canAssign = $page.data.user?.can_assign_ppr ?? false;
+  $: canAssign = $page.data.user?.can_act_as_ppr ?? false;
 
   let fejl: string | null = null;
   let gemmer = false;
