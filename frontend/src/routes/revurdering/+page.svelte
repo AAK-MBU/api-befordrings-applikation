@@ -965,14 +965,9 @@
                 <div class="px-4 pb-3">
                   <div class="bg-white border border-gray-300 rounded-lg shadow overflow-hidden">
                     <div class="px-6 py-5">
-                      <!-- Samme komponent som elevens egen side bruger, så de
-                           to udgaver ikke kan vise forskellige ting. Feltnavnene
-                           afviger mellem view_Stamdata og dette view, derfor
-                           oversættes de her. -->
                       <!-- Rækken sendes som den er: de tre views staver
                            felterne ens, så der er intet at oversætte. -->
                       <Elevoplysninger titel={null} elev={bev} {skolematrikler} />
-
                     </div>
                   </div>
                 </div>
