@@ -13,6 +13,7 @@ The main responsibilities are:
 The API router should only pass the raw request into this service.
 """
 
+import json
 from urllib.parse import parse_qs
 
 from fastapi import HTTPException, Request
@@ -291,6 +292,14 @@ class OS2FormsService:
             begrundelse_fra_formular=os2forms_mapping.get_begrundelse(payload),
             hjaelpemiddel_ids=self._resolve_hjaelpemiddel_ids(hjaelpemiddel_names),
             os2forms_id=os2forms_mapping.get_os2forms_id(payload),
+            # Serialised here rather than in the mapper, so the mapper stays
+            # testable as plain data. ensure_ascii=False keeps "Rutekørsel"
+            # readable in the column instead of \u00f8-escaped.
+            ansoegningsdata=(
+                json.dumps(ansoegningsdata, ensure_ascii=False)
+                if (ansoegningsdata := os2forms_mapping.get_ansoegningsdata(payload))
+                else None
+            ),
         )
 
 

@@ -1,6 +1,16 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Unicode, text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Unicode,
+    UnicodeText,
+    text,
+)
 from sqlalchemy.dialects.mssql import DATETIME2
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -99,6 +109,21 @@ class Bevilling(Base):
     # answerable, which both the create endpoint's duplicate guard and the
     # reconciliation job depend on. A filtered unique index enforces it in the
     # database. See migration 028.
+    # What the citizen asked for, as JSON, curated from the submission at
+    # creation. Prefills the "+ Ny kørselsrække" form so a caseworker does not
+    # retype what the application already said.
+    #
+    # A list of (befordringstype, tidspunkt), because the three kørselstype
+    # checkboxes are independent and two of them carry their own
+    # morgen/eftermiddag pair. NULL on everything created by hand, and on
+    # everything that predates migration 029. See that migration for why this
+    # is a curated subset rather than the raw form_data, and
+    # app/utils/os2forms_mapping.py::get_ansoegningsdata for the writer.
+    ansoegningsdata: Mapped[str | None] = mapped_column(
+        UnicodeText,
+        nullable=True,
+    )
+
     os2forms_id: Mapped[str | None] = mapped_column(
         Unicode(36),
         nullable=True,

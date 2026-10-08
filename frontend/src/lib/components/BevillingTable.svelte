@@ -1232,6 +1232,8 @@
                 onDeleteKoerselsraekke={onDeleteKoerselsraekke}
                 {parter}
                 ansoegningstype={bevilling.ansoegningstype ?? ""}
+                ansoegningsdata={bevilling.ansoegningsdata ?? null}
+                foersteKoerselDato={bevilling.foerste_koersel_dato ?? null}
               />
             </div>
 
