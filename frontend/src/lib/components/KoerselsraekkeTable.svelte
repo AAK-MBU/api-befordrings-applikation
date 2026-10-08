@@ -355,8 +355,15 @@
    * match. Compared through canonicalLabel so spacing and case differences
    * between the submission mapper and the lookup table do not silently drop a
    * prefill.
+   *
+   * Returns the id AS IT IS — a number — not a string of it. The selects
+   * render `<option value={option.id}>`, and Svelte binds the raw value, so a
+   * stringified id matches no option: the select then goes blank instead of
+   * falling back to its "Vælg" placeholder, which looks like a broken form
+   * rather than an unfilled one. "" is what the placeholder carries, so an
+   * unmatched label lands on it correctly.
    */
-  function idForLabel(options: any[], label: string | null): string {
+  function idForLabel(options: any[], label: string | null): number | "" {
     if (!label) return "";
 
     const target = canonicalLabel(label);
@@ -364,7 +371,7 @@
       (option: any) => canonicalLabel(option.label) === target,
     );
 
-    return hits.length === 1 ? String(hits[0].id) : "";
+    return hits.length === 1 ? hits[0].id : "";
   }
 
 
