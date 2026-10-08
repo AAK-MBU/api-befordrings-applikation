@@ -89,9 +89,10 @@ AS
     ) ud
         ON k.koersel_id = ud.koersel_id
     -- Soft-deleted kørselsrækker must not come back through this view.
-    -- bevilling_service.get_bevilling_koerselsraekker currently compensates
-    -- with its own AND k.aktiv = 1 join; that join becomes redundant once
-    -- this is deployed, but stays harmless.
+    -- The callers that read it — get_student_bevillinger, get_revurderinger,
+    -- get_genbehandlinger — each repeat AND k.aktiv = 1 on their own join.
+    -- Redundant against this view, kept because a reader of those queries
+    -- should not have to open this file to know deleted rows are excluded.
     WHERE k.aktiv = 1;
 
 GO

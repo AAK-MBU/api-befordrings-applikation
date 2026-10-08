@@ -177,31 +177,6 @@ def get_student_bevillinger(cpr: str, db: DbSession):
     return service.get_student_bevillinger(cpr=cpr)
 
 
-@router.get("/get_bevilling_koerselsraekker/{bevilling_id}")
-def get_bevilling_koerselsraekker(bevilling_id: int, db: DbSession):
-    """Get all koerselsraekker connected to a bevilling.
-
-    A koerselsraekke represents one transport row/transport setup connected
-    to the overall bevilling.
-
-    Args:
-        bevilling_id:
-            The ID of the bevilling.
-
-        db:
-            The database session injected by FastAPI.
-
-    Returns:
-        A list of koerselsraekker connected to the bevilling.
-    """
-
-    service = BevillingService(db=db)
-
-    return service.get_bevilling_koerselsraekker(
-        bevilling_id=bevilling_id,
-    )
-
-
 @router.post("/create_bevilling/{cpr}", dependencies=[RequireEdit])
 def create_bevilling(
     cpr: str,

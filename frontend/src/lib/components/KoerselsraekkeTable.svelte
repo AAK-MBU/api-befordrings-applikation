@@ -15,13 +15,6 @@
     labelIsSkolerejsekort,
     labelIsTaxa,
   } from "$lib/koerselstype";
-  import { canonicalLabel } from "$lib/lookupFilters";
-  import {
-    parseAnsoegningsdata,
-    singleBefordringstype,
-    sharedTidspunkt,
-    multipleTypesNotice,
-  } from "$lib/ansoegningsdata";
   import { afstandFraKoordinater } from "$lib/client/afstand";
 
 
@@ -67,16 +60,6 @@
   // kørselstyper may be chosen; every other type shows the full lookup.
   export let ansoegningstype: string = "";
 
-  /**
-   * What the citizen asked for, straight off Bevilling.ansoegningsdata, and
-   * the ønskede startdato from Bevilling.foerste_koersel_dato.
-   *
-   * Only used to prefill the create form. Both are null on bevillinger made
-   * by hand and on everything predating migration 029.
-   */
-  export let ansoegningsdata: string | null = null;
-  export let foersteKoerselDato: string | null = null;
-
   // Optional — if not provided, the delete button is hidden entirely.
   // Wire this up from the parent page only for users with the correct role.
   export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
@@ -95,12 +78,6 @@
   // and BevillingTable can never disagree about what a kørselstype is. These
   // thin wrappers bind the lookup list once so call sites stay readable.
   $: availableKoerselstyper = koerselstyperFor(lookupOptions.koerselstyper, ansoegningstype);
-
-  $: oenske = parseAnsoegningsdata(ansoegningsdata);
-  // Shown above the create form AND beside the rows, because the easiest wish
-  // to lose is the second one — once a række exists the form prefills from it
-  // instead, and nothing else would mention the others again.
-  $: oenskeNote = multipleTypesNotice(oenske);
 
   const isEgenbefordring = (typeId: string | number | null | undefined) =>
     typeIsEgenbefordring(lookupOptions.koerselstyper, typeId);
@@ -350,31 +327,6 @@
   }
 
 
-  /**
-   * The lookup id whose label matches `label`, or "" when there is no single
-   * match. Compared through canonicalLabel so spacing and case differences
-   * between the submission mapper and the lookup table do not silently drop a
-   * prefill.
-   *
-   * Returns the id AS IT IS — a number — not a string of it. The selects
-   * render `<option value={option.id}>`, and Svelte binds the raw value, so a
-   * stringified id matches no option: the select then goes blank instead of
-   * falling back to its "Vælg" placeholder, which looks like a broken form
-   * rather than an unfilled one. "" is what the placeholder carries, so an
-   * unmatched label lands on it correctly.
-   */
-  function idForLabel(options: any[], label: string | null): number | "" {
-    if (!label) return "";
-
-    const target = canonicalLabel(label);
-    const hits = (options ?? []).filter(
-      (option: any) => canonicalLabel(option.label) === target,
-    );
-
-    return hits.length === 1 ? hits[0].id : "";
-  }
-
-
   function getEmptyKoerselsraekke() {
     return {
       tidspunkt_id: "",
@@ -536,21 +488,7 @@
       newSelectedTillaegIds = parseIds(source.tillaeg_ids);
       newSelectedDagIds = parseIds(source.dag_ids);
     } else {
-      // No existing række to copy. Fall back to what the citizen applied for,
-      // where the application is unambiguous about it — see $lib/ansoegningsdata
-      // for why "unambiguous" is drawn narrowly.
-      newKoerselsraekke = {
-        ...getEmptyKoerselsraekke(),
-        befordringstype_id: idForLabel(
-          availableKoerselstyper,
-          singleBefordringstype(oenske),
-        ),
-        tidspunkt_id: idForLabel(lookupOptions.tidspunkter, sharedTidspunkt(oenske)),
-        // Always safe: the ønskede startdato is a single stated date, not a
-        // choice between several. Ugedage and gyldig_til stay blank — a school
-        // timetable is not a grant, and nothing states an end date.
-        gyldig_fra: foersteKoerselDato ? String(foersteKoerselDato).slice(0, 10) : "",
-      };
+      newKoerselsraekke = getEmptyKoerselsraekke();
       newSelectedTillaegIds = [];
       newSelectedDagIds = [];
     }
@@ -690,14 +628,6 @@
 
     <div class="mt-2 p-4 bg-white rounded-lg border border-gray-300 shadow-sm">
       <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-4">Ny kørselsrække</p>
-
-      {#if oenskeNote}
-        <!-- Kørselstype kan ikke forudfyldes, når ansøgningen nævner flere.
-             Beskeden siger hvilke, så de øvrige ikke bliver glemt. -->
-        <p class="mb-4 text-xs text-sky-800 bg-sky-50 border border-sky-200 rounded px-3 py-2">
-          {oenskeNote}
-        </p>
-      {/if}
 
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4 mb-4">
 

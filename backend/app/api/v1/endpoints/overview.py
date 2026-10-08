@@ -45,6 +45,16 @@ def get_genbehandlinger(db: DbSession):
     return OverviewService(db=db).get_genbehandlinger()
 
 
+@router.get("/counts")
+def get_worklist_counts(db: DbSession):
+    """Row counts for the four worklists, for the badges in the nav.
+
+    One statement instead of four full dataset reads. See
+    OverviewService.get_worklist_counts for why that mattered.
+    """
+    return OverviewService(db=db).get_worklist_counts()
+
+
 @router.get("/koerselsgodtgoerelse_modtagere")
 def get_koerselsgodtgoerelse_modtagere(db: DbSession):
     """Recipients of kørselsgodtgørelse for currently active egenbefordring.

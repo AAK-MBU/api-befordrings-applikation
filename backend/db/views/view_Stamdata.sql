@@ -51,7 +51,15 @@ SELECT
     -- conversion RPA compares each legacy bevilling's address against this to
     -- decide whether the student still lives where the bevilling was granted.
     e.adresse_id,
-    ad.adresse_tekst,
+    -- Navngivet som i view_Revurderinger og view_Genbehandling, ikke efter
+    -- Adresse-tabellens egen kolonne. De tre views beskriver den samme elev og
+    -- læses af den samme Elevoplysninger-komponent; hed feltet forskellige
+    -- ting, skulle hvert kaldssted oversætte, og en oversættelse der rammer
+    -- forbi giver en tom rubrik frem for en fejl.
+    --
+    -- Og navnet er mere præcist: det ER folkeregisteradressen, mens
+    -- adresse_tekst blot siger "en adresse som tekst".
+    ad.adresse_tekst                             AS folkeregister_adresse,
 
     e.matrikel_id,
     sm.matrikel_navn                             AS skolematrikel,
@@ -70,7 +78,9 @@ SELECT
 
     e.skolekode,
 
-    e.skoleafstand,
+    -- Samme grund, og samme navn som de to andre views: gåafstand i km, målt
+    -- til skolen. "skoleafstand" siger hverken enhed eller at det er gående.
+    e.skoleafstand                               AS gaaafstand_km,
     e.klasseart,
     e.klassebetegnelse,
     e.elevklassetrin,
