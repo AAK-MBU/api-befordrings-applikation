@@ -448,8 +448,13 @@ class BevillingService:
             row. Expanding 80 rows that way was roughly a hundred extra
             requests, each taking a connection out of a pool of thirty.
 
-            Same shape as get_revurderinger builds, and the same join, so a
-            bevilling's rækker read identically wherever they come from.
+            Same shape as get_revurderinger builds, so a bevilling's rækker
+            read identically wherever they come from. It does NOT repeat that
+            query's join to Befordringstype: the view already exposes
+            befordringstype_tekst, so vbk.* carries it. Selecting bt.* as well
+            — which is what the copied-from query does — needs a join that is
+            not here, and fails with "The multi-part identifier
+            bt.befordringstype_tekst could not be bound".
 
             There is no per-bevilling endpoint any more. One existed for the
             conversion RPA, which is finished; with the frontend no longer
@@ -478,8 +483,7 @@ class BevillingService:
         koersel_sql = text("""
             SELECT
                 vbk.*,
-                k.final,
-                bt.befordringstype_tekst
+                k.final
             FROM
                 [befordring].[view_Bevilling_Koerselsraekker] vbk
             INNER JOIN
