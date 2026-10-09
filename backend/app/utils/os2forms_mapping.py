@@ -113,16 +113,24 @@ def get_adresse_for_bevilling(payload: dict) -> str | None:
         or payload.get("barnets_adresse_manuelt")
     )
 
-    # OS2Forms checkbox values often arrive as strings.
-    # Here, "1" means the checkbox/condition is selected.
-    skal_koeres_fra_anden_adresse = (
-        payload.get("barnet_skal_koeres_til_fra_anden_adresse") == "1"
-    )
-
-    if skal_koeres_fra_anden_adresse:
+    if is_alternate_address(payload):
         return payload.get("barnets_anden_adresse") or barnets_adresse
 
     return barnets_adresse
+
+
+def is_alternate_address(payload: dict) -> bool:
+    """Is the bevilling address deliberately NOT the folkeregisteradresse?
+
+    True where the family ticked "kør til/fra en anden adresse". The address
+    on the bevilling is then a different place by design, so anything that
+    reasons from the child's registered address — see
+    OS2FormsService._folkeregister_adresse_id — has to stand down.
+    """
+
+    # OS2Forms checkbox values often arrive as strings.
+    # Here, "1" means the checkbox/condition is selected.
+    return payload.get("barnet_skal_koeres_til_fra_anden_adresse") == "1"
 
 
 def get_barn_navn(payload: dict) -> str | None:
