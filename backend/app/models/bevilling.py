@@ -124,6 +124,19 @@ class Bevilling(Base):
         nullable=True,
     )
 
+    # Walking distance from THIS bevilling's address to THIS bevilling's
+    # school, in km. Elev.skoleafstand answers the same question for the
+    # child's current folkeregisteradresse and current school, which is a
+    # different pair whenever an application follows a move or a referral —
+    # and that is exactly when a caseworker needs the number.
+    #
+    # NULL means "not calculated", never zero. Nothing is backfilled: the
+    # value is written when a bevilling is created, when its address or school
+    # changes, and on the recalculate button, because every row would
+    # otherwise cost an OpenRouteService call for a number nobody asked for.
+    # See migration 030.
+    gaaafstand_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     os2forms_id: Mapped[str | None] = mapped_column(
         Unicode(36),
         nullable=True,

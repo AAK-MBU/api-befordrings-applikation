@@ -16,7 +16,7 @@
       isSkolerejsekort as typeIsSkolerejsekort,
       isTaxaType as typeIsTaxa,
     } from "$lib/koerselstype";
-    import { afstandFraKoordinater } from "$lib/client/afstand";
+    import { afstandFraKoordinater, gaaafstandForPar } from "$lib/client/afstand";
     import { harEftermiddag } from "$lib/tidspunkt";
     import { bevillingLabel } from "$lib/bevillingLabel";
     import { vaelgGaeldendeBevilling } from "$lib/bevillingRanking";
@@ -31,12 +31,6 @@
     // afstandskriterie fields. Optional: without it the two fields simply stay
     // manual, which is what an ungdomsuddannelse student needs anyway.
     export let elevklassetrin: string | number | null = null;
-
-    // The student's measured walking distance (Elev.skoleafstand). The
-    // afstandskriterie thresholds rise with age, so how long the criterion
-    // holds depends on how far they live from school — not on klassetrin
-    // alone. Without it both derived fields stay blank rather than guessing.
-    export let skoleafstand: number | string | null = null;
 
     // Parties on the case — the egenbefordring kørselsrække names one of them
     // as the recipient of the kilometre reimbursement.
@@ -143,12 +137,51 @@
       return [...known, value];
     }
 
-    // Derived from the student's klassetrin rather than typed in. Recomputed
-    // whenever the klassetrin changes, but not written straight into
-    // newBevilling: applyBeregnetAfstandskriterie() does that, so a caseworker
-    // who overrides either field keeps their value.
-    $: beregnetKlassetrin = beregnAfstandskriterieKlassetrin(elevklassetrin, skoleafstand);
-    $: beregnetDato = beregnAfstandskriterieDato(elevklassetrin, skoleafstand);
+    // Walking distance for the address and school CHOSEN IN THIS FORM, which
+    // is what the two derived fields below are measured against.
+    //
+    // Deliberately NOT Elev.skoleafstand, which the callers used to pass:
+    // that measures the student's
+    // current folkeregisteradresse against the school their current data
+    // resolves to. A new bevilling is very often for a different pair — a
+    // move, a referral — and deriving the criterion from the student's
+    // current situation answered a question nobody asked. The backend stores
+    // this same number on the bevilling, measured the same way, so the
+    // suggestion and the stored value cannot drift apart.
+    let bevillingGaaafstand: number | null = null;
+    let sidsteAfstandsPar = "";
+
+    $: opdaterGaaafstand(
+        newBevilling.adresse_id,
+        newBevilling.matrikel_id,
+        newBevilling.ungdomsuddannelse_id,
+    );
+
+    async function opdaterGaaafstand(
+        adresseId: string | null,
+        matrikelId: number | string | null,
+        ungdomsuddannelseId: number | string | null,
+    ) {
+        const par = `${adresseId ?? ""}|${matrikelId ?? ""}|${ungdomsuddannelseId ?? ""}`;
+
+        if (par === sidsteAfstandsPar) return;
+
+        sidsteAfstandsPar = par;
+
+        const km = await gaaafstandForPar(adresseId, matrikelId, ungdomsuddannelseId);
+
+        // Guard against a slower earlier request landing after a newer one:
+        // the address combobox and the school select can both move before the
+        // first answer returns.
+        if (par === sidsteAfstandsPar) bevillingGaaafstand = km;
+    }
+
+    // Derived from the student's klassetrin and this bevilling's distance
+    // rather than typed in. Recomputed whenever either changes, but not
+    // written straight into newBevilling: applyBeregnetAfstandskriterie()
+    // does that, so a caseworker who overrides either field keeps their value.
+    $: beregnetKlassetrin = beregnAfstandskriterieKlassetrin(elevklassetrin, bevillingGaaafstand);
+    $: beregnetDato = beregnAfstandskriterieDato(elevklassetrin, bevillingGaaafstand);
 
     function applyBeregnetAfstandskriterie() {
       if (beregnetKlassetrin === null || beregnetDato === null) {

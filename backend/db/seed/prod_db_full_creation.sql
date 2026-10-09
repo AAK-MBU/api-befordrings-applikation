@@ -131,6 +131,7 @@ CREATE TABLE [befordring].[Bevilling](
 	[esdh_url] [nvarchar](500) NULL,
 	[os2forms_id] [nvarchar](36) NULL,
 	[ansoegningsdata] [nvarchar](max) NULL,
+	[gaaafstand_km] [float] NULL,
  CONSTRAINT [PK_bevilling] PRIMARY KEY CLUSTERED 
 (
 	[bevilling_id] ASC
@@ -931,6 +932,11 @@ SELECT
 
     e.skoleafstand,
 
+    -- Gåafstand mellem BEVILLINGENS adresse og BEVILLINGENS skole. NULL
+    -- betyder "ikke beregnet", aldrig nul — intet er bagudfyldt. Se
+    -- migration 030.
+    b.gaaafstand_km                                              AS bevilling_gaaafstand_km,
+
     STRING_AGG(CAST(h.hjaelpemiddel_id AS varchar(20)), ',')     AS hjaelpemiddel_ids,
     STRING_AGG(h.hjaelpemiddel_tekst, ', ')                      AS hjaelpemidler,
 
@@ -988,7 +994,7 @@ GROUP BY
     b.foerste_koersel_dato,
     b.matrikel_id, sk.matrikel_navn,
     b.ungdomsuddannelse_id, uu.ungdomsuddannelse_navn,
-    e.skoleafstand,
+    e.skoleafstand, b.gaaafstand_km,
     b.afstandskriterie_dato, b.afstandskriterie_klassetrin,
     b.relation_til_barnet, b.revurderingsdato, b.befordringsudvalg,
     b.hjemmel_id, hjemmel.hjemmel_tekst,

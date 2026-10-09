@@ -705,6 +705,93 @@ def create_letter(
     }
 
 
+@router.get("/gaaafstand")
+def gaaafstand_for_pair(
+    db: DbSession,
+    adresse_id: str = Query(..., description="The bevilling's address"),
+    matrikel_id: int | None = Query(None),
+    ungdomsuddannelse_id: int | None = Query(None),
+):
+    """Walking distance for an address/school pair, without saving anything.
+
+    Args:
+        adresse_id:
+            The address the bevilling would carry.
+
+        matrikel_id:
+            The skolematrikel it would carry, if any.
+
+        ungdomsuddannelse_id:
+            The ungdomsuddannelse it would carry instead, if any.
+
+    Returns:
+        {"gaaafstand_km": float | None} — None where it cannot be measured.
+
+    Notes:
+        For the create and edit forms, which derive the afstandskriterie in
+        the browser so a caseworker can see and override the suggestion before
+        saving. Those forms send both criterion fields explicitly and the
+        backend never overwrites a value the caller chose, so the suggestion
+        has to be computed against the same distance the backend would use —
+        otherwise a bevilling made through the UI keeps a criterion derived
+        from the student's CURRENT address and school, which is the behaviour
+        this whole column exists to replace.
+
+        A GET with no side effects, keyed on the pair rather than on a
+        bevilling, because the form is asking about a combination that does
+        not exist yet.
+
+        Never raises for an unmeasurable pair. The form shows no suggestion,
+        which is the same thing it does for a student with no klassetrin.
+    """
+
+    gaaafstand = BevillingService(db=db).beregn_gaaafstand(
+        adresse_id,
+        matrikel_id,
+        ungdomsuddannelse_id,
+    )
+
+    return {"gaaafstand_km": gaaafstand}
+
+
+@router.post("/{bevilling_id}/genberegn_gaaafstand", dependencies=[RequireEdit])
+def genberegn_gaaafstand(
+    bevilling_id: int,
+    db: DbSession,
+):
+    """Re-measure a bevilling's own address-to-school walking distance.
+
+    Args:
+        bevilling_id:
+            The bevilling to measure.
+
+    Returns:
+        {"gaaafstand_km": float | None, "besked": str | None} — besked names
+        what stopped a measurement, and is null on success.
+
+    Notes:
+        The manual counterpart to the automatic measurements, which happen on
+        creation and whenever the address or school changes. It exists for the
+        two cases those cannot cover: a bevilling created before migration
+        030, which has no distance at all because nothing was backfilled, and
+        one whose measurement failed at the time because OpenRouteService was
+        unreachable.
+
+        Writes NULL as readily as a number. If the address or school has lost
+        its coordinates since, the honest answer is "ikke beregnet" — a
+        distance left over from a previous address reads as current.
+
+        Deliberately does NOT touch afstandskriterie_dato or
+        _klassetrin. Those are a caseworker's decision once saved, and
+        silently moving a criterion date underneath them because a routing API
+        answered differently today is not something a recalculate button
+        should do. The create and edit forms recompute them from the new
+        distance when the caseworker saves.
+    """
+
+    return BevillingService(db=db).genberegn_gaaafstand(bevilling_id)
+
+
 @router.get("/calculate_driving_distance")
 def calculate_driving_distance(
     lat1: float = Query(...),

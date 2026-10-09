@@ -31,13 +31,21 @@ from app.models.bevilling import (
     KoerselKoerselstypeTillaegLink,
     KoerselUgedagLink,
 )
+from app.models.adresse import Adresse
 from app.models.citizen import Elev, Sagsaktivitet, SagsaktivitetType
-from app.models.lookup import PPRSagsbehandler, Sagsbehandler, Status
+from app.models.lookup import (
+    PPRSagsbehandler,
+    Sagsbehandler,
+    Skolematrikel,
+    Status,
+    Ungdomsuddannelse,
+)
 from app.utils.afstandskriterie import (
     MIDLERTIDIG_KOERSEL,
     beregn_afstandskriterie_dato,
     beregn_afstandskriterie_klassetrin,
 )
+from app.utils.distance import walking_distance
 
 
 class BevillingService:
@@ -557,6 +565,172 @@ class BevillingService:
         return (highest or 0) + 1
 
 
+    def beregn_gaaafstand(
+        self,
+        adresse_id: str | None,
+        matrikel_id: int | None,
+        ungdomsuddannelse_id: int | None,
+    ) -> float | None:
+        """Walking distance in km from an address to a school, or None.
+
+        Args:
+            adresse_id:
+                The bevilling's address.
+
+            matrikel_id:
+                The bevilling's skolematrikel, if it has one.
+
+            ungdomsuddannelse_id:
+                The bevilling's ungdomsuddannelse, if it has one instead.
+
+        Returns:
+            The distance rounded to one decimal, or None where it cannot be
+            measured — no address, no school, either of them without
+            coordinates, or OpenRouteService failing.
+
+        Notes:
+            Pure: it reads, measures and returns. It does NOT load a
+            bevilling, assign to one, or commit — callers do that, inside
+            whatever transaction they already have.
+
+            That is what lets update_bevilling use it. A measurement there has
+            to ride along in the caller's single commit; a helper that
+            committed for itself would land the address change, the school
+            change and half the audit log mid-flight, and a later failure
+            would roll back only what came after it.
+
+            Three of the four callers have no bevilling to load anyway:
+            create_bevilling has no row yet, update_bevilling already holds
+            one, and GET /bevilling/gaaafstand is asked about a pair that does
+            not exist. genberegn_gaaafstand is the only one that starts from
+            an id.
+
+            Returns None rather than raising, and every caller writes that
+            None straight onto the bevilling. A distance is a convenience for
+            the caseworker, and an unreachable routing API must never be the
+            reason a save fails or an application cannot be registered. The
+            card shows "ikke beregnet" and offers the button again.
+
+            foot-walking, matching Elev.skoleafstand: the afstandskriterie is
+            about how far the child would have to walk, and the two numbers
+            sit side by side in the UI. One decimal for the same reason —
+            citizen_service.genberegn_skole rounds there too, and two sources
+            for one kind of number must agree.
+        """
+
+        if adresse_id is None:
+            return None
+
+        adresse = self.db.get(Adresse, adresse_id)
+
+        if adresse is None or adresse.latitude is None or adresse.longitude is None:
+            return None
+
+        if matrikel_id is not None:
+            skole = self.db.get(Skolematrikel, matrikel_id)
+        elif ungdomsuddannelse_id is not None:
+            skole = self.db.get(Ungdomsuddannelse, ungdomsuddannelse_id)
+        else:
+            return None
+
+        if skole is None or skole.latitude is None or skole.longitude is None:
+            return None
+
+        try:
+            distance_km, _ = walking_distance(
+                adresse.latitude,
+                adresse.longitude,
+                skole.latitude,
+                skole.longitude,
+            )
+        except Exception:
+            return None
+
+        return round(distance_km, 1)
+
+
+    def genberegn_gaaafstand(self, bevilling_id: int) -> dict:
+        """Re-measure one bevilling's walking distance and store it.
+
+        Args:
+            bevilling_id:
+                The bevilling to measure.
+
+        Returns:
+            {"gaaafstand_km": float | None, "besked": str | None}. besked
+            names what stopped a measurement and is None on success.
+
+        Raises:
+            HTTPException 404:
+                Where the bevilling does not exist.
+
+        Notes:
+            This is the refresh button on the bevilling card, and nothing
+            else. It is NOT part of editing a bevilling: update_bevilling
+            re-measures on its own whenever the address or school changes,
+            using beregn_gaaafstand inside its own transaction. Changing an
+            address in the form already does the right thing without ever
+            reaching this method.
+
+            It commits for itself because it IS its own user action — a click
+            with nothing else to save.
+
+            It exists for the two cases where nobody is editing anything:
+
+              - A bevilling from before migration 030. Nothing was
+                backfilled, so every older row is NULL.
+              - One whose measurement failed at the time, because
+                OpenRouteService was unreachable.
+
+            Neither can be fixed by opening the bevilling and saving it: the
+            automatic re-measurement is gated on the address/school pair
+            actually CHANGING, so an unchanged pair saves without measuring
+            anything. Without this button those rows would stay NULL for ever.
+
+            Writes None as readily as a number. Where the address or school
+            has since lost its coordinates, "ikke beregnet" is the honest
+            answer — a distance left over from a previous address reads as
+            current.
+
+            Deliberately does NOT touch afstandskriterie_dato or
+            _klassetrin. Once saved those are a caseworker's decision, and a
+            recalculate button should not move a criterion date underneath
+            them because a routing API answered differently today. The create
+            and edit forms recompute both from the new distance when the
+            caseworker next saves.
+        """
+
+        bevilling = self.db.get(Bevilling, bevilling_id)
+
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        gaaafstand = self.beregn_gaaafstand(
+            bevilling.adresse_id,
+            bevilling.matrikel_id,
+            bevilling.ungdomsuddannelse_id,
+        )
+
+        bevilling.gaaafstand_km = gaaafstand
+        self.db.commit()
+
+        if gaaafstand is not None:
+            return {"gaaafstand_km": gaaafstand, "besked": None}
+
+        if bevilling.matrikel_id is None and bevilling.ungdomsuddannelse_id is None:
+            besked = "Bevillingen har ingen skole, så afstanden kan ikke beregnes."
+        else:
+            besked = (
+                "Afstanden kunne ikke beregnes. Tjek at både adressen og "
+                "skolen har koordinater."
+            )
+
+        return {"gaaafstand_km": None, "besked": besked}
+
+
     def _apply_afstandskriterie_defaults(
         self,
         cpr: str,
@@ -564,16 +738,37 @@ class BevillingService:
     ) -> None:
         """Fill in afstandskriterie_dato / _klassetrin where the caller sent none.
 
-        Both are derived from the student's elevklassetrin — see
-        app/utils/afstandskriterie.py, which mirrors the TypeScript the create
-        and edit forms use. Mutates new_bevilling_data in place.
+        Both are derived from the student's elevklassetrin and the bevilling's
+        own walking distance — see app/utils/afstandskriterie.py, which mirrors
+        the TypeScript the create and edit forms use. Mutates
+        new_bevilling_data in place.
 
-        Silent no-op in three cases, all of them correct rather than a failure:
+        Silent no-op in four cases, all of them correct rather than a failure:
         the caller supplied the field (their value wins), the bevilling is
         midlertidig kørsel (granted on a different basis, so the fields do not
-        apply and the form hides them), or the student has no klassetrin that
-        maps to a band — an ungdomsuddannelse elev, or an Elev row the nightly
-        import has not filled in yet.
+        apply and the form hides them), the student has no klassetrin that maps
+        to a band — an ungdomsuddannelse elev, or an Elev row the nightly
+        import has not filled in yet — or the distance could not be measured.
+
+        Notes:
+            The DISTANCE comes from this bevilling, the KLASSETRIN from the
+            elev. That split is deliberate.
+
+            These two fields answer "how long does this situation keep meeting
+            the distance criterion", and the situation is the one the bevilling
+            describes: its address and its school. Elev.skoleafstand measures
+            the child's current folkeregisteradresse against the school their
+            current data resolves to, and an application that follows a move or
+            a referral is precisely the case where those are a different pair.
+            Deriving the criterion from them answered a question nobody asked.
+
+            Klassetrin has no such problem — a child is in one class, and the
+            Elev row is the only place it is recorded.
+
+            Where the distance could not be measured both fields stay NULL,
+            which is the same outcome as before for a student whose
+            skoleafstand was missing. A caseworker fills them in by hand, or
+            presses recalculate and saves again.
         """
 
         if new_bevilling_data.get("ansoegningstype") == MIDLERTIDIG_KOERSEL:
@@ -592,9 +787,13 @@ class BevillingService:
         if elev is None:
             return
 
+        # Already measured by the caller of this method, so no second routing
+        # call. None is a legitimate value and simply leaves both fields unset.
+        gaaafstand = new_bevilling_data.get("gaaafstand_km")
+
         if not has_klassetrin:
             klassetrin = beregn_afstandskriterie_klassetrin(
-                elev.elevklassetrin, elev.skoleafstand
+                elev.elevklassetrin, gaaafstand
             )
 
             if klassetrin is not None:
@@ -602,7 +801,7 @@ class BevillingService:
 
         if not has_dato:
             dato = beregn_afstandskriterie_dato(
-                elev.elevklassetrin, elev.skoleafstand
+                elev.elevklassetrin, gaaafstand
             )
 
             if dato is not None:
@@ -677,6 +876,17 @@ class BevillingService:
         # both fields were left NULL until someone opened the bevilling for
         # editing and saved it again.
         #
+        # Measure the bevilling's own address-to-school walking distance, so
+        # the afstandskriterie below is derived from THIS application rather
+        # than from the child's current stamdata. Returns None on any failure
+        # — a routing API being down must not stop an application being
+        # registered — and None simply leaves the criterion fields unset.
+        new_bevilling_data["gaaafstand_km"] = self.beregn_gaaafstand(
+            new_bevilling_data.get("adresse_id"),
+            new_bevilling_data.get("matrikel_id"),
+            new_bevilling_data.get("ungdomsuddannelse_id"),
+        )
+
         # Only fills what is absent: a value the caller sent was chosen
         # deliberately and is never overwritten.
         self._apply_afstandskriterie_defaults(cpr, new_bevilling_data)
@@ -907,9 +1117,38 @@ class BevillingService:
         gb_matrikel_before = bevilling.matrikel_id
         gb_adresse_before = bevilling.adresse_id
 
+        # The three inputs to gaaafstand_km. Captured before mutating so the
+        # distance is only re-measured when one of them actually moved — an
+        # OpenRouteService call on every save of an unrelated field would be
+        # a request per keystroke-correction, for an unchanged answer.
+        afstand_input_before = (
+            bevilling.adresse_id,
+            bevilling.matrikel_id,
+            bevilling.ungdomsuddannelse_id,
+        )
+
         try:
             for field_name, value in bevilling_data.items():
                 setattr(bevilling, field_name, value)
+
+            afstand_input_after = (
+                bevilling.adresse_id,
+                bevilling.matrikel_id,
+                bevilling.ungdomsuddannelse_id,
+            )
+
+            if afstand_input_after != afstand_input_before:
+                # Assigned, not committed: this rides along in the single
+                # commit at the end of this method, so a later failure rolls
+                # the distance back with everything else. This is the whole
+                # reason beregn_gaaafstand is a pure function rather than part
+                # of genberegn_gaaafstand, which commits for itself.
+                #
+                # Overwrites whatever was there, including with None. A
+                # bevilling moved to an address or school we cannot measure
+                # must not keep showing the distance to the old one — a stale
+                # number reads as current and is worse than none.
+                bevilling.gaaafstand_km = self.beregn_gaaafstand(*afstand_input_after)
 
             if reset_status:
                 # Setting to "Ny" before the SP runs removes Afslag/Ophørt
