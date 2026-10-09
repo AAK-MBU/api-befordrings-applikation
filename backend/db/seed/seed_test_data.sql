@@ -551,7 +551,7 @@ INSERT INTO [befordring].[Elev]
      institution, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
 VALUES
 (
-    '0101101234', 'Kasper Søndergaard', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
+    '0101101234', 'Kasper Søndergaard', 0, 'A79762E7-52BF-4199-A026-4AB42E1138A7',
     2.8, 'Normalklasse', '1', '1A',
     'SFO - Bakkegårdsskolen', 'Bakkegårdsskolen',
     @matrikel_1, NULL, 751002
@@ -823,7 +823,7 @@ INSERT INTO [befordring].[Foraelder]
     (cpr_foraelder, cpr_elev, adresseringsnavn, adresse_id,
      navne_adresse_beskyttelse, relation, maa_vide_barns_adresse)
 VALUES
-('1111111111', '0101101234', 'Jeppe Søndergaard',  '000021C5-E9EE-411D-B2D8-EC9161780CCD', 0, 'Mor', 1),
+('1111111111', '0101101234', 'Jeppe Søndergaard',  'A79762E7-52BF-4199-A026-4AB42E1138A7', 0, 'Mor', 1),
 ('2222222222', '0202101234', 'Maja Holm',          '00002732-733C-433A-A5DA-A7D428A980CF', 0, 'Mor', 0),
 ('3333333333', '0303101234', 'Nadia Nørgaard',     '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0', 0, 'Mor', 0),
 ('4444444444', '0404101234', 'Brian Bjerrum',      '000059B7-1FE6-4ED2-8386-D9578B2A8859', 0, 'Tante', 0),
@@ -876,7 +876,7 @@ INSERT INTO [befordring].[Bevilling]
      begrundelse_fra_formular, created_by, updated_by, aktiv)
 VALUES
 (
-    '0101101234', '000021C5-E9EE-411D-B2D8-EC9161780CCD', @status_aktiv, @matrikel_1, NULL,
+    '0101101234', 'A79762E7-52BF-4199-A026-4AB42E1138A7', @status_aktiv, @matrikel_1, NULL,
     @hjemmel_1, @afgoerelsesbrev_6, @slut_i_aar, DATEADD(DAY, -10, @i_dag),
     'ESDH-TEST-001', @sagsbehandler_1, @ppr_1,
     DATEADD(MONTH, -7, @i_dag), NULL, 'Forældremyndighed',

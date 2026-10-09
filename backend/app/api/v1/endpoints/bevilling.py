@@ -623,6 +623,16 @@ def create_letter(
     # itself carries the correct behandlingsdato.
     bevilling_service.set_sagsbehandlingsdato(bevilling_id=bevilling_id)
 
+    # The letter prints this bevilling's own walking distance, and nothing was
+    # backfilled when the column was added — so measure it here if it has never
+    # been measured. Letters are written on KOMMENDE bevillinger often enough
+    # that this is the common case, not the rare one. No-op when a value
+    # already exists, so a figure the caseworker just refreshed is never moved.
+    bevilling_service.genberegn_gaaafstand(
+        bevilling_id=bevilling_id,
+        only_if_missing=True,
+    )
+
     # Fetch extra data from the database that is needed for the letter.
     # This keeps the frontend from having to know or send all database fields.
     bevilling_data = bevilling_service.get_letter_data(
@@ -725,24 +735,20 @@ def gaaafstand_for_pair(
             The ungdomsuddannelse it would carry instead, if any.
 
     Returns:
-        {"gaaafstand_km": float | None} — None where it cannot be measured.
+        {"gaaafstand_km": float | None} — null where it cannot be measured,
+        with a 200. The form then shows no suggestion, which is what it
+        already does for a student with no klassetrin.
 
     Notes:
-        For the create and edit forms, which derive the afstandskriterie in
-        the browser so a caseworker can see and override the suggestion before
-        saving. Those forms send both criterion fields explicitly and the
-        backend never overwrites a value the caller chose, so the suggestion
-        has to be computed against the same distance the backend would use —
-        otherwise a bevilling made through the UI keeps a criterion derived
-        from the student's CURRENT address and school, which is the behaviour
-        this whole column exists to replace.
+        Keyed on the pair rather than on a bevilling, because the create and
+        edit forms ask about a combination that does not exist yet. A GET with
+        no side effects, unlike its POST counterpart below.
 
-        A GET with no side effects, keyed on the pair rather than on a
-        bevilling, because the form is asking about a combination that does
-        not exist yet.
-
-        Never raises for an unmeasurable pair. The form shows no suggestion,
-        which is the same thing it does for a student with no klassetrin.
+        Those forms derive the afstandskriterie in the browser and send both
+        fields explicitly, so the suggestion has to be measured the same way
+        the backend measures it — see
+        BevillingService._apply_afstandskriterie_defaults for why that is the
+        bevilling's own distance and not the student's.
     """
 
     gaaafstand = BevillingService(db=db).beregn_gaaafstand(
@@ -766,27 +772,15 @@ def genberegn_gaaafstand(
             The bevilling to measure.
 
     Returns:
-        {"gaaafstand_km": float | None, "besked": str | None} — besked names
-        what stopped a measurement, and is null on success.
+        {"gaaafstand_km": float | None, "besked": str | None}. besked names
+        what stopped a measurement and is null on success — 200 either way,
+        because a pair that cannot be routed is an outcome, not a failed
+        request.
 
     Notes:
-        The manual counterpart to the automatic measurements, which happen on
-        creation and whenever the address or school changes. It exists for the
-        two cases those cannot cover: a bevilling created before migration
-        030, which has no distance at all because nothing was backfilled, and
-        one whose measurement failed at the time because OpenRouteService was
-        unreachable.
-
-        Writes NULL as readily as a number. If the address or school has lost
-        its coordinates since, the honest answer is "ikke beregnet" — a
-        distance left over from a previous address reads as current.
-
-        Deliberately does NOT touch afstandskriterie_dato or
-        _klassetrin. Those are a caseworker's decision once saved, and
-        silently moving a criterion date underneath them because a routing API
-        answered differently today is not something a recalculate button
-        should do. The create and edit forms recompute them from the new
-        distance when the caseworker saves.
+        POST rather than GET: it writes. What it is for, and why it does not
+        touch the afstandskriterie fields, is on
+        BevillingService.genberegn_gaaafstand.
     """
 
     return BevillingService(db=db).genberegn_gaaafstand(bevilling_id)

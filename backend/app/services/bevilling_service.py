@@ -649,12 +649,21 @@ class BevillingService:
         return round(distance_km, 1)
 
 
-    def genberegn_gaaafstand(self, bevilling_id: int) -> dict:
+    def genberegn_gaaafstand(
+        self,
+        bevilling_id: int,
+        only_if_missing: bool = False,
+    ) -> dict:
         """Re-measure one bevilling's walking distance and store it.
 
         Args:
             bevilling_id:
                 The bevilling to measure.
+
+            only_if_missing:
+                Where True, a bevilling that already has a distance is left
+                untouched and its stored value returned. Letter generation
+                passes True; the button does not.
 
         Returns:
             {"gaaafstand_km": float | None, "besked": str | None}. besked
@@ -687,6 +696,14 @@ class BevillingService:
             actually CHANGING, so an unchanged pair saves without measuring
             anything. Without this button those rows would stay NULL for ever.
 
+            only_if_missing exists for the one other caller: letter
+            generation, which prints the distance and so has to fill a NULL
+            before building the payload. It must NOT re-measure a value that
+            is already there — ORS being unreachable at that moment would
+            replace a good figure with NULL and print a blank in an
+            afgørelsesbrev, and it would also overwrite a number the
+            caseworker had just refreshed and checked.
+
             Writes None as readily as a number. Where the address or school
             has since lost its coordinates, "ikke beregnet" is the honest
             answer — a distance left over from a previous address reads as
@@ -707,6 +724,9 @@ class BevillingService:
                 status_code=404,
                 detail=f"Bevilling not found: {bevilling_id}",
             )
+
+        if only_if_missing and bevilling.gaaafstand_km is not None:
+            return {"gaaafstand_km": bevilling.gaaafstand_km, "besked": None}
 
         gaaafstand = self.beregn_gaaafstand(
             bevilling.adresse_id,

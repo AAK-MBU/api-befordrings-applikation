@@ -1303,7 +1303,12 @@ SELECT
     -- for both student types.
     COALESCE(sk.matrikel_navn,    uu.ungdomsuddannelse_navn)    AS skole,
     COALESCE(sk.matrikel_adresse, uu.ungdomsuddannelse_adresse) AS skolematrikel,
-    e.skoleafstand                  AS gaaafstand_km,
+    -- Gåafstanden for DENNE bevilling: dens egen adresse mod dens egen skole.
+    -- Breve skrives ofte på kommende bevillinger, hvor adressen eller skolen
+    -- er en anden end elevens nuværende. NULL betyder "ikke beregnet" — der
+    -- falles bevidst ikke tilbage på e.skoleafstand, da et forkert tal i et
+    -- afgørelsesbrev er værre end et tomt felt. Se migration 030.
+    b.gaaafstand_km                 AS gaaafstand_km,
     hjemmel.hjemmel_tekst           AS hjemmel,
     afg.afgoerelsesbrev_tekst       AS afgoerelsesbrev,
     sb.sagsbehandler_tekst          AS sagsbehandler,
