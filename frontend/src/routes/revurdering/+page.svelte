@@ -1034,7 +1034,7 @@
                                 <span class="text-[10px] text-gray-400 whitespace-nowrap">{new Date(akt.oprettet_tidspunkt).toLocaleString("da-DK")}</span>
                               </div>
                               {#if akt.kommentar}
-                                <p class="text-xs text-gray-600 whitespace-pre-wrap line-clamp-3">{akt.kommentar}</p>
+                                <p class="text-xs text-gray-600 whitespace-pre-wrap break-words">{akt.kommentar}</p>
                               {/if}
                             </div>
                           {/each}
