@@ -67,6 +67,19 @@ SELECT
 
     e.skoleafstand,
 
+    -- Gåafstand mellem BEVILLINGENS adresse og BEVILLINGENS skole.
+    --
+    -- e.skoleafstand ovenfor måler elevens nuværende folkeregisteradresse mod
+    -- den skole elevens nuværende data peger på. Det er et andet par, hver
+    -- gang en ansøgning følger en flytning eller en henvisning — og netop der
+    -- har sagsbehandleren brug for tallet. Begge vises, så man kan se den
+    -- nuværende situation ved siden af den, ansøgningen handler om.
+    --
+    -- NULL betyder "ikke beregnet", aldrig nul: intet er bagudfyldt, og
+    -- værdien skrives først ved oprettelse, ved skift af adresse eller skole,
+    -- og når sagsbehandleren trykker genberegn. Se migration 030.
+    b.gaaafstand_km                                              AS bevilling_gaaafstand_km,
+
     STRING_AGG(CAST(h.hjaelpemiddel_id AS varchar(20)), ',')     AS hjaelpemiddel_ids,
     STRING_AGG(h.hjaelpemiddel_tekst, ', ')                      AS hjaelpemidler,
 
@@ -124,7 +137,7 @@ GROUP BY
     b.foerste_koersel_dato,
     b.matrikel_id, sk.matrikel_navn,
     b.ungdomsuddannelse_id, uu.ungdomsuddannelse_navn,
-    e.skoleafstand,
+    e.skoleafstand, b.gaaafstand_km,
     b.afstandskriterie_dato, b.afstandskriterie_klassetrin,
     b.relation_til_barnet, b.revurderingsdato, b.befordringsudvalg,
     b.hjemmel_id, hjemmel.hjemmel_tekst,

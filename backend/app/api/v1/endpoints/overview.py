@@ -70,7 +70,3 @@ def get_koerselsgodtgoerelse_modtagere(db: DbSession):
 def get_new_applications(db: DbSession):
     return OverviewService(db=db).get_new_applications()
 
-
-@router.get("/reports")
-def get_reports(db: DbSession):
-    return OverviewService(db=db).get_reports()

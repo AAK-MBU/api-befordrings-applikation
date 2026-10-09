@@ -19,7 +19,6 @@ basic structure.
 from sqlalchemy import select, true
 from sqlalchemy.orm import Session
 
-from app.models.adresse import Adresse
 from app.models.lookup import (
     Afgoerelsesbrev,
     Befordringstype,
@@ -418,31 +417,5 @@ class LookupService:
             label_column=Ugedag.dag_tekst,
         )
 
-
-    def get_adresser(self, q: str):
-        """Search addresses by partial text.
-
-        Args:
-            q:
-                Search string. Only rows where adresse_tekst starts with this
-                value are returned. Minimum 2 characters enforced at the
-                endpoint level.
-
-        Returns:
-            Up to 50 address records as id/label dictionaries, ordered
-            alphabetically by address text.
-        """
-
-        rows = self.db.execute(
-            select(
-                Adresse.adresse_id.label("id"),
-                Adresse.adresse_tekst.label("label"),
-            )
-            .where(Adresse.adresse_tekst.like(f"{q}%"))
-            .order_by(Adresse.adresse_tekst)
-            .limit(50)
-        ).mappings().all()
-
-        return [dict(row) for row in rows]
 
 

@@ -9,7 +9,6 @@ The service is responsible for:
 - Fetching non-active bevillinger
 - Fetching reassessments/revurderinger
 - Fetching new applications
-- Fetching report data
 
 Some overview data comes from BevillingService, while other overview data is
 read directly from dedicated overview tables.
@@ -592,14 +591,3 @@ class OverviewService:
 
         return {key: int(value or 0) for key, value in row.items()}
 
-
-    def get_reports(self):
-        """Get report overview data.
-
-        Returns:
-            Rows from DATA_REPORTS as dictionaries.
-        """
-
-        return self._read_overview_table(
-            table_name="[befordring].[DATA_REPORTS]",
-        )

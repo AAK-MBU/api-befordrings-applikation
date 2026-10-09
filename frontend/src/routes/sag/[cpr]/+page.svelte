@@ -757,6 +757,36 @@
   }
 
 
+  /**
+   * Re-measure one bevilling's walking distance to its own school.
+   *
+   * Returns a Danish message when nothing could be measured, null on success.
+   * The backend answers 200 with gaaafstand_km: null in that case rather than
+   * an error status — not being able to route between two points is an
+   * outcome, not a failed request, and it has already written the null.
+   */
+  async function handleGenberegnGaaafstand(bevillingId: number): Promise<string | null> {
+    const response = await backendFetch(`/bevilling/${bevillingId}/genberegn_gaaafstand`, {
+      method: "POST"
+    });
+
+    if (!response.ok) {
+      let message = "Kunne ikke genberegne gåafstanden";
+      try {
+        const errorData = await response.json();
+        message = errorData?.detail?.message ?? errorData?.detail ?? message;
+      } catch { /* keep fallback */ }
+      return message;
+    }
+
+    const data = await response.json();
+
+    await invalidateAll();
+
+    return data?.besked ?? null;
+  }
+
+
   async function handleDeleteKoerselsraekke(koerselId: number): Promise<string | null> {
     const response = await backendFetch(`/bevilling/koerselsraekke/${koerselId}`, {
       method: "DELETE"
@@ -1014,7 +1044,6 @@
         mode={createBevillingMode}
         existingBevillinger={bevillinger ?? []}
         elevklassetrin={stamdata?.elevklassetrin ?? null}
-        skoleafstand={stamdata?.gaaafstand_km ?? null}
         parter={recipients}
         {lookupOptions}
         on:created={async () => { showCreateBevillingModal = false; await invalidateAll(); }}
@@ -1042,6 +1071,7 @@
       parter={recipients}
       onSetBevillingLock={handleSetBevillingLock}
       onDeleteBevilling={handleDeleteBevilling}
+      onGenberegnGaaafstand={handleGenberegnGaaafstand}
       onDeleteKoerselsraekke={handleDeleteKoerselsraekke}
     />
 

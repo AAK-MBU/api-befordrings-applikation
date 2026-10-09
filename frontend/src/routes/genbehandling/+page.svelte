@@ -367,13 +367,11 @@
     let showCreateBevillingModal = false;
     let bevillingModalCpr = "";
     let bevillingModalElevklassetrin: string | null = null;
-    let bevillingModalSkoleafstand: number | string | null = null;
     let createBevillingModalMode: 'kopi' | 'tom' | null = null;
 
-    function openCreateBevillingModal(cpr: string, mode: 'kopi' | 'tom', elevklassetrin: string | null = null, skoleafstand: number | string | null = null) {
+    function openCreateBevillingModal(cpr: string, mode: 'kopi' | 'tom', elevklassetrin: string | null = null) {
       bevillingModalCpr = cpr;
       bevillingModalElevklassetrin = elevklassetrin;
-      bevillingModalSkoleafstand = skoleafstand;
       createBevillingModalMode = mode;
       showCreateBevillingModal = true;
     }
@@ -435,7 +433,6 @@
     mode={createBevillingModalMode}
     existingBevillinger={bevillingerByCpr[bevillingModalCpr] ?? []}
     elevklassetrin={bevillingModalElevklassetrin}
-    skoleafstand={bevillingModalSkoleafstand}
     parter={parterByCpr[bevillingModalCpr] ?? []}
     {lookupOptions}
     on:created={async () => { showCreateBevillingModal = false; await loadBevillinger(bevillingModalCpr); await invalidateAll(); }}
@@ -775,7 +772,7 @@
                                 <span class="text-[10px] text-gray-400 whitespace-nowrap">{new Date(akt.oprettet_tidspunkt).toLocaleString("da-DK")}</span>
                               </div>
                               {#if akt.kommentar}
-                                <p class="text-xs text-gray-600 whitespace-pre-wrap line-clamp-3">{akt.kommentar}</p>
+                                <p class="text-xs text-gray-600 whitespace-pre-wrap break-words">{akt.kommentar}</p>
                               {/if}
                             </div>
                           {/each}
@@ -804,14 +801,14 @@
                       disabled={!canEdit || !(bevillingerByCpr[bev.cpr_elev]?.length > 0)}
                       class="px-3 py-1.5 text-xs font-medium text-white rounded transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       style="background-color: #032A42;"
-                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'kopi', bev.elevklassetrin ?? null, bev.gaaafstand_km ?? null)}>
+                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'kopi', bev.elevklassetrin ?? null)}>
                       + Ny bevilling fra kopi
                     </button>
                     <button type="button"
                       disabled={!canEdit}
                       class="px-3 py-1.5 text-xs font-medium text-white rounded transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       style="background-color: #032A42;"
-                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'tom', bev.elevklassetrin ?? null, bev.gaaafstand_km ?? null)}>
+                      on:click={() => openCreateBevillingModal(bev.cpr_elev, 'tom', bev.elevklassetrin ?? null)}>
                       + Ny bevilling fra tom
                     </button>
                     <button type="button"
@@ -834,7 +831,7 @@
                       bevillinger={bevillingerByCpr[bev.cpr_elev]}
                       lookupOptions={lookupOptions}
                       parter={parterByCpr[bev.cpr_elev] ?? []}
-                      readonlyKoerselsraekker={true}
+                      alwaysShowKoerselsraekker={true}
                       onSaveBevilling={async (id, updates) => {
                         const error = await handleSaveBevilling(id, updates);
                         if (!error) await loadBevillinger(bev.cpr_elev);

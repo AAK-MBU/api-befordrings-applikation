@@ -623,6 +623,16 @@ def create_letter(
     # itself carries the correct behandlingsdato.
     bevilling_service.set_sagsbehandlingsdato(bevilling_id=bevilling_id)
 
+    # The letter prints this bevilling's own walking distance, and nothing was
+    # backfilled when the column was added — so measure it here if it has never
+    # been measured. Letters are written on KOMMENDE bevillinger often enough
+    # that this is the common case, not the rare one. No-op when a value
+    # already exists, so a figure the caseworker just refreshed is never moved.
+    bevilling_service.genberegn_gaaafstand(
+        bevilling_id=bevilling_id,
+        only_if_missing=True,
+    )
+
     # Fetch extra data from the database that is needed for the letter.
     # This keeps the frontend from having to know or send all database fields.
     bevilling_data = bevilling_service.get_letter_data(
@@ -659,14 +669,6 @@ def create_letter(
         reference=reference,
     )
 
-    # Lock the bevilling's kørselsrækker now that the letter exists: the letter
-    # states what was granted, so those rows are settled.
-    #
-    # Deliberately after the enqueue rather than beside set_sagsbehandlingsdato
-    # above. That one has to run first because the letter payload carries the
-    # date; locking has no such requirement, and ATS being unreachable is the
-    # likeliest failure here — locking first would leave the rows marked
-    # settled for a letter that was never queued.
     # Record the letter now that it is genuinely queued. Generating a letter is
     # not the same as posting it to the parents, so this row is what the
     # Forsendelse page later marks as sent.
@@ -693,6 +695,14 @@ def create_letter(
         udfoert_af=oprettet_af,
     )
 
+    # Lock the bevilling's kørselsrækker now that the letter exists: the letter
+    # states what was granted, so those rows are settled.
+    #
+    # Deliberately after the enqueue rather than beside set_sagsbehandlingsdato
+    # above. That one has to run first because the letter payload carries the
+    # date; locking has no such requirement, and ATS being unreachable is the
+    # likeliest failure here — locking first would leave the rows marked
+    # settled for a letter that was never queued.
     locked_count = bevilling_service.lock_koerselsraekker(bevilling_id=bevilling_id)
     locked_bevilling = bevilling_service.lock_bevilling(bevilling_id=bevilling_id)
 
@@ -703,6 +713,77 @@ def create_letter(
         "locked_koerselsraekker": locked_count,
         "locked_bevilling": locked_bevilling,
     }
+
+
+@router.get("/gaaafstand")
+def gaaafstand_for_pair(
+    db: DbSession,
+    adresse_id: str = Query(..., description="The bevilling's address"),
+    matrikel_id: int | None = Query(None),
+    ungdomsuddannelse_id: int | None = Query(None),
+):
+    """Walking distance for an address/school pair, without saving anything.
+
+    Args:
+        adresse_id:
+            The address the bevilling would carry.
+
+        matrikel_id:
+            The skolematrikel it would carry, if any.
+
+        ungdomsuddannelse_id:
+            The ungdomsuddannelse it would carry instead, if any.
+
+    Returns:
+        {"gaaafstand_km": float | None} — null where it cannot be measured,
+        with a 200. The form then shows no suggestion, which is what it
+        already does for a student with no klassetrin.
+
+    Notes:
+        Keyed on the pair rather than on a bevilling, because the create and
+        edit forms ask about a combination that does not exist yet. A GET with
+        no side effects, unlike its POST counterpart below.
+
+        Those forms derive the afstandskriterie in the browser and send both
+        fields explicitly, so the suggestion has to be measured the same way
+        the backend measures it — see
+        BevillingService._apply_afstandskriterie_defaults for why that is the
+        bevilling's own distance and not the student's.
+    """
+
+    gaaafstand = BevillingService(db=db).beregn_gaaafstand(
+        adresse_id,
+        matrikel_id,
+        ungdomsuddannelse_id,
+    )
+
+    return {"gaaafstand_km": gaaafstand}
+
+
+@router.post("/{bevilling_id}/genberegn_gaaafstand", dependencies=[RequireEdit])
+def genberegn_gaaafstand(
+    bevilling_id: int,
+    db: DbSession,
+):
+    """Re-measure a bevilling's own address-to-school walking distance.
+
+    Args:
+        bevilling_id:
+            The bevilling to measure.
+
+    Returns:
+        {"gaaafstand_km": float | None, "besked": str | None}. besked names
+        what stopped a measurement and is null on success — 200 either way,
+        because a pair that cannot be routed is an outcome, not a failed
+        request.
+
+    Notes:
+        POST rather than GET: it writes. What it is for, and why it does not
+        touch the afstandskriterie fields, is on
+        BevillingService.genberegn_gaaafstand.
+    """
+
+    return BevillingService(db=db).genberegn_gaaafstand(bevilling_id)
 
 
 @router.get("/calculate_driving_distance")
