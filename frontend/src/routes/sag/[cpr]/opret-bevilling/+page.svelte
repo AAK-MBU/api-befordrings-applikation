@@ -51,7 +51,6 @@
   {mode}
   existingBevillinger={data.bevillinger ?? []}
   elevklassetrin={data.stamdata?.elevklassetrin ?? null}
-  skoleafstand={data.stamdata?.gaaafstand_km ?? null}
   parter={data.recipients}
   lookupOptions={data.lookupOptions}
   standalone

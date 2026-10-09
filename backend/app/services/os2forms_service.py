@@ -141,16 +141,6 @@ class OS2FormsService:
         # unexpected character cannot be decoded cleanly.
         raw_text = raw_body.decode("utf-8", errors="replace")
 
-        # parse_qs parses form-encoded strings like:
-        #
-        # name=Test&age=10
-        #
-        # into:
-        #
-        # {
-        #     "name": ["Test"],
-        #     "age": ["10"],
-        # }
         parsed_body = parse_qs(raw_text)
 
         # Convert one-item lists into simple values.
@@ -208,6 +198,11 @@ class OS2FormsService:
         Args:
             payload:
                 Parsed OS2Forms submission data.
+
+            cpr:
+                The child's CPR. Used to settle an ambiguous match and to
+                check the result against the child's registered address —
+                see _break_tie and _verify_against_folkeregister.
 
         Returns:
             The adresse_id of the one Adresse row the submitted address
@@ -383,10 +378,11 @@ class OS2FormsService:
             and the sync are snapshots of CPR taken at different moments. The
             kontrol RPA normally processes a submission within a day of its
             arrival, so that window is small — and a submission caught in it
-            is stopped for a caseworker, not lost. Measure the rate before
-            deploying this with
-            db/analyse/bevilling_adresse_mod_folkeregister.sql; the check is
-            only worth having while the stops stay rare.
+            is stopped for a caseworker, not lost. That is the cost
+            _break_tie's docstring weighs against, and it is accepted here
+            knowingly. db/analyse/bevilling_adresse_mod_folkeregister.sql
+            measures the rate; the check is only worth having while the stops
+            stay rare, so re-run it if caseworkers start reporting them.
         """
 
         if os2forms_mapping.is_alternate_address(payload):
@@ -432,28 +428,22 @@ class OS2FormsService:
             hits unchanged so the caller refuses.
 
         Notes:
-            This is a tie-break, not a verification, and the distinction is
-            the whole design. It only ever CHOOSES BETWEEN rows the address
-            already matched; it can never introduce a row, override a match,
-            or reject one.
+            This is a tie-break, not a verification. It only ever CHOOSES
+            BETWEEN rows the address already matched; it can never introduce
+            a row, override a match, or reject one.
 
-            A verification — demanding that the resolved address equal the
-            child's registered one — would be wrong, because the two
-            legitimately differ:
+            The rejecting is done by _verify_against_folkeregister, which
+            runs later in _resolve_adresse_id and DOES demand that the
+            resolved address equal the registered one. Read the two together:
+            this one settles an ambiguity, that one refuses a disagreement.
 
-            - The family moved. The form carries the new address and the
-              nightly sync has not caught up, or the reverse. Applying for
-              transport is exactly what a family does after moving, so this
-              is a routine case, not a suspicious one.
-            - The Elev row does not exist yet, which is normal for a first
-              application.
-            - The family asked to be driven from somewhere else entirely,
-              which is checked below.
-
-            Each of those would turn into a stopped queue item on a perfectly
-            good submission. As a tie-break none of them costs anything: a
-            stale or absent registered address simply fails to appear among
-            the hits, and the caller refuses exactly as it would have.
+            The division matters because a stale or absent registered address
+            costs nothing here and does cost something there. A family that
+            moved between the submission and the nightly sync simply fails to
+            appear among the hits, and the caller refuses exactly as it would
+            have — whereas the same family is stopped outright by the gate.
+            That cost is accepted deliberately: see that method for why, and
+            for the two cases where it stands down entirely.
 
             Why it is sound where it does fire: Elev.adresse_id comes from the
             nightly LOIS/CPR sync, and so does the MitID address on the form.

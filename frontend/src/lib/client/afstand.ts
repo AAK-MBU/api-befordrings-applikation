@@ -111,3 +111,52 @@ export async function afstandFraKoordinater(
   return await afstandMellemKoordinater(lat1, lon1, skole.latitude, skole.longitude);
 }
 
+
+/**
+ * Walking distance in km for an address/school pair, or null.
+ *
+ * Unlike the driving helpers above this takes IDS, not coordinates, and the
+ * backend resolves both ends. Two reasons: it also handles an
+ * ungdomsuddannelse, which skolekoordinater() cannot, and it is the SAME
+ * calculation the backend runs when it writes Bevilling.gaaafstand_km — so a
+ * suggestion the form shows and the value that ends up stored cannot drift
+ * apart.
+ *
+ * Used by the create and edit forms to derive the afstandskriterie. Those
+ * forms send both criterion fields explicitly and the backend never
+ * overwrites what a caller chose, so the suggestion has to be computed
+ * against this bevilling's address and school rather than the student's
+ * current ones.
+ *
+ * Null on any failure, with no error returned: a missing suggestion is the
+ * same outcome the form already handles for a student with no klassetrin,
+ * and a routing failure is not worth an error bar over a field the
+ * caseworker can fill in themselves.
+ */
+export async function gaaafstandForPar(
+  adresseId: string | null | undefined,
+  matrikelId: number | string | null | undefined,
+  ungdomsuddannelseId: number | string | null | undefined
+): Promise<number | null> {
+  if (!adresseId) return null;
+  if (matrikelId == null && ungdomsuddannelseId == null) return null;
+
+  const params = new URLSearchParams({ adresse_id: String(adresseId) });
+
+  if (matrikelId != null && matrikelId !== "") params.set("matrikel_id", String(matrikelId));
+  if (ungdomsuddannelseId != null && ungdomsuddannelseId !== "") {
+    params.set("ungdomsuddannelse_id", String(ungdomsuddannelseId));
+  }
+
+  try {
+    const response = await backendFetch(`/bevilling/gaaafstand?${params}`);
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+
+    return data?.gaaafstand_km ?? null;
+  } catch {
+    return null;
+  }
+}

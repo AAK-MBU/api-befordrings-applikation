@@ -19,7 +19,7 @@
 
   import { ansoegerRelationOptions } from "$lib/ansoegerRelation";
   import { isEgenbefordring as typeIsEgenbefordring } from "$lib/koerselstype";
-  import { afstandFraKoordinater } from "$lib/client/afstand";
+  import { afstandFraKoordinater, gaaafstandForPar } from "$lib/client/afstand";
   import { bevillingLabel, bevillingLabelWithId, bevillingSystemId } from "$lib/bevillingLabel";
 
   // -----------------------------
@@ -57,11 +57,34 @@
     koerselId: number
   ) => Promise<string | null> = async () => null;
 
+  /** Render kørselsrækker without any editing controls. */
   export let readonlyKoerselsraekker: boolean = false;
+
+  /**
+   * Keep the kørselsrækker section open and drop the expand/collapse button.
+   *
+   * Split out from readonlyKoerselsraekker, which used to mean both "always
+   * open" and "not editable". The worklist pages wanted the first and were
+   * forced to take the second, so a caseworker on revurdering or
+   * genbehandling had to open the child's case to change a kørselsrække they
+   * were already looking at.
+   */
+  export let alwaysShowKoerselsraekker: boolean = false;
 
   // Optional delete handlers — if not provided, delete buttons are hidden.
   // Wire these up from the parent page only for users with the correct role.
   export let onDeleteBevilling: ((bevillingId: number) => Promise<string | null>) | undefined = undefined;
+
+  /**
+   * Re-measure one bevilling's walking distance to its own school.
+   *
+   * Resolves to a Danish message when nothing could be measured, null on
+   * success. Undefined leaves the button out entirely, which is how the
+   * read-only views get a value without a control.
+   */
+  export let onGenberegnGaaafstand:
+    | ((bevillingId: number) => Promise<string | null>)
+    | undefined = undefined;
   export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
 
   // Parties on the case, passed straight through to KoerselsraekkeTable so the
@@ -111,6 +134,27 @@
   // Wider than canEdit — see PprSagsbehandlerSelect. PPR Medarbejder cannot
   // open the edit form at all, so the view mode is their only way in.
   $: canAssignPpr = $page.data.user?.can_act_as_ppr ?? false;
+
+  // Which bevilling is currently being re-measured, so only its own button
+  // shows the pending state rather than every card on the page.
+  let genberegnerGaaafstandFor: number | null = null;
+
+  async function genberegnGaaafstand(bevillingId: number) {
+    if (!onGenberegnGaaafstand || genberegnerGaaafstandFor !== null) return;
+
+    genberegnerGaaafstandFor = bevillingId;
+    recalcError = null;
+    recalcErrorFor = null;
+
+    const besked = await onGenberegnGaaafstand(bevillingId);
+
+    genberegnerGaaafstandFor = null;
+
+    if (besked) {
+      recalcError = besked;
+      recalcErrorFor = bevillingId;
+    }
+  }
 
   let selectedHjaelpemiddelIds: number[] = [];
   let hjaelpemiddelSelectValue = "";
@@ -492,6 +536,11 @@
   function beginEdit(bevilling: any) {
     editingBevillingId = bevilling.bevilling_id;
 
+    // Captured before editableBevilling is built, so the reactive distance
+    // block can recognise the untouched pair and reuse the stored number.
+    lagretAfstandsPar = afstandsPar(bevilling);
+    redigeretGaaafstand = bevilling.bevilling_gaaafstand_km ?? null;
+
     // Only pre-select a status if it's one of the manual ones.
     // Otherwise show "Auto" so computed statuses aren't editable.
     const isManualStatus = manualStatusLabels.includes(bevilling.status_tekst);
@@ -514,8 +563,13 @@
     // Derive the afstandskriterie fields where there is nothing to overwrite.
     // A stored value is left alone — it may have been set deliberately — but
     // the computed one is offered next to the field, see brugBeregnet().
-    const beregnetKlassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin, bevilling.skoleafstand);
-    const beregnetDato = beregnAfstandskriterieDato(bevilling.elevklassetrin, bevilling.skoleafstand);
+    //
+    // From the BEVILLING's walking distance, not the student's. The two
+    // differ whenever the bevilling carries a different address or school
+    // than the elev's current data — which is the case these fields most
+    // need to be right for.
+    const beregnetKlassetrin = beregnAfstandskriterieKlassetrin(bevilling.elevklassetrin, bevilling.bevilling_gaaafstand_km);
+    const beregnetDato = beregnAfstandskriterieDato(bevilling.elevklassetrin, bevilling.bevilling_gaaafstand_km);
 
     if (beregnetKlassetrin !== null && editableBevilling.afstandskriterie_klassetrin == null) {
       editableBevilling.afstandskriterie_klassetrin = beregnetKlassetrin;
@@ -541,11 +595,55 @@
    * separate fields, and this way both re-evaluate when editableBevilling
    * changes, so the offer disappears from both the moment it is applied.
    */
-  $: beregnetForslag = beregnForslag(editableBevilling);
+  $: beregnetForslag = beregnForslag(editableBevilling, redigeretGaaafstand);
 
-  function beregnForslag(edit: any): { klassetrin: number; dato: string } | null {
-    const klassetrin = beregnAfstandskriterieKlassetrin(edit?.elevklassetrin, edit?.skoleafstand);
-    const dato = beregnAfstandskriterieDato(edit?.elevklassetrin, edit?.skoleafstand);
+  // The walking distance for the address and school CURRENTLY chosen in the
+  // edit form, which is not necessarily the stored one — a caseworker who
+  // changes either should see the criterion that follows from the new pair,
+  // not from the old. Seeded with the stored value so the suggestion is right
+  // before anything is touched, and re-measured only when the pair moves.
+  let redigeretGaaafstand: number | null = null;
+  let sidsteAfstandsPar = "";
+
+  // The address/school pair as STORED on the bevilling being edited, so the
+  // block below can tell "nothing moved yet" from "the caseworker changed it".
+  let lagretAfstandsPar = "";
+
+  /** The key both pairs are compared on. Field order is the only contract. */
+  function afstandsPar(row: any): string {
+    return `${row?.adresse_id ?? ""}|${row?.matrikel_id ?? ""}|${row?.ungdomsuddannelse_id ?? ""}`;
+  }
+
+  $: opdaterRedigeretGaaafstand(editableBevilling);
+
+  async function opdaterRedigeretGaaafstand(edit: any) {
+    if (!edit) {
+      sidsteAfstandsPar = "";
+      return;
+    }
+
+    const par = afstandsPar(edit);
+
+    if (par === sidsteAfstandsPar) return;
+
+    sidsteAfstandsPar = par;
+
+    // Unchanged pair: the stored value already answers it, and asking the
+    // routing API for a number we hold would be a request per edit opened.
+    if (par === lagretAfstandsPar) {
+      redigeretGaaafstand = edit.bevilling_gaaafstand_km ?? null;
+      return;
+    }
+
+    const km = await gaaafstandForPar(edit.adresse_id, edit.matrikel_id, edit.ungdomsuddannelse_id);
+
+    // Guard against a slower earlier request landing after a newer one.
+    if (par === sidsteAfstandsPar) redigeretGaaafstand = km;
+  }
+
+  function beregnForslag(edit: any, gaaafstand: number | null): { klassetrin: number; dato: string } | null {
+    const klassetrin = beregnAfstandskriterieKlassetrin(edit?.elevklassetrin, gaaafstand);
+    const dato = beregnAfstandskriterieDato(edit?.elevklassetrin, gaaafstand);
 
     if (klassetrin === null || dato === null) {
       return null;
@@ -764,6 +862,51 @@
             {:else}
               <span class="font-mono text-sm text-gray-500">{bevilling.esdh_noegle ?? ""}</span>
             {/if}
+
+            <!-- Gåafstand for THIS bevilling: its own address to its own
+                 school. Deliberately here and not on the stamdata card —
+                 that card is the student's raw registered facts, and this is
+                 a property of one application.
+
+                 The elev's own gåafstand still appears there, measured from
+                 the current folkeregisteradresse to the school the current
+                 data resolves to. The two differ exactly when an application
+                 follows a move or a referral, which is when a caseworker
+                 needs to see both.
+
+                 "Ikke beregnet" rather than 0 km or a blank: nothing was
+                 backfilled, so every bevilling older than migration 030 has
+                 no value until someone asks for one. -->
+            <span class="flex items-center gap-1.5 text-sm">
+              <span class="text-gray-500">Gåafstand:</span>
+              {#if bevilling.bevilling_gaaafstand_km != null}
+                <span class="font-medium text-gray-700"
+                  >{Number(bevilling.bevilling_gaaafstand_km).toFixed(1)} km</span
+                >
+              {:else}
+                <span class="text-gray-400 italic">ikke beregnet</span>
+              {/if}
+
+              {#if onGenberegnGaaafstand && canEdit}
+                <button
+                  type="button"
+                  title="Genberegn gåafstanden mellem bevillingens adresse og skole"
+                  class="text-gray-400 hover:text-sky-600 transition-colors disabled:opacity-50 disabled:hover:text-gray-400"
+                  disabled={genberegnerGaaafstandFor !== null}
+                  on:click|stopPropagation={() => genberegnGaaafstand(bevilling.bevilling_id)}
+                >
+                  <svg
+                    class="w-3.5 h-3.5 {genberegnerGaaafstandFor === bevilling.bevilling_id ? 'animate-spin' : ''}"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              {/if}
+            </span>
           </div>
 
           <div class="flex items-center gap-2">
@@ -783,7 +926,7 @@
               >
                 Annullér
               </button>
-              {#if !readonlyKoerselsraekker}
+              {#if !alwaysShowKoerselsraekker}
                 <button
                   type="button"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
@@ -831,7 +974,7 @@
                   </svg>
                 </button>
               {/if}
-              {#if !readonlyKoerselsraekker}
+              {#if !alwaysShowKoerselsraekker}
                 <button
                   type="button"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
@@ -1211,7 +1354,7 @@
 
 
         <!-- Kørselsrækker section (expanded) -->
-        {#if isExpanded || readonlyKoerselsraekker}
+        {#if isExpanded || alwaysShowKoerselsraekker}
           <div class="border-t-2 border-gray-300 bg-gray-100">
 
             <div class="px-6 py-2.5 border-b border-gray-300">

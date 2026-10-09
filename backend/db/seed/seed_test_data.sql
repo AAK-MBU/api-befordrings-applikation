@@ -195,7 +195,7 @@ VALUES
     ('Langagerskolen (Kolt Østervej)',      'Kolt Østervej 45, 8361 Hasselager',               751090, 0, 56.109433, 10.075118),
     ('Lisbjergskolen',                      'Jørgen Clevins Gade 31, 8200 Aarhus N',           751022, 1, 56.218634, 10.157948),
     ('Lystrup Skole',                       'Lystrupvej 256, 8520 Lystrup',                    751066, 1, 56.237290, 10.229867),
-    ('Læssøesgades skole',                  'Læssøesgade 24, 8000 Aarhus C',                   751023, 1, 56.146377, 10.188354),
+    ('Læssøesgades Skole',                  'Læssøesgade 24, 8000 Aarhus C',                   751023, 1, 56.146377, 10.188354),
     ('Malling Skole',                       'Lundshøjgårdsvej 19, 8340 Malling',               751024, 1, 56.039315, 10.198617),
     ('Møllevangskolen',                     'Møllevangs Allé 20, 8210 Aarhus V',               751025, 1, 56.164825, 10.184485),
     ('Mårslet Skole',                       'Testrupvej 4, 8320 Mårslet',                      751026, 1, 56.068830, 10.155902),
@@ -227,7 +227,14 @@ VALUES
     ('Viby Skole',                          'Kirkevej 2, 8260 Viby J',                         751051, 1, 56.127557, 10.164857),
     ('Virupskolen',                         'Virupvej 75, 8530 Hjortshøj',                     751052, 1, 56.243340, 10.271937),
     ('Vorrevangskolen',                     'Vorregårds Allé 109, 8200 Aarhus N',              751053, 1, 56.185948, 10.199095),
-    ('Åby Skole',                           'Åbyvej 80, 8230 Åbyhøj',                          751054, 1, 56.150634, 10.164975);
+    ('Åby Skole',                           'Åbyvej 80, 8230 Åbyhøj',                          751054, 1, 56.150634, 10.164975),
+    ('Herskindskolen',                      'Ladingvej 16, 8464 Galten',                       703003, 1, 56.189651,  9.964099),
+    ('Laursens Realskole',                  'Hjelmensgade 12, 8000 Aarhus',                    751060, 1, 56.161890, 10.209509),
+    ('Hørningskolen',                       'Vester Alle 18, B, 8362 Hørning',                 715005, 1, 56.089100, 10.032100),
+    ('Helgenæs Naturefterskole',            'Vængesøvej 3, 8420 Knebel',                       701303, 1, 56.150487, 10.543970),
+    ('Parkvejens Skole',                    'Nølevvej 4, 8300 Odder',                          727004, 1, 55.978700, 10.162600),
+    ('Stilling Skole',                      'Gramvej 10, 8660 Skanderborg',                    745003, 1, 56.057879,  9.983251),
+    ('Elise Smiths Skole',                  'Ny Munkegade 13, 8000 Aarhus',                    751058, 1, 56.160426, 10.203173);
 
 
 INSERT INTO [befordring].[Ungdomsuddannelse]
@@ -551,7 +558,7 @@ INSERT INTO [befordring].[Elev]
      institution, bopaelsdistrikt, matrikel_id, ungdomsuddannelse_id, skolekode)
 VALUES
 (
-    '0101101234', 'Kasper Søndergaard', 0, '000021C5-E9EE-411D-B2D8-EC9161780CCD',
+    '0101101234', 'Kasper Søndergaard', 0, 'A79762E7-52BF-4199-A026-4AB42E1138A7',
     2.8, 'Normalklasse', '1', '1A',
     'SFO - Bakkegårdsskolen', 'Bakkegårdsskolen',
     @matrikel_1, NULL, 751002
@@ -823,7 +830,7 @@ INSERT INTO [befordring].[Foraelder]
     (cpr_foraelder, cpr_elev, adresseringsnavn, adresse_id,
      navne_adresse_beskyttelse, relation, maa_vide_barns_adresse)
 VALUES
-('1111111111', '0101101234', 'Jeppe Søndergaard',  '000021C5-E9EE-411D-B2D8-EC9161780CCD', 0, 'Mor', 1),
+('1111111111', '0101101234', 'Jeppe Søndergaard',  'A79762E7-52BF-4199-A026-4AB42E1138A7', 0, 'Mor', 1),
 ('2222222222', '0202101234', 'Maja Holm',          '00002732-733C-433A-A5DA-A7D428A980CF', 0, 'Mor', 0),
 ('3333333333', '0303101234', 'Nadia Nørgaard',     '00002EC8-9A05-423C-ABF2-3D0F4CCB03E0', 0, 'Mor', 0),
 ('4444444444', '0404101234', 'Brian Bjerrum',      '000059B7-1FE6-4ED2-8386-D9578B2A8859', 0, 'Tante', 0),
@@ -876,7 +883,7 @@ INSERT INTO [befordring].[Bevilling]
      begrundelse_fra_formular, created_by, updated_by, aktiv)
 VALUES
 (
-    '0101101234', '000021C5-E9EE-411D-B2D8-EC9161780CCD', @status_aktiv, @matrikel_1, NULL,
+    '0101101234', 'A79762E7-52BF-4199-A026-4AB42E1138A7', @status_aktiv, @matrikel_1, NULL,
     @hjemmel_1, @afgoerelsesbrev_6, @slut_i_aar, DATEADD(DAY, -10, @i_dag),
     'ESDH-TEST-001', @sagsbehandler_1, @ppr_1,
     DATEADD(MONTH, -7, @i_dag), NULL, 'Forældremyndighed',

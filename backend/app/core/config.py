@@ -85,12 +85,4 @@ class Settings:
 
 
 # Shared settings instance used throughout the application.
-#
-# Other files can import this:
-#
-# from app.core.config import settings
-#
-# And then access:
-#
-# settings.db_connection_string
 settings = Settings()

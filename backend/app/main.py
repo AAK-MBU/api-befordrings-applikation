@@ -69,14 +69,8 @@ app.add_middleware(
     same_site="lax",
 )
 
-# Configure CORS.
-#
-# CORS controls which frontend origins are allowed to call the API from a
-# browser.
-#
-# allow_origins=["*"] means all origins are allowed.
-# This is convenient during development, but should usually be restricted in
-# production.
+# allow_origins=["*"] is convenient in development and should be restricted
+# in production.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -101,13 +95,7 @@ app.include_router(
     )
 )
 
-# Register all API v1 routers.
-#
-# The api_router includes endpoint routers such as:
-# - overview
-# - citizen
-# - bevilling
-# - lookup
+# Register all API v1 routers. See app/api/v1/api.py for the list.
 app.include_router(api_router)
 
 

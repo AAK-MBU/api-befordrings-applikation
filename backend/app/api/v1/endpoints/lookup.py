@@ -18,7 +18,7 @@ The router should stay very thin. The actual database queries should live in
 LookupService.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 from app.api.dependencies import DbSession
 from app.services.lookup_service import LookupService
@@ -282,24 +282,5 @@ def get_dage(db: DbSession):
 
     return service.get_dage()
 
-
-@router.get("/adresser")
-def get_adresser(
-    db: DbSession,
-    q: str = Query(min_length=2, description="Address search string (starts-with match)."),
-):
-    """Search addresses by partial text.
-
-    Returns up to 50 addresses where adresse_tekst starts with the given
-    query string.
-
-    Args:
-        q:
-            Partial address string. Minimum 2 characters required.
-    """
-
-    service = LookupService(db=db)
-
-    return service.get_adresser(q=q)
 
 

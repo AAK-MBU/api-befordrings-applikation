@@ -31,24 +31,6 @@ from app.utils.identitet import visningsnavn
 
 
 # Reusable database session dependency.
-#
-# Annotated combines two things:
-#
-# 1. The actual Python type:
-#    Session
-#
-# 2. The FastAPI dependency:
-#    Depends(get_db)
-#
-# So when an endpoint uses:
-#
-#     db: DbSession
-#
-# FastAPI understands that it should:
-#
-# - call get_db()
-# - inject the returned database session
-# - treat db as a SQLAlchemy Session
 DbSession = Annotated[Session, Depends(get_db)]
 
 
