@@ -227,7 +227,14 @@ VALUES
     ('Viby Skole',                          'Kirkevej 2, 8260 Viby J',                         751051, 1, 56.127557, 10.164857),
     ('Virupskolen',                         'Virupvej 75, 8530 Hjortshøj',                     751052, 1, 56.243340, 10.271937),
     ('Vorrevangskolen',                     'Vorregårds Allé 109, 8200 Aarhus N',              751053, 1, 56.185948, 10.199095),
-    ('Åby Skole',                           'Åbyvej 80, 8230 Åbyhøj',                          751054, 1, 56.150634, 10.164975);
+    ('Åby Skole',                           'Åbyvej 80, 8230 Åbyhøj',                          751054, 1, 56.150634, 10.164975),
+    ('Herskindskolen',                      'Ladingvej 16, 8464 Galten',                       703003, 1, 56.189651,  9.964099),
+    ('Laursens Realskole',                  'Hjelmensgade 12, 8000 Aarhus',                    751060, 1, 56.161890, 10.209509),
+    ('Hørningskolen',                       'Vester Alle 18, B, 8362 Hørning',                 715005, 1, 56.089100, 10.032100),
+    ('Helgenæs Naturefterskole',            'Vængesøvej 3, 8420 Knebel',                       701303, 1, 56.150487, 10.543970),
+    ('Parkvejens Skole',                    'Nølevvej 4, 8300 Odder',                          727004, 1, 55.978700, 10.162600),
+    ('Stilling Skole',                      'Gramvej 10, 8660 Skanderborg',                    745003, 1, 56.057879,  9.983251),
+    ('Elise Smiths Skole',                  'Ny Munkegade 13, 8000 Aarhus',                    751058, 1, 56.160426, 10.203173);
 
 
 INSERT INTO [befordring].[Ungdomsuddannelse]
