@@ -323,7 +323,95 @@ class OS2FormsService:
                 detail=f"'{adresse_tekst}' matched {len(hits)} addresses in Adresse.",
             )
 
+        self._verify_against_folkeregister(hits[0], adresse_tekst, payload, cpr)
+
         return hits[0]
+
+
+    def _verify_against_folkeregister(
+        self,
+        adresse_id: str,
+        adresse_tekst: str,
+        payload: dict,
+        cpr: str,
+    ) -> None:
+        """Refuse a resolved address the child is not registered at.
+
+        Args:
+            adresse_id:
+                The adresse_id the submitted address resolved to.
+
+            adresse_tekst:
+                The address as submitted, for the error message.
+
+            payload:
+                Parsed OS2Forms submission data.
+
+            cpr:
+                The child's CPR.
+
+        Raises:
+            HTTPException 422:
+                Where the submission states the folkeregisteradresse, the
+                child is registered at a different one, and both are known.
+
+        Notes:
+            Where the "kør til/fra en anden adresse" box is NOT ticked, the
+            form is not merely supplying an address — it is asserting that
+            this is the child's folkeregisteradresse. Elev.adresse_id is the
+            authoritative answer to that same question, from the nightly
+            LOIS/CPR sync. Two answers to one question that disagree mean
+            something is wrong, and this is the last point at which anyone
+            can notice.
+
+            That makes this a genuine gate rather than the tie-break above:
+            it can reject a match, not merely choose between matches. It is
+            the one check that covers the whole pipeline at once — a bad
+            normalisation, a wrongly stripped component, a register
+            duplicate — because it compares the ANSWER against an
+            independent source rather than re-examining the reasoning.
+
+            It stands down, silently, wherever it has no standing:
+
+            - The box IS ticked. The bevilling address is a different place
+              by design, so the registered address proves nothing.
+            - No Elev row, or no address on it. A first application for a
+              child this system has never seen. Nothing to compare against,
+              and absence is not disagreement.
+
+            What remains is the timing window: a family moves, and the form
+            and the sync are snapshots of CPR taken at different moments. The
+            kontrol RPA normally processes a submission within a day of its
+            arrival, so that window is small — and a submission caught in it
+            is stopped for a caseworker, not lost. Measure the rate before
+            deploying this with
+            db/analyse/bevilling_adresse_mod_folkeregister.sql; the check is
+            only worth having while the stops stay rare.
+        """
+
+        if os2forms_mapping.is_alternate_address(payload):
+            return
+
+        registreret = self._folkeregister_adresse_id(cpr)
+
+        if registreret is None or registreret == adresse_id:
+            return
+
+        # Read the registered address for the message. Only on the failure
+        # path, and it is what makes the queue item actionable: a caseworker
+        # needs to see WHICH two addresses disagree, not that two ids did.
+        registreret_tekst = self.db.execute(
+            select(Adresse.adresse_tekst).where(Adresse.adresse_id == registreret)
+        ).scalars().first()
+
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"'{adresse_tekst}' resolved to an address the child is not "
+                f"registered at. The submission states the folkeregisteradresse, "
+                f"but Elev holds '{registreret_tekst or registreret}'."
+            ),
+        )
 
 
     def _break_tie(self, hits: list[str], payload: dict, cpr: str) -> list[str]:
