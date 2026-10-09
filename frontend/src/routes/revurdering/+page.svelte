@@ -1089,7 +1089,7 @@
                       bevillinger={bevillingerByCpr[bev.cpr_elev]}
                       lookupOptions={lookupOptions}
                       parter={parterByCpr[bev.cpr_elev] ?? []}
-                      readonlyKoerselsraekker={true}
+                      alwaysShowKoerselsraekker={true}
                       onSaveBevilling={async (id, updates) => {
                         const error = await handleSaveBevilling(id, updates);
                         if (!error) await loadBevillinger(bev.cpr_elev);

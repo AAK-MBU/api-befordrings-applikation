@@ -57,7 +57,19 @@
     koerselId: number
   ) => Promise<string | null> = async () => null;
 
+  /** Render kørselsrækker without any editing controls. */
   export let readonlyKoerselsraekker: boolean = false;
+
+  /**
+   * Keep the kørselsrækker section open and drop the expand/collapse button.
+   *
+   * Split out from readonlyKoerselsraekker, which used to mean both "always
+   * open" and "not editable". The worklist pages wanted the first and were
+   * forced to take the second, so a caseworker on revurdering or
+   * genbehandling had to open the child's case to change a kørselsrække they
+   * were already looking at.
+   */
+  export let alwaysShowKoerselsraekker: boolean = false;
 
   // Optional delete handlers — if not provided, delete buttons are hidden.
   // Wire these up from the parent page only for users with the correct role.
@@ -914,7 +926,7 @@
               >
                 Annullér
               </button>
-              {#if !readonlyKoerselsraekker}
+              {#if !alwaysShowKoerselsraekker}
                 <button
                   type="button"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
@@ -962,7 +974,7 @@
                   </svg>
                 </button>
               {/if}
-              {#if !readonlyKoerselsraekker}
+              {#if !alwaysShowKoerselsraekker}
                 <button
                   type="button"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors"
@@ -1342,7 +1354,7 @@
 
 
         <!-- Kørselsrækker section (expanded) -->
-        {#if isExpanded || readonlyKoerselsraekker}
+        {#if isExpanded || alwaysShowKoerselsraekker}
           <div class="border-t-2 border-gray-300 bg-gray-100">
 
             <div class="px-6 py-2.5 border-b border-gray-300">
