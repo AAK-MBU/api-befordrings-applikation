@@ -669,14 +669,6 @@ def create_letter(
         reference=reference,
     )
 
-    # Lock the bevilling's kørselsrækker now that the letter exists: the letter
-    # states what was granted, so those rows are settled.
-    #
-    # Deliberately after the enqueue rather than beside set_sagsbehandlingsdato
-    # above. That one has to run first because the letter payload carries the
-    # date; locking has no such requirement, and ATS being unreachable is the
-    # likeliest failure here — locking first would leave the rows marked
-    # settled for a letter that was never queued.
     # Record the letter now that it is genuinely queued. Generating a letter is
     # not the same as posting it to the parents, so this row is what the
     # Forsendelse page later marks as sent.
@@ -703,6 +695,14 @@ def create_letter(
         udfoert_af=oprettet_af,
     )
 
+    # Lock the bevilling's kørselsrækker now that the letter exists: the letter
+    # states what was granted, so those rows are settled.
+    #
+    # Deliberately after the enqueue rather than beside set_sagsbehandlingsdato
+    # above. That one has to run first because the letter payload carries the
+    # date; locking has no such requirement, and ATS being unreachable is the
+    # likeliest failure here — locking first would leave the rows marked
+    # settled for a letter that was never queued.
     locked_count = bevilling_service.lock_koerselsraekker(bevilling_id=bevilling_id)
     locked_bevilling = bevilling_service.lock_bevilling(bevilling_id=bevilling_id)
 

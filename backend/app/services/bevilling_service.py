@@ -887,15 +887,6 @@ class BevillingService:
                 },
             )
 
-        # Derive the afstandskriterie fields the caller did not send.
-        #
-        # The create/edit form derives these in the browser so a caseworker can
-        # see and override the suggestion before saving, which covers every
-        # bevilling made through the UI. A bevilling posted straight to the API
-        # — the conversion RPA does exactly that — passes through no form, and
-        # both fields were left NULL until someone opened the bevilling for
-        # editing and saved it again.
-        #
         # Measure the bevilling's own address-to-school walking distance, so
         # the afstandskriterie below is derived from THIS application rather
         # than from the child's current stamdata. Returns None on any failure
@@ -907,6 +898,15 @@ class BevillingService:
             new_bevilling_data.get("ungdomsuddannelse_id"),
         )
 
+        # Derive the afstandskriterie fields the caller did not send.
+        #
+        # The create/edit form derives these in the browser so a caseworker can
+        # see and override the suggestion before saving, which covers every
+        # bevilling made through the UI. A bevilling posted straight to the API
+        # — the conversion RPA does exactly that — passes through no form, and
+        # both fields were left NULL until someone opened the bevilling for
+        # editing and saved it again.
+        #
         # Only fills what is absent: a value the caller sent was chosen
         # deliberately and is never overwritten.
         self._apply_afstandskriterie_defaults(cpr, new_bevilling_data)

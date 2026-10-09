@@ -101,14 +101,6 @@ class Bevilling(Base):
         nullable=True,
     )
 
-    # The OS2Forms submission this bevilling was created from, as
-    # [RPA].[journalizing].[Forms] holds it. NULL on everything a caseworker
-    # creates by hand — only submissions carry one.
-    #
-    # It is what makes "has this application already produced a bevilling?"
-    # answerable, which both the create endpoint's duplicate guard and the
-    # reconciliation job depend on. A filtered unique index enforces it in the
-    # database. See migration 028.
     # What the citizen asked for, as JSON, curated from the submission at
     # creation. Prefills the "+ Ny kørselsrække" form so a caseworker does not
     # retype what the application already said.
@@ -137,6 +129,14 @@ class Bevilling(Base):
     # See migration 030.
     gaaafstand_km: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # The OS2Forms submission this bevilling was created from, as
+    # [RPA].[journalizing].[Forms] holds it. NULL on everything a caseworker
+    # creates by hand — only submissions carry one.
+    #
+    # It is what makes "has this application already produced a bevilling?"
+    # answerable, which both the create endpoint's duplicate guard and the
+    # reconciliation job depend on. A filtered unique index enforces it in the
+    # database. See migration 028.
     os2forms_id: Mapped[str | None] = mapped_column(
         Unicode(36),
         nullable=True,

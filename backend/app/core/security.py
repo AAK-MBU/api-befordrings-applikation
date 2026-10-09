@@ -39,14 +39,8 @@ from fastapi import HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
 
-# Defines where FastAPI should look for the API key.
-#
-# In this case, clients must send the key as an HTTP header:
-#
-#     X-API-Key: your-api-key-here
-#
-# auto_error=False means FastAPI will not automatically reject the request if
-# the header is missing. Instead, we handle that manually in verify_api_key().
+# Clients send the key as an X-API-Key header. auto_error=False so a missing
+# header is handled in verify_api_key() rather than rejected by FastAPI.
 api_key_header = APIKeyHeader(
     name="X-API-Key",
     auto_error=False,
