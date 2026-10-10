@@ -119,6 +119,33 @@ def get_adresse_for_bevilling(payload: dict) -> str | None:
     return barnets_adresse
 
 
+# The exact strings OS2Forms substitutes for a value it holds but will not
+# disclose, for a citizen with navne- og adressebeskyttelse.
+#
+# Matched trimmed and case-insensitively, but otherwise EXACTLY. A loose
+# match here would read a real address as withheld and quietly resolve the
+# bevilling to the registered one instead — which is the wrong address for a
+# family that has just moved. A marker we fail to recognise costs a 422 a
+# caseworker can see; one we recognise too eagerly costs a taxi to the wrong
+# home. Add new spellings here as they are observed, not by loosening the
+# comparison.
+_PROTECTED_MARKERS = frozenset({
+    "name and address protected",
+})
+
+
+def is_protected_value(value: str | None) -> bool:
+    """Is this field the placeholder OS2Forms writes instead of a withheld value?
+
+    True only for the exact markers above. Note what this is NOT: it does not
+    mean the value is unknown or unmatched, it means the form deliberately
+    held it back. That distinction is what makes it safe to read the value
+    from elsewhere — see OS2FormsService._resolve_adresse_id.
+    """
+
+    return (value or "").strip().casefold() in _PROTECTED_MARKERS
+
+
 def is_alternate_address(payload: dict) -> bool:
     """Is the bevilling address deliberately NOT the folkeregisteradresse?
 

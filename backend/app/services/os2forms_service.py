@@ -257,6 +257,42 @@ class OS2FormsService:
                 detail="Submission carries no address.",
             )
 
+        # Address withheld for a citizen with navne- og adressebeskyttelse.
+        #
+        # There is nothing to match: the form holds the address and declines
+        # to print it. With the alternate-address box unticked the submission
+        # is asserting that it IS the folkeregisteradresse, and Elev.adresse_id
+        # is that same fact from the same source — the nightly LOIS/CPR sync.
+        # Reading it is not a guess between two addresses; it is the
+        # unredacted copy of the one field that was redacted.
+        #
+        # Deliberately NOT a general fallback for an address that fails to
+        # match. A family that moved carries a NEW address the register has
+        # not caught up with, and falling back there would silently dispatch
+        # to the home they left. The marker means "withheld", not "unknown",
+        # and only the first is safe to substitute.
+        if (
+            os2forms_mapping.is_protected_value(adresse_tekst)
+            and not os2forms_mapping.is_alternate_address(payload)
+        ):
+            registreret = self._folkeregister_adresse_id(cpr)
+
+            if registreret is not None:
+                return registreret
+
+            # No Elev row, or one without an address: a first application from
+            # an address-protected child. Nothing to fall back to, and
+            # inventing one is not an option — stop for a caseworker. This
+            # also keeps create_elev from ever running on this submission,
+            # which would otherwise store the placeholder as the child's name.
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Address is protected and the child has no registered "
+                    "address on file to use instead."
+                ),
+            )
+
         prefix = adresse_matching.lookup_prefix(adresse_tekst)
 
         if len(prefix) < _MIN_PREFIX_LENGTH:
