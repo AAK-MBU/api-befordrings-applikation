@@ -2093,6 +2093,15 @@ class BevillingService:
             WHERE
                 bevilling_id = :bevilling_id
             ORDER BY
+                gyldig_fra,
+                gyldig_til,
+                -- Befordring's order for rækker whose dates are identical.
+                -- A TIE-BREAK below the dates, not a replacement for them:
+                -- it only decides which of two rækker covering the same
+                -- period is printed first. NULL last, so the retiring
+                -- rutetyper fall to the bottom rather than to the top.
+                CASE WHEN rutetype_sortering IS NULL THEN 1 ELSE 0 END,
+                rutetype_sortering,
                 koersel_id
         """)
 
@@ -2119,6 +2128,11 @@ class BevillingService:
                 "dage": row.get("dage"),
                 "taxa_id": row.get("taxa_id"),
                 "tidspunkt": row.get("tidspunkt"),
+                # Lowercased by the view — it sits mid-sentence in the
+                # afgørelse. Added alongside tidspunkt rather than replacing
+                # it: the skabelon still reads {tidspunkt}, and both can be
+                # available until the template is switched over.
+                "rutetype": row.get("rutetype"),
                 "bevilling_fra": row.get("bevilling_fra"),
                 "bevilling_til": row.get("bevilling_til"),
                 "koerselstype_tillaeg": row.get("koerselstype_tillaeg"),

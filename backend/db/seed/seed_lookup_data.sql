@@ -396,18 +396,20 @@ FROM (VALUES
 PRINT CONCAT('Tidspunkt: ', @@ROWCOUNT, ' row(s) inserted.');
 
 
--- Rutetype  (10 rows)
-INSERT INTO [befordring].[Rutetype] (rutetype_tekst, beskrivelse, aktiv)
-SELECT v.rutetype_tekst, v.beskrivelse, v.aktiv
+-- Rutetype  (6 rows)
+INSERT INTO [befordring].[Rutetype] (rutetype_tekst, beskrivelse, aktiv, sorteringsorden)
+SELECT v.rutetype_tekst, v.beskrivelse, v.aktiv, v.sorteringsorden
 FROM (VALUES
-    ('Mellem hjem og skole',    '', 1),
-    ('Mellem hjem og klub',     '', 1),
-    ('Mellem skole og klub',    '', 1),
-    ('Mellem skole, klub, og hjem', '', 1),
-    ('Til skole',          '', 1),
-    ('Til hjem',          '', 1),
-    ('Til klub',           '', 1)
-) AS v (rutetype_tekst, beskrivelse, aktiv);
+    -- Rækkefølgen er Befordrings, og den er IKKE den samme som den, de
+    -- listede typerne i. Derfor en kolonne og ikke en liste i koden; den
+    -- læses af både kørselsrækkesorteringen og brevet. Se migration 032.
+    ('Mellem hjem og skole',        '', 1, 1),
+    ('Mellem skole, klub, og hjem', '', 1, 2),
+    ('Fra hjem til skole',          '', 1, 3),
+    ('Fra skole til klub',          '', 1, 4),
+    ('Fra skole til hjem',          '', 1, 5),
+    ('Fra klub til hjem',           '', 1, 6)
+) AS v (rutetype_tekst, beskrivelse, aktiv, sorteringsorden);
 PRINT CONCAT('Rutetype: ', @@ROWCOUNT, ' row(s) inserted.');
 
 

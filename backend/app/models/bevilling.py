@@ -240,10 +240,20 @@ class Koersel(Base):
     gyldig_fra: Mapped[date] = mapped_column(Date, nullable=False)
     gyldig_til: Mapped[date] = mapped_column(Date, nullable=False)
 
-    tidspunkt_id: Mapped[int] = mapped_column(
+    # On its way out. Rutetype now says where a trip starts and ends, which
+    # makes the time of day derivable rather than a separate choice — only
+    # "Fra hjem til skole" is morning, only "Mellem hjem og skole" is both,
+    # everything else is afternoon.
+    #
+    # Nullable since migration 033 so seed data can stop setting it. The
+    # kørselsrække form still requires it and every existing row still has
+    # one; see that migration for what has to change before the column can
+    # go. NOT the same as the tidspunkt recorded in Bevilling.ansoegningsdata,
+    # which is what the citizen asked for on the submission.
+    tidspunkt_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(f"{DB_SCHEMA}.Tidspunkt.tidspunkt_id"),
-        nullable=False,
+        nullable=True,
     )
 
     befordringstype_id: Mapped[int] = mapped_column(
