@@ -42,7 +42,11 @@ SET NOCOUNT ON;
 --    forskellige felter, og det er koden, der mangler sin matrikel.
 -- ---------------------------------------------------------------------------
 SELECT
-    e.cpr,
+    -- Bindestreg ind, så CPR overlever en kopiering til Excel: uden den
+    -- læses 0101101234 som et tal, og det foranstillede nul forsvinder.
+    -- Skal nummeret bruges til et opslag igen, fjernes stregen med
+    -- REPLACE(cpr, '-', '').
+    STUFF(e.cpr, 7, 0, '-')     AS cpr,
     e.adresseringsnavn,
     e.skolekode                 AS elev_skolekode,
     e.elevklassetrin,

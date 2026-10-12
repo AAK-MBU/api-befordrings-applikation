@@ -37,6 +37,7 @@ from app.schemas.bevilling import (
     KoerselsraekkeCreateRequest,
     KoerselsraekkeUpdateRequest,
     LetterCreateRequest,
+    OensketBefordringstypeUpdateRequest,
     PprSagsbehandlerUpdateRequest,
     RevurderetAfPprUpdateRequest,
 )
@@ -304,6 +305,42 @@ def update_bevilling_ppr_sagsbehandler(
         bevilling_id=bevilling_id,
         bevilling_data={"ppr_sagsbehandler_id": request.ppr_sagsbehandler_id},
         udfoert_af=udfoert_af,
+    )
+
+
+@router.put("/{bevilling_id}/oensket_befordringstype", dependencies=[RequireEdit])
+def update_bevilling_oensket_befordringstype(
+    bevilling_id: int,
+    request: OensketBefordringstypeUpdateRequest,
+    db: DbSession,
+):
+    """Set or clear the kørselstype a bevilling's application is read as asking for.
+
+    A separate endpoint because the value does not live in a column: it is a
+    key inside Bevilling.ansoegningsdata, beside the types the citizen ticked.
+    Routing it through the general PUT would mean handing the caller the whole
+    JSON document to rewrite, and a caller that rewrites a document can drop
+    any part of it — including the citizen's own answers.
+
+    Args:
+        bevilling_id:
+            The ID of the bevilling.
+
+        request:
+            The Befordringstype label to record, or null to remove it.
+
+        db:
+            The database session injected by FastAPI.
+
+    Returns:
+        The bevilling id and the value now stored.
+    """
+
+    service = BevillingService(db=db)
+
+    return service.set_oensket_befordringstype(
+        bevilling_id=bevilling_id,
+        befordringstype=request.befordringstype,
     )
 
 

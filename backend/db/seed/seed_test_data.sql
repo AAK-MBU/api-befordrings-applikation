@@ -350,16 +350,21 @@ VALUES
     ('Morgen og eftermiddag', '', 1);
 
 
+/* De seks rutetyper, med den sorteringsorden Befordring har bedt om.
+   De gamle syv ("Til skole", "Til hjem", "Mellem hjem og klub" m.fl.) er
+   IKKE med: en frisk testdatabase skal vise systemet, som det ser ud efter
+   migrationen, ikke undervejs. Produktion beholder dem, indtil
+   sagsbehandlerne har flyttet rækkerne — se
+   db/analyse/koerselsraekker_med_gammel_rutetype.sql. */
 INSERT INTO [befordring].[Rutetype]
-    (rutetype_tekst, beskrivelse, aktiv)
+    (rutetype_tekst, beskrivelse, aktiv, sorteringsorden)
 VALUES
-    ('Mellem hjem og skole',    '', 1),
-    ('Mellem hjem og klub',     '', 1),
-    ('Mellem skole og klub',    '', 1),
-    ('Mellem skole, klub, og hjem', '', 1),
-    ('Til skole',          '', 1),
-    ('Til hjem',          '', 1),
-    ('Til klub',           '', 1);
+    ('Mellem hjem og skole',        '', 1, 1),
+    ('Mellem skole, klub, og hjem', '', 1, 2),
+    ('Fra hjem til skole',          '', 1, 3),
+    ('Fra skole til klub',          '', 1, 4),
+    ('Fra skole til hjem',          '', 1, 5),
+    ('Fra klub til hjem',           '', 1, 6);
 
 
 INSERT INTO [befordring].[Ugedag]
@@ -478,9 +483,6 @@ DECLARE @hjaelpemiddel_autostol   int = (SELECT TOP 1 hjaelpemiddel_id FROM [bef
 DECLARE @hjaelpemiddel_elkoerestol int = (SELECT TOP 1 hjaelpemiddel_id FROM [befordring].[Hjaelpemiddel] WHERE hjaelpemiddel_tekst = 'El-kørestol' ORDER BY hjaelpemiddel_id DESC);
 
 -- Tidspunkter
-DECLARE @tidspunkt_morgen      int = (SELECT TOP 1 tidspunkt_id FROM [befordring].[Tidspunkt] WHERE tidspunkt_tekst = 'Morgen'                ORDER BY tidspunkt_id DESC);
-DECLARE @tidspunkt_eftermiddag int = (SELECT TOP 1 tidspunkt_id FROM [befordring].[Tidspunkt] WHERE tidspunkt_tekst = 'Eftermiddag'           ORDER BY tidspunkt_id DESC);
-DECLARE @tidspunkt_begge       int = (SELECT TOP 1 tidspunkt_id FROM [befordring].[Tidspunkt] WHERE tidspunkt_tekst = 'Morgen og eftermiddag' ORDER BY tidspunkt_id DESC);
 
 -- Befordringstyper
 DECLARE @befordringstype_rute      int = (SELECT TOP 1 befordringstype_id FROM [befordring].[Befordringstype] WHERE befordringstype_tekst = 'Rutekørsel'     ORDER BY befordringstype_id DESC);
@@ -490,8 +492,16 @@ DECLARE @befordringstype_rejsekort int = (SELECT TOP 1 befordringstype_id FROM [
 DECLARE @befordringstype_variabel  int = (SELECT TOP 1 befordringstype_id FROM [befordring].[Befordringstype] WHERE befordringstype_tekst = 'Variabel kørsel' ORDER BY befordringstype_id DESC);
 
 -- Rutetyper
-DECLARE @rutetype_skole int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Mellem hjem og skole' ORDER BY rutetype_id DESC);
-DECLARE @rutetype_klub  int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Mellem hjem og klub'  ORDER BY rutetype_id DESC);
+/* Rutetyperne i den rækkefølge, Befordring har bedt om dem sorteret i
+   (Rutetype.sorteringsorden 1-6, se migration 032). Tidspunkt er udeledt af
+   dem og sættes ikke længere: kun "fra hjem til skole" er morgen, kun
+   "mellem hjem og skole" er begge dele, resten er eftermiddag. */
+DECLARE @rutetype_hjem_skole       int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Mellem hjem og skole'        ORDER BY rutetype_id DESC);
+DECLARE @rutetype_skole_klub_hjem  int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Mellem skole, klub, og hjem' ORDER BY rutetype_id DESC);
+DECLARE @rutetype_fra_hjem_skole   int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Fra hjem til skole'           ORDER BY rutetype_id DESC);
+DECLARE @rutetype_fra_skole_klub   int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Fra skole til klub'           ORDER BY rutetype_id DESC);
+DECLARE @rutetype_fra_skole_hjem   int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Fra skole til hjem'           ORDER BY rutetype_id DESC);
+DECLARE @rutetype_fra_klub_hjem    int = (SELECT TOP 1 rutetype_id FROM [befordring].[Rutetype] WHERE rutetype_tekst = 'Fra klub til hjem'            ORDER BY rutetype_id DESC);
 
 -- Tillaeg
 DECLARE @tillaeg_fast_forsaede int = (SELECT TOP 1 tillaeg_id FROM [befordring].[KoerselstypeTillaeg] WHERE tillaeg_tekst = 'Fast forsæde'  ORDER BY tillaeg_id DESC);
@@ -1625,68 +1635,106 @@ VALUES
    Koersel
 ============================================================ */
 
--- Kasper: aktiv rutekørsel begge tidspunkter
+-- Kasper: aktiv rutekørsel, mellem hjem og skole (sortering 1)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_1, @start_i_aar, @slut_i_aar, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-001', 'Rutekørsel begge tidspunkter.', 1, @rutetype_skole);
+VALUES (@bevilling_1, @start_i_aar, @slut_i_aar, @befordringstype_rute, NULL, 'TAXA-001', 'Rutekørsel hele dagen.', 1, @rutetype_hjem_skole);
 DECLARE @koersel_1 int = SCOPE_IDENTITY();
 
--- Kristian: aktiv skånekørsel begge tidspunkter
+-- Kristian: aktiv skånekørsel, mellem skole, klub, og hjem (sortering 2)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_2, @start_i_aar, @slut_i_aar, @tidspunkt_begge, @befordringstype_skaane, NULL, 'TAXA-002', 'Skånekørsel begge tidspunkter.', 1, @rutetype_klub);
+VALUES (@bevilling_2, @start_i_aar, @slut_i_aar, @befordringstype_skaane, NULL, 'TAXA-002', 'Skånekørsel via klub.', 1, @rutetype_skole_klub_hjem);
 DECLARE @koersel_2 int = SCOPE_IDENTITY();
 
--- Rikke: egenbefordring begge tidspunkter (aktiv — revurdering)
+-- Rikke: egenbefordring, mellem hjem og skole (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_3, @start_sidste, @slut_i_aar, @tidspunkt_begge, @befordringstype_egen, 6.1, NULL, 'Egen befordring begge tidspunkter.', 0, @rutetype_skole);
+VALUES (@bevilling_3, @start_sidste, @slut_i_aar, @befordringstype_egen, 6.1, NULL, 'Egen befordring hele dagen.', 0, @rutetype_hjem_skole);
 DECLARE @koersel_3 int = SCOPE_IDENTITY();
 
 -- Rasmus: rutekørsel alle dage (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_4, @start_i_aar, @slut_i_aar, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-003', 'Rutekørsel alle dage.', 0, @rutetype_skole);
+VALUES (@bevilling_4, @start_i_aar, @slut_i_aar, @befordringstype_rute, NULL, 'TAXA-003', 'Rutekørsel alle dage.', 0, @rutetype_hjem_skole);
 DECLARE @koersel_4 int = SCOPE_IDENTITY();
 
--- Sofie: kommende skolerejsekort (starter næste skoleår, ikke finaliseret endnu)
+-- Sofie: kommende skolerejsekort, fra hjem til skole (sortering 3)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_9, @start_naeste, @slut_naeste, @tidspunkt_morgen, @befordringstype_rejsekort, NULL, NULL, 'Skolerejsekort morgen.', 0, @rutetype_skole);
+VALUES (@bevilling_9, @start_naeste, @slut_naeste, @befordringstype_rejsekort, NULL, NULL, 'Skolerejsekort, kun ud om morgenen.', 0, @rutetype_fra_hjem_skole);
 DECLARE @koersel_9 int = SCOPE_IDENTITY();
 
 -- Peter: udløbet rutekørsel (forrige skoleår)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_10, @start_sidste, @slut_sidste, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-010', 'Udløbet rutekørsel.', 1, @rutetype_skole);
+VALUES (@bevilling_10, @start_sidste, @slut_sidste, @befordringstype_rute, NULL, 'TAXA-010', 'Udløbet rutekørsel.', 1, @rutetype_hjem_skole);
 DECLARE @koersel_10 int = SCOPE_IDENTITY();
 
 -- Anders: ophørt rutekørsel (afsluttet da eleven skiftede distrikt)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_12, @start_sidste, DATEADD(MONTH, 5, @start_sidste), @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-012', 'Ophørt rutekørsel.', 1, @rutetype_skole);
+VALUES (@bevilling_12, @start_sidste, DATEADD(MONTH, 5, @start_sidste), @befordringstype_rute, NULL, 'TAXA-012', 'Ophørt rutekørsel.', 1, @rutetype_hjem_skole);
 DECLARE @koersel_12 int = SCOPE_IDENTITY();
 
 -- Mette: aktiv egenbefordring til ungdomsuddannelse
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_13, @start_i_aar, @slut_i_aar, @tidspunkt_morgen, @befordringstype_egen, 12.1, NULL, 'Egen befordring morgen til Diakonhøjskolen.', 1, @rutetype_skole);
+VALUES (@bevilling_13, @start_i_aar, @slut_i_aar, @befordringstype_egen, 12.1, NULL, 'Egen befordring morgen til Diakonhøjskolen.', 1, @rutetype_hjem_skole);
 DECLARE @koersel_13 int = SCOPE_IDENTITY();
 
 -- Thomas: rutekørsel (aktiv — revurdering)
 INSERT INTO [befordring].[Koersel]
-    (bevilling_id, gyldig_fra, gyldig_til, tidspunkt_id, befordringstype_id,
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
      bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
-VALUES (@bevilling_14, @start_sidste, @slut_i_aar, @tidspunkt_begge, @befordringstype_rute, NULL, 'TAXA-014', 'Rutekørsel begge tidspunkter — bevilling under revurdering.', 0, @rutetype_skole);
+VALUES (@bevilling_14, @start_sidste, @slut_i_aar, @befordringstype_rute, NULL, 'TAXA-014', 'Rutekørsel hele dagen — bevilling under revurdering.', 0, @rutetype_hjem_skole);
 DECLARE @koersel_14 int = SCOPE_IDENTITY();
+
+
+/* ------------------------------------------------------------
+   Thomas, fortsat: tre rækker med PRÆCIS samme datoer
+
+   Findes udelukkende for at vise rutetype-sorteringen. Når gyldig_fra og
+   gyldig_til er ens, falder datosorteringen igennem, og
+   Rutetype.sorteringsorden afgør rækkefølgen (migration 032).
+
+   Rækkerne er indsat i OMVENDT rækkefølge med vilje — 6, 5, 4 — oven i
+   @koersel_14, der er sortering 1. Vises de i rækkefølgen
+
+       mellem hjem og skole (1)
+       fra skole til klub   (4)
+       fra skole til hjem   (5)
+       fra klub til hjem    (6)
+
+   så virker sorteringen. Kommer de i indsætningsrækkefølge, gør den ikke.
+   Gælder både kørselsrækkekortet og afgørelsesbrevet, som nu sorterer ens.
+------------------------------------------------------------ */
+
+INSERT INTO [befordring].[Koersel]
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_14, @start_sidste, @slut_i_aar, @befordringstype_rute, NULL, 'TAXA-014', 'Sorteringstest: indsat først, skal vises sidst.', 0, @rutetype_fra_klub_hjem);
+DECLARE @koersel_14b int = SCOPE_IDENTITY();
+
+INSERT INTO [befordring].[Koersel]
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_14, @start_sidste, @slut_i_aar, @befordringstype_rute, NULL, 'TAXA-014', 'Sorteringstest: skal vises næstsidst.', 0, @rutetype_fra_skole_hjem);
+DECLARE @koersel_14c int = SCOPE_IDENTITY();
+
+INSERT INTO [befordring].[Koersel]
+    (bevilling_id, gyldig_fra, gyldig_til, befordringstype_id,
+     bevilget_koereafstand_pr_vej, taxa_id, kommentar, final, rutetype_id)
+VALUES (@bevilling_14, @start_sidste, @slut_i_aar, @befordringstype_rute, NULL, 'TAXA-014', 'Sorteringstest: skal vises som nummer to.', 0, @rutetype_fra_skole_klub);
+DECLARE @koersel_14d int = SCOPE_IDENTITY();
 
 
 /* ============================================================
@@ -1741,7 +1789,10 @@ VALUES
 (@koersel_13, @dag_fredag),
 
 -- Thomas: alle dage
-(@koersel_14, @dag_alle);
+(@koersel_14,  @dag_alle),
+(@koersel_14b, @dag_alle),
+(@koersel_14c, @dag_alle),
+(@koersel_14d, @dag_alle);
 
 
 

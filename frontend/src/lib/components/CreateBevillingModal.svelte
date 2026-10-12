@@ -517,7 +517,6 @@
         const krs = entry.koersel;
         const prefix = modalKoerselList.length > 1 ? `Kørselsrække ${i + 1}: ` : "";
         if (!krs.befordringstype_id) { modalError = `${prefix}Kørselstype skal udfyldes`; return; }
-        if (!krs.tidspunkt_id)       { modalError = `${prefix}Tidspunkt skal udfyldes`; return; }
         if (!krs.gyldig_fra)         { modalError = `${prefix}Gyldig fra skal udfyldes`; return; }
         if (!krs.gyldig_til)         { modalError = `${prefix}Gyldig til skal udfyldes`; return; }
         if (isDateOutOfRange(krs.gyldig_fra)) { modalError = `${prefix}Gyldig fra: Dato er ugyldig — kontrollér årstallet`; return; }
@@ -821,6 +820,7 @@
             <label class="text-sm font-medium text-gray-700">
               ESDH-nøgle <span class="text-red-500">*</span>
               <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.esdh_noegle} />
+              <span class="mt-1 block text-xs font-normal text-gray-500">Sagens nummer i GO, fx PPR-2026-123456-001</span>
             </label>
 
             <label class="text-sm font-medium text-gray-700">
@@ -957,7 +957,7 @@
 
               <!-- Row 1, shared: Tidspunkt | Rutetype | Dage -->
               <label class="block">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt</span>
                 <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
                   value={krs.tidspunkt_id ?? ""}
                   on:change={(e) => { modalKoerselList[i].koersel.tidspunkt_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
