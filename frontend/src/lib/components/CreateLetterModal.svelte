@@ -12,7 +12,7 @@
   import { afgoerelsesbrevKategori } from "$lib/lookupFilters";
 
   import { backendFetch } from "$lib/client/backendFetch";
-  import { MIN_DATE, MAX_DATE, firstInvalidDate, firstOutOfRangeDate } from "$lib/dates";
+  import { MIN_DATE, MAX_DATE, iDagISO, firstInvalidDate, firstOutOfRangeDate } from "$lib/dates";
   import { bevillingLabel } from "$lib/bevillingLabel";
 
   export let open = false;
@@ -28,6 +28,11 @@
   let selectedLetterBevillingId = "";
   let letterType = "";
   let koerselStartdato = "";
+  // "Seneste bevilling" is by definition one that already exists, so a
+  // future date is always a typo. Capped on the input AND validated, since
+  // a date input's max only constrains the picker, not a typed value.
+  const iDag = iDagISO();
+
   let datoForSenesteBevilling = "";
   let befordringsudvalgResultat = "";
   let tidligereAfgoerelseDato = "";
@@ -167,6 +172,10 @@
 
     if (outOfRange) {
       return `Dato er ugyldig — kontrollér årstallet (skal være mellem ${MIN_DATE.slice(0, 4)} og ${MAX_DATE.slice(0, 4)}).`;
+    }
+
+    if (datoForSenesteBevilling && datoForSenesteBevilling > iDag) {
+      return "Dato for seneste bevilling må ikke ligge i fremtiden.";
     }
 
     return null;
@@ -331,7 +340,7 @@
 
         <label class={labelClass}>
           Dato for seneste bevilling
-          <input type="date" min={MIN_DATE} max={MAX_DATE} class={fieldClass} bind:value={datoForSenesteBevilling} />
+          <input type="date" min={MIN_DATE} max={iDag} class={fieldClass} bind:value={datoForSenesteBevilling} />
         </label>
 
         {#if harBefordringsudvalg}

@@ -41,6 +41,9 @@
   export let columns: DataTableColumn[] = [];
 
   export let filterable = true;
+
+  /** Hide the pagination bar entirely. For short, fixed-length lists. */
+  export let paginated = true;
   export let emptyMessage = "Ingen data fundet";
 
   export let editable = false;
@@ -465,6 +468,7 @@
 
   </table>
 
+  {#if paginated}
   <div class="flex items-center justify-between px-3 py-2 text-xs text-gray-600 bg-gray-50 border-t border-gray-200">
 
     <div class="flex items-center gap-2">
@@ -503,5 +507,6 @@
     </div>
 
   </div>
+  {/if}
 
 </div>

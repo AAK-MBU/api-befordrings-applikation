@@ -60,6 +60,14 @@
   // kørselstyper may be chosen; every other type shows the full lookup.
   export let ansoegningstype: string = "";
 
+  // Grey every row out regardless of its own dates, because the bevilling
+  // they belong to is Ophørt or Afslag. The per-row Aktiv/Kommende colours
+  // describe a date range, which stays "current" on a bevilling that is not —
+  // so without this a refused bevilling still shows green rows.
+  //
+  // Colour only. Editing is unaffected.
+  export let bevillingOphoert: boolean = false;
+
   // Optional — if not provided, the delete button is hidden entirely.
   // Wire this up from the parent page only for users with the correct role.
   export let onDeleteKoerselsraekke: ((koerselId: number) => Promise<string | null>) | undefined = undefined;
@@ -661,19 +669,19 @@
 
 
 
-        <!-- Row 1, shared: Rutetype | Tidspunkt | Dage -->
-        <label class="block">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
-          <select class={selectClass} value={newKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateNewField("rutetype_id", numberOrNull(e.currentTarget.value))}>
-            <option value="">Vælg</option>
-            {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
-          </select>
-        </label>
+        <!-- Row 1, shared: Tidspunkt | Rutetype | Dage -->
         <label class="block">
           <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
           <select class={selectClass} value={newKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateNewField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
             <option value="">Vælg</option>
             {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
+          <select class={selectClass} value={newKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateNewField("rutetype_id", numberOrNull(e.currentTarget.value))}>
+            <option value="">Vælg</option>
+            {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
           </select>
         </label>
         <div>
@@ -948,19 +956,19 @@
           </label>
 
 
-          <!-- Row 1, shared: Rutetype | Tidspunkt | Dage -->
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
-            <select class={selectClass} value={editableKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateField("rutetype_id", numberOrNull(e.currentTarget.value))}>
-              <option value="">Vælg</option>
-              {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
-            </select>
-          </label>
+          <!-- Row 1, shared: Tidspunkt | Rutetype | Dage -->
           <label class="block">
             <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
             <select class={selectClass} value={editableKoerselsraekke.tidspunkt_id ?? ""} on:change={(e) => updateField("tidspunkt_id", numberOrNull(e.currentTarget.value))}>
               <option value="">Vælg</option>
               {#each lookupOptions.tidspunkter ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
+            <select class={selectClass} value={editableKoerselsraekke.rutetype_id ?? ""} on:change={(e) => updateField("rutetype_id", numberOrNull(e.currentTarget.value))}>
+              <option value="">Vælg</option>
+              {#each lookupOptions.rutetyper ?? [] as option}<option value={option.id}>{option.label}</option>{/each}
             </select>
           </label>
           <div>
@@ -1134,25 +1142,25 @@
 
       <!-- Labeled field grid view (matches the bevilling header card) -->
       <div class="mb-2 rounded-lg border shadow-sm overflow-hidden
-        {rowStatus === 'aktiv' ? 'bg-green-50 border-green-200' : rowStatus === 'kommende' ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}"
-        style="border-left: 4px solid {rowStatus === 'aktiv' ? '#16a34a' : rowStatus === 'kommende' ? '#9333ea' : '#9ca3af'};">
+        {bevillingOphoert || rowStatus === 'historisk' ? 'bg-gray-50 border-gray-200' : rowStatus === 'aktiv' ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'}"
+        style="border-left: 4px solid {bevillingOphoert || rowStatus === 'historisk' ? '#9ca3af' : rowStatus === 'aktiv' ? '#16a34a' : '#9333ea'};">
 
         <div class="flex items-start justify-between gap-4 px-4 py-4">
 
           <div class="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4">
 
-            <!-- Row 1, shared: Kørselstype | Rutetype | Tidspunkt | Dage -->
+            <!-- Row 1, shared: Kørselstype | Tidspunkt | Rutetype | Dage -->
             <div>
               <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselstype</p>
               <p class="text-sm font-semibold text-gray-800 break-words">{row.befordringstype_tekst ?? "—"}</p>
             </div>
             <div>
-              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Rutetype</p>
-              <p class="text-sm text-gray-800 break-words">{row.rutetype_tekst ?? "—"}</p>
-            </div>
-            <div>
               <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Tidspunkt</p>
               <p class="text-sm text-gray-800 break-words">{row.tidspunkt_tekst ?? "—"}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Rutetype</p>
+              <p class="text-sm text-gray-800 break-words">{row.rutetype_tekst ?? "—"}</p>
             </div>
             <div>
               <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Dage</p>
@@ -1169,9 +1177,13 @@
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Kørselsgodtgørelse modtager</p>
                 <p class="text-sm text-gray-800 break-words">
                   {#if row.koerselsgodtgoerelse_modtager_id}
-                    {parter.find((r: any) => r.type === 'part' && r.part_id === row.koerselsgodtgoerelse_modtager_id)?.fulde_navn ?? "—"}
+                    {#each [parter.find((r: any) => r.type === 'part' && r.part_id === row.koerselsgodtgoerelse_modtager_id)] as modtager}
+                      {modtager ? (modtager.fulde_navn ?? modtager.part_id) + (modtager.relation ? ` (${modtager.relation})` : '') : '—'}
+                    {/each}
                   {:else if row.koerselsgodtgoerelse_modtager_cpr}
-                    {parter.find((r: any) => r.type === 'foraelder' && r.cpr_foraelder === row.koerselsgodtgoerelse_modtager_cpr)?.fulde_navn ?? "—"}
+                    {#each [parter.find((r: any) => r.type === 'foraelder' && r.cpr_foraelder === row.koerselsgodtgoerelse_modtager_cpr)] as modtager}
+                      {modtager ? (modtager.fulde_navn ?? modtager.cpr_foraelder) + (modtager.relation ? ` (${modtager.relation})` : '') : '—'}
+                    {/each}
                   {:else}
                     —
                   {/if}

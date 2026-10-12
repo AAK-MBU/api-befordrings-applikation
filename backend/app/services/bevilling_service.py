@@ -1131,6 +1131,18 @@ class BevillingService:
         ophoert_status_id = self.get_status_id_by_text("Ophørt")
         was_ophoert = bevilling.status_id == ophoert_status_id
 
+        # Afslag gets the same treatment as Ophørt, and for the same reason:
+        # usp_recalculate_bevilling_status preserves both statuses as-is
+        # (see its CASE on 'afslag', 'ophørt'), so the recalculation can report
+        # rows_updated = 0 and the generic status_opdateret log branch never
+        # fires. Without a dedicated event the transition leaves no trace.
+        afslag_status_id = self.get_status_id_by_text("Afslag")
+        was_afslag = bevilling.status_id == afslag_status_id
+
+        # Locking cascades to the kørselsrækker, so the pre-state is needed to
+        # fire that only on the false -> true transition.
+        was_final = bevilling.final
+
         # The genbehandling mismatch compares the bevilling against the elev, so
         # a sign-off acknowledges that specific PAIR. Captured before mutating so
         # the block below can tell whether the bevilling half of it moved.
@@ -1191,8 +1203,21 @@ class BevillingService:
                 not was_ophoert and bevilling.status_id == ophoert_status_id
             )
 
+            afslag_transition = (
+                not was_afslag and bevilling.status_id == afslag_status_id
+            )
+
             if ophoert_transition:
                 cleared_revurderingsdato = bevilling.revurderingsdato
+                bevilling.sagsbehandlingsdato = date.today()
+                bevilling.revurderingsdato = None
+
+            # Refusing a bevilling is a case-processing act in the same way
+            # ending one is: it is handled today, and there is nothing left to
+            # reassess. Mirrors the Ophørt block above, including being a
+            # TRANSITION rather than "status is Afslag" — see its comment.
+            if afslag_transition:
+                afslag_cleared_revurderingsdato = bevilling.revurderingsdato
                 bevilling.sagsbehandlingsdato = date.today()
                 bevilling.revurderingsdato = None
 
@@ -1269,6 +1294,17 @@ class BevillingService:
             self.db.rollback()
             raise
 
+        # Locking the bevilling cascades to its kørselsrækker, so both levels
+        # settle together. Only on the false -> true transition, and only
+        # one way: unlocking the bevilling deliberately does NOT unlock the
+        # rækker, because a letter has been written against them.
+        #
+        # After the commit rather than inside it: lock_koerselsraekker commits
+        # for itself, and calling it mid-transaction would land the status
+        # change and half the audit trail early.
+        if not was_final and bevilling_data.get("final") is True:
+            self.lock_koerselsraekker(bevilling_id)
+
         self._log_bevilling_update_events(
             cpr, bevilling_id, bevilling_data, old_values, status_result, udfoert_af
         )
@@ -1288,6 +1324,23 @@ class BevillingService:
                     + (
                         f" — revurderingsdato ({cleared_revurderingsdato}) blev fjernet"
                         if cleared_revurderingsdato
+                        else ""
+                    )
+                ),
+                relateret_bevilling_id=bevilling_id,
+                udfoert_af=udfoert_af,
+            )
+
+        if afslag_transition:
+            self._log_event(
+                cpr,
+                type_kode="bevilling_afslag",
+                aktivitetstype="Bevilling sat til Afslag",
+                kommentar=(
+                    "Sagsbehandlingsdato sat til i dag"
+                    + (
+                        f" — revurderingsdato ({afslag_cleared_revurderingsdato}) blev fjernet"
+                        if afslag_cleared_revurderingsdato
                         else ""
                     )
                 ),

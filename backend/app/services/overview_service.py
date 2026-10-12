@@ -81,6 +81,7 @@ class OverviewService:
             "sagsbehandler": bevilling.get("sagsbehandler"),
             "ppr_sagsbehandler": bevilling.get("ppr_sagsbehandler_tekst"),
             "revurdering": bevilling.get("revurdering"),
+            "skole_navn": bevilling.get("skole_navn"),
         }
 
 

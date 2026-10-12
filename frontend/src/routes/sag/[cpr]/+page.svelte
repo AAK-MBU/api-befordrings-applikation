@@ -364,6 +364,12 @@
     if (kode === "status_opdateret" || type.startsWith("Status sat til ")) {
       return { border: "border-l-gray-300",  icon: "status",   badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
     }
+    if (kode === "bevilling_ophoert" || type === "Bevilling sat til Ophørt") {
+      return { border: "border-l-gray-500",  icon: "xmark",    badgeBg: "bg-gray-200",   badgeText: "text-gray-700",   cardBg: "bg-gray-50" };
+    }
+    if (kode === "bevilling_afslag" || type === "Bevilling sat til Afslag") {
+      return { border: "border-l-red-500",   icon: "xmark-red", badgeBg: "bg-red-100",   badgeText: "text-red-800",    cardBg: "bg-gray-50" };
+    }
     return   { border: "border-l-gray-300",  icon: "gear",     badgeBg: "bg-gray-100",   badgeText: "text-gray-600",   cardBg: "bg-gray-50" };
   }
 
@@ -974,6 +980,7 @@
           data={parents}
           columns={parentColumns}
           filterable={false}
+          paginated={false}
         />
     </div>
 
@@ -1341,6 +1348,10 @@ stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                     </svg>
                   {:else if style.icon === "xmark"}
                     <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  {:else if style.icon === "xmark-red"}
+                    <svg class="w-3.5 h-3.5 text-red-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   {:else if style.icon === "chat"}

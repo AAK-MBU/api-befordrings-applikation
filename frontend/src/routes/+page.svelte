@@ -54,6 +54,12 @@
       }
     },
     {
+      key: "skole_navn",
+      label: "Skole",
+      filterType: "select",
+      multiSelect: true
+    },
+    {
       key: "koerselstyper",
       label: "Kørselstype",
       filterType: "select",

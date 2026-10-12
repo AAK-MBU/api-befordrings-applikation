@@ -25,12 +25,15 @@ SELECT
     b.esdh_noegle,
     b.esdh_url,
     sb.sagsbehandler_tekst      AS sagsbehandler,
-    ppr.ppr_sagsbehandler_tekst
+    ppr.ppr_sagsbehandler_tekst,
+    COALESCE(sk.matrikel_navn, uu.ungdomsuddannelse_navn) AS skole_navn
 FROM      [Befordringssystemet].[befordring].[Bevilling]         b
 LEFT JOIN [Befordringssystemet].[befordring].[Elev]              e   ON e.cpr                    = b.cpr_elev
 LEFT JOIN [Befordringssystemet].[befordring].[Sagsbehandler]     sb  ON sb.sagsbehandler_id      = b.sagsbehandler_id
 LEFT JOIN [Befordringssystemet].[befordring].[Status]            s   ON s.status_id              = b.status_id
 LEFT JOIN [Befordringssystemet].[befordring].[PPR_Sagsbehandler] ppr ON ppr.ppr_sagsbehandler_id = b.ppr_sagsbehandler_id
+LEFT JOIN [Befordringssystemet].[befordring].[Skolematrikel]     sk  ON sk.matrikel_id           = b.matrikel_id
+LEFT JOIN [Befordringssystemet].[befordring].[Ungdomsuddannelse] uu  ON uu.ungdomsuddannelse_id  = b.ungdomsuddannelse_id
 /* Soft-deleted bevillinger keep whatever status they had when they were
    deleted, so without this a deleted bevilling still reading 'Aktiv' shows up
    on the overview — and wins the per-student row selection in
