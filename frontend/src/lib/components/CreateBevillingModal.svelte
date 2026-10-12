@@ -2,7 +2,7 @@
     import { onMount, createEventDispatcher } from "svelte";
     import { backendFetch } from "$lib/client/backendFetch";
     import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
-    import { MIN_DATE, MAX_DATE, isDateOutOfRange } from "$lib/dates";
+    import { MIN_DATE, MAX_DATE, isDateOutOfRange, iDagISO } from "$lib/dates";
     import {
       AFSTANDSKRITERIE_KLASSETRIN,
       beregnAfstandskriterieDato,
@@ -82,9 +82,6 @@
     let skoleType: 'folkeskole' | 'ungdomsuddannelse' | null = null;
     let newBevilling: any = {};
     let selectedSourceBevillingId: number | null = null;
-    let selectedBegrundelser: string[] = [];
-    let begrundelseSelectValue = "";
-    const begrundelseOptions = ["Sygdom", "Afstand", "Farlig skolevej"];
 
     // Kommentar is a textarea, not an input: "Kopiér" seeds it from an
     // existing kørselsrække, whose comment may be multi-line — the conversion
@@ -235,13 +232,12 @@
         sagsbehandler_id: "",
         ppr_sagsbehandler_id: "",
         ansoegningsdato: "",
-        sagsbehandlingsdato: "",
+        sagsbehandlingsdato: iDagISO(),
         relation_til_barnet: "",
         foerste_koersel_dato: "",
         ansoegningstype: "",
         afstandskriterie_dato: "",
         afstandskriterie_klassetrin: "",
-        begrundelse_fra_formular: "",
         hjaelpemiddel_ids: [],
       };
     }
@@ -249,8 +245,6 @@
     function resetCreateBevillingForm() {
       newBevilling = getEmptyBevilling();
       skoleType = null;
-      selectedBegrundelser = [];
-      begrundelseSelectValue = "";
     }
 
     // Step 1's "Dato for første kørsel" seeds step 2's "Gyldig fra".
@@ -433,9 +427,6 @@
 
     function prefillFromBevilling(source: any) {
       skoleType = (source.ungdomsuddannelse_id && !source.matrikel_id) ? 'ungdomsuddannelse' : 'folkeskole';
-      const rawBegrundelse = source.begrundelse_fra_formular ?? "";
-      selectedBegrundelser = rawBegrundelse.split(", ").filter((b: string) => begrundelseOptions.includes(b));
-      begrundelseSelectValue = "";
       newBevilling = {
         adresse_id:                  source.adresse_id ?? null,
         adresse_tekst:               source.adresse_for_bevilling ?? "",
@@ -453,30 +444,15 @@
         afstandskriterie_klassetrin: source.afstandskriterie_klassetrin != null ? String(source.afstandskriterie_klassetrin) : "",
         revurderingsdato:            source.revurderingsdato ? String(source.revurderingsdato).slice(0, 10) : "",
         befordringsudvalg:           source.befordringsudvalg ? String(source.befordringsudvalg).slice(0, 10) : "",
-        begrundelse_fra_formular:    rawBegrundelse,
         // A revurdering continues the same ESDH case, so the key carries over.
         // The other fields below stay blank on purpose: they belong to the new
         // bevilling, not the one being copied.
         esdh_noegle:                 source.esdh_noegle ?? "",
         ansoegningsdato:             "",
-        sagsbehandlingsdato:         "",
+        sagsbehandlingsdato:         iDagISO(),
         foerste_koersel_dato:        "",
         hjaelpemiddel_ids:           [],
       };
-    }
-
-    function addBegrundelse() {
-      if (begrundelseSelectValue === "") return;
-      if (!selectedBegrundelser.includes(begrundelseSelectValue)) {
-        selectedBegrundelser = [...selectedBegrundelser, begrundelseSelectValue];
-      }
-      newBevilling.begrundelse_fra_formular = selectedBegrundelser.join(", ");
-      begrundelseSelectValue = "";
-    }
-
-    function removeBegrundelse(value: string) {
-      selectedBegrundelser = selectedBegrundelser.filter((v) => v !== value);
-      newBevilling.begrundelse_fra_formular = selectedBegrundelser.join(", ");
     }
 
     async function handleCreateBevilling() {
@@ -513,7 +489,6 @@
         ansoegningstype:             emptyToNull(newBevilling.ansoegningstype),
         afstandskriterie_dato:       isMidlertidig ? null : emptyToNull(newBevilling.afstandskriterie_dato),
         afstandskriterie_klassetrin: isMidlertidig ? null : numberOrNull(newBevilling.afstandskriterie_klassetrin),
-        begrundelse_fra_formular:    emptyToNull(newBevilling.begrundelse_fra_formular),
         hjaelpemiddel_ids:           newBevilling.hjaelpemiddel_ids ?? [],
       };
       const res = await backendFetch(
@@ -589,7 +564,6 @@
         ansoegningstype:             emptyToNull(newBevilling.ansoegningstype),
         afstandskriterie_dato:       emptyToNull(newBevilling.afstandskriterie_dato),
         afstandskriterie_klassetrin: numberOrNull(newBevilling.afstandskriterie_klassetrin),
-        begrundelse_fra_formular:    emptyToNull(newBevilling.begrundelse_fra_formular),
         hjaelpemiddel_ids:           newBevilling.hjaelpemiddel_ids ?? [],
       };
       try {
@@ -920,28 +894,13 @@
             </label>
             {/if}
 
-            <div class="col-span-2">
-              <p class="text-sm font-medium text-gray-700 mb-1.5">Begrundelse</p>
-              <div class="border border-gray-300 rounded p-3">
-                <div class="mb-2 flex flex-wrap gap-1.5">
-                  {#each selectedBegrundelser as val}
-                    <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs">
-                      {val}
-                      <button type="button" class="ml-1 text-red-500 hover:text-red-700 font-bold"
-                        on:click={() => removeBegrundelse(val)}>×</button>
-                    </span>
-                  {/each}
-                </div>
-                <select class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  bind:value={begrundelseSelectValue}
-                  on:change={addBegrundelse}>
-                  <option value="">Tilføj begrundelse</option>
-                  {#each begrundelseOptions.filter(o => !selectedBegrundelser.includes(o)) as opt}
-                    <option value={opt}>{opt}</option>
-                  {/each}
-                </select>
-              </div>
-            </div>
+            <!-- Begrundelse was here. The column and the OS2Forms writer both
+                 remain — an application still carries its begrundelse — but it
+                 is no longer set by hand from this modal. -->
+            <label class="text-sm font-medium text-gray-700">
+              Ansøgningsdato
+              <input type="date" min={MIN_DATE} max={MAX_DATE} class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.ansoegningsdato} />
+            </label>
 
           {/if}
 
@@ -996,16 +955,7 @@
                 </select>
               </label>
 
-              <!-- Row 1, shared: Rutetype | Tidspunkt | Dage -->
-              <label class="block">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
-                <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
-                  value={krs.rutetype_id ?? ""}
-                  on:change={(e) => { modalKoerselList[i].koersel.rutetype_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
-                  <option value="">Vælg</option>
-                  {#each lookupOptions.rutetyper ?? [] as opt}<option value={opt.id}>{opt.label}</option>{/each}
-                </select>
-              </label>
+              <!-- Row 1, shared: Tidspunkt | Rutetype | Dage -->
               <label class="block">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Tidspunkt *</span>
                 <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
@@ -1013,6 +963,15 @@
                   on:change={(e) => { modalKoerselList[i].koersel.tidspunkt_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
                   <option value="">Vælg</option>
                   {#each tidspunkter as opt}<option value={opt.id}>{opt.label}</option>{/each}
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Rutetype *</span>
+                <select class="border border-gray-300 px-2 py-1.5 text-sm rounded w-full focus:border-blue-400 focus:ring-0"
+                  value={krs.rutetype_id ?? ""}
+                  on:change={(e) => { modalKoerselList[i].koersel.rutetype_id = e.currentTarget.value === "" ? "" : Number(e.currentTarget.value); modalKoerselList = modalKoerselList; }}>
+                  <option value="">Vælg</option>
+                  {#each lookupOptions.rutetyper ?? [] as opt}<option value={opt.id}>{opt.label}</option>{/each}
                 </select>
               </label>
               <div>

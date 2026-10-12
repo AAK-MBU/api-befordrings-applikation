@@ -1375,6 +1375,7 @@
                 onDeleteKoerselsraekke={onDeleteKoerselsraekke}
                 {parter}
                 ansoegningstype={bevilling.ansoegningstype ?? ""}
+                bevillingOphoert={bevilling.status_tekst === 'Ophørt' || bevilling.status_tekst === 'Afslag'}
               />
             </div>
 
@@ -1485,10 +1486,10 @@
       <div class="px-6 py-5">
         {#if confirmingLock.final}
           <p class="text-sm text-gray-700">
-            Bevillingen vil blive markeret som <strong>låst</strong>.
+            Bevillingen vil blive markeret som <strong>låst</strong>, og alle tilknyttede kørselsrækker vil automatisk blive låst.
           </p>
           <p class="text-sm text-gray-500 mt-2">
-            Er du sikker på, at du vil låse denne bevilling? Den kan låses op igen.
+            Er du sikker på, at du vil låse denne bevilling? Bevillingen kan låses op igen, men kørselsrækkerne skal låses op individuelt.
           </p>
         {:else}
           <p class="text-sm text-gray-700">
