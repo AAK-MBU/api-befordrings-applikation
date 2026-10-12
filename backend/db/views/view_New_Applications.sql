@@ -19,6 +19,12 @@ SELECT
     b.ansoegningsdato,
     b.ansoegningstype,
     b.foerste_koersel_dato,
+    -- Carries BOTH halves of the kørselstype question: the types the citizen
+    -- ticked, and — once a caseworker has made the call — the one the case is
+    -- being treated as asking for. Nye ansøgninger shows the second where it
+    -- exists and falls back to the first where it does not, which is why the
+    -- whole document is handed over rather than a derived label.
+    b.ansoegningsdata,
     b.sagsbehandler_id,
     sb.sagsbehandler_tekst AS sagsbehandler,
     b.ppr_sagsbehandler_id,

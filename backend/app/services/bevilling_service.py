@@ -18,6 +18,7 @@ General responsibilities:
 The router should stay thin and delegate most logic to this service.
 """
 
+import json
 from datetime import date
 
 from fastapi import HTTPException
@@ -34,6 +35,7 @@ from app.models.bevilling import (
 from app.models.adresse import Adresse
 from app.models.citizen import Elev, Sagsaktivitet, SagsaktivitetType
 from app.models.lookup import (
+    Befordringstype,
     PPRSagsbehandler,
     Sagsbehandler,
     Skolematrikel,
@@ -1643,6 +1645,109 @@ class BevillingService:
         except Exception:
             self.db.rollback()
             raise
+
+
+    def set_oensket_befordringstype(
+        self,
+        bevilling_id: int,
+        befordringstype: str | None,
+    ):
+        """Record which kørselstype the application is being treated as asking for.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling.
+
+            befordringstype:
+                A Befordringstype label, or None to take the reading back off
+                and let the citizen's own ticks show again.
+
+        Returns:
+            Dictionary with the bevilling id and the value now stored.
+
+        Raises:
+            HTTPException:
+                404 if the bevilling does not exist.
+                400 if the label is not an active Befordringstype.
+
+        Notes:
+            Stored inside Bevilling.ansoegningsdata rather than in a column of
+            its own, under a key beside the citizen's ticks:
+
+                {"koerselstyper": [...],            <- what they ticked
+                 "oensket_befordringstype": "..."}  <- what we read it as
+
+            koerselstyper is deliberately left alone. The forms let a citizen
+            tick one, two or all three types, and a parent who ticks several
+            is often a parent who does not know which to ask for — which is
+            the very case this field exists to resolve. Collapsing the list to
+            the caseworker's answer would resolve it by destroying the
+            question, and "they asked for rutekørsel, we are treating it as
+            skånekørsel" is a sentence the case has to be able to tell.
+
+            A bevilling created by hand has no ansoegningsdata at all. One is
+            started here rather than refused: the field is about how the case
+            is being read, and a case entered by hand is still read.
+        """
+
+        bevilling = self.db.get(Bevilling, bevilling_id)
+
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        if befordringstype is not None:
+            befordringstype = befordringstype.strip()
+
+            # Validated against the lookup, not accepted as free text: the
+            # value is displayed as a kørselstype and has to mean the same
+            # thing as the one on a kørselsrække.
+            gyldig = self.db.scalar(
+                select(Befordringstype.befordringstype_tekst).where(
+                    Befordringstype.befordringstype_tekst == befordringstype,
+                    Befordringstype.aktiv == True,  # noqa: E712
+                )
+            )
+
+            if gyldig is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ukendt befordringstype: {befordringstype}",
+                )
+
+            befordringstype = gyldig
+
+        try:
+            data = json.loads(bevilling.ansoegningsdata or "{}")
+        except ValueError:
+            # Unreadable JSON is not a reason to refuse the edit. Nothing
+            # can be preserved from it, so it is started over.
+            data = {}
+
+        # Valid JSON that is not an object — a list, a bare string — would
+        # survive json.loads and then break on the first dict operation.
+        if not isinstance(data, dict):
+            data = {}
+
+        if befordringstype is None:
+            data.pop("oensket_befordringstype", None)
+        else:
+            data["oensket_befordringstype"] = befordringstype
+
+        # An empty object would claim the application said something. Nothing
+        # left to hold means the column goes back to NULL.
+        bevilling.ansoegningsdata = (
+            json.dumps(data, ensure_ascii=False) if data else None
+        )
+
+        self.db.commit()
+
+        return {
+            "bevilling_id": bevilling_id,
+            "oensket_befordringstype": befordringstype,
+        }
 
 
     def update_bevilling_hjaelpemidler(

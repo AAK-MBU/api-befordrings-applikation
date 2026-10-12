@@ -11,6 +11,7 @@
   $: ansoegninger = data.ansoegninger ?? [];
   $: sagsbehandlere = data.sagsbehandlere ?? [];
   $: pprSagsbehandlere = data.pprSagsbehandlere ?? [];
+  $: koerselstyper = data.koerselstyper ?? [];
   // Layout data flows into page data, so the signed-in user is available here.
   // can_edit is resolved by the backend from EDIT_ROLES — see GET /me.
   $: canEdit = data.user?.can_edit ?? false;
@@ -37,7 +38,15 @@
 
     const bevillingId = target.dataset.bevillingId;
     const field = target.dataset.field;
-    const value = target.value === "" ? null : Number(target.value);
+
+    // Ønsket kørselstype is the one column whose value is a LABEL rather than
+    // an id: it is stored inside ansoegningsdata, which names types the way
+    // the submission does. Number() on it would send NaN.
+    const erTekstfelt = field === "oensket_befordringstype";
+
+    const value = target.value === ""
+      ? null
+      : erTekstfelt ? target.value : Number(target.value);
 
     // A <select> shows the new option the moment it is picked, before anything
     // has been saved. If the write is refused the displayed value is a lie, so
@@ -51,15 +60,23 @@
 
     // The PPR column has its own endpoint so that PPR Medarbejder can use it;
     // the general PUT stays behind require_edit and would refuse them.
+    //
+    // Ønsket kørselstype has its own for a different reason: it is a key
+    // inside a JSON column, so the general PUT cannot set it without being
+    // handed the whole document.
     const path =
       field === "ppr_sagsbehandler_id"
         ? `/bevilling/${bevillingId}/ppr_sagsbehandler`
+        : erTekstfelt
+        ? `/bevilling/${bevillingId}/oensket_befordringstype`
         : `/bevilling/${bevillingId}`;
+
+    const body = erTekstfelt ? { befordringstype: value } : { [field]: value };
 
     const res = await backendFetch(path, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: value }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -144,6 +161,76 @@
     </select>`;
   }
 
+  // --- Ønsket kørselstype -------------------------------------------------
+  //
+  // Lives in Bevilling.ansoegningsdata, which holds both halves of the
+  // question: "koerselstyper" is the list the citizen ticked (the form's three
+  // checkboxes are independent, so it IS a list), and
+  // "oensket_befordringstype" is the one a caseworker has decided the case
+  // should be read as asking for.
+  //
+  // The second wins where it exists. Where it does not, the ticked types show
+  // instead, greyed — which is what makes a multi-tick legible rather than a
+  // problem: an application asking for three things looks undecided, because
+  // it is.
+
+  function parseAnsoegningsdata(raw: string | null | undefined): any {
+    if (!raw) return null;
+
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // Malformed JSON is nothing the caseworker can act on, and the column
+      // still has to render. Treated as "nothing applied for".
+      return null;
+    }
+  }
+
+  function ansoegteTyper(row: any): string[] {
+    const data = parseAnsoegningsdata(row.ansoegningsdata);
+    const typer = data?.koerselstyper ?? [];
+
+    return typer
+      .map((t: any) => t?.befordringstype)
+      .filter((t: any): t is string => typeof t === "string" && t.length > 0);
+  }
+
+  function valgtType(row: any): string | null {
+    return parseAnsoegningsdata(row.ansoegningsdata)?.oensket_befordringstype ?? null;
+  }
+
+  function buildTypeSelect(row: any): string {
+    const valgt = valgtType(row);
+    const ansoegt = ansoegteTyper(row);
+
+    const opts = koerselstyper
+      .map((o: any) => `<option value="${o.label}" ${valgt === o.label ? "selected" : ""}>${o.label}</option>`)
+      .join("");
+
+    const select = `<select
+      data-bevilling-id="${row.bevilling_id}"
+      data-field="oensket_befordringstype"
+      data-current="${valgt ?? ""}"
+      ${canEdit ? "" : "disabled"}
+      ${canEdit ? "" : 'title="Du har ikke rettigheder til at ændre ønsket kørselstype"'}
+      class="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:border-blue-400 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+    >
+      <option value="">— Vælg —</option>
+      ${opts}
+    </select>`;
+
+    // The ticked types are worth showing in exactly two cases: nothing has
+    // been decided yet, and the decision differs from what was asked for.
+    // Where the two agree there is nothing to compare, and repeating the
+    // value under itself would cost every row a second line for no reading.
+    const visAnsoegt =
+      ansoegt.length > 0 && (valgt === null || !(ansoegt.length === 1 && ansoegt[0] === valgt));
+
+    if (!visAnsoegt) return select;
+
+    return `${select}<span class="block mt-0.5 text-xs text-gray-500">Ansøgt: ${ansoegt.join(", ")}</span>`;
+  }
+
   $: columns = [
     {
       key: "adresseringsnavn",
@@ -203,6 +290,24 @@
       key: "foerste_koersel_dato",
       label: "Ønsket startdato",
       render: (row: any) => formatDanishDate(row.foerste_koersel_dato)
+    },
+    {
+      key: "oensket_koerselstype",
+      label: "Ønsket kørselstype",
+      filterType: "select",
+      multiSelect: true,
+      // Filtered on what the row effectively says — the caseworker's reading
+      // where there is one, otherwise each ticked type on its own, so the
+      // dropdown offers types rather than combinations. A row nobody has
+      // decided and nobody applied under is findable as "Ikke angivet".
+      filterValues: (row: any) => {
+        const valgt = valgtType(row);
+        if (valgt) return [valgt];
+
+        const ansoegt = ansoegteTyper(row);
+        return ansoegt.length > 0 ? ansoegt : ["Ikke angivet"];
+      },
+      render: (row: any) => buildTypeSelect(row)
     },
     {
       key: "ansoegningstype",

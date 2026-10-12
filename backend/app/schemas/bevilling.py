@@ -119,6 +119,24 @@ class PprSagsbehandlerUpdateRequest(BaseModel):
     ppr_sagsbehandler_id: int | None = Field(...)
 
 
+class OensketBefordringstypeUpdateRequest(BaseModel):
+    """Body for the ønsket kørselstype endpoint, which writes nothing else.
+
+    The value is the Befordringstype LABEL, not an id, because that is how
+    Bevilling.ansoegningsdata already spells it — the submission names types by
+    text, and this field lives in the same JSON. Validated against the lookup
+    by the service, so the label cannot drift into free text.
+
+    Required rather than optional, and nullable: an explicit null is how a
+    caseworker takes their reading back off a bevilling, leaving the citizen's
+    own ticks showing again.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    befordringstype: str | None = Field(...)
+
+
 class RevurderetAfPprUpdateRequest(BaseModel):
     """Body for the "PPR vurderet" endpoint, which writes nothing else.
 
