@@ -820,6 +820,7 @@
             <label class="text-sm font-medium text-gray-700">
               ESDH-nøgle <span class="text-red-500">*</span>
               <input class="mt-1.5 w-full border border-gray-300 rounded px-3 py-2 text-sm" bind:value={newBevilling.esdh_noegle} />
+              <span class="mt-1 block text-xs font-normal text-gray-500">Sagens nummer i GO, fx PPR-2026-123456-001 — ikke linket til sagen</span>
             </label>
 
             <label class="text-sm font-medium text-gray-700">
