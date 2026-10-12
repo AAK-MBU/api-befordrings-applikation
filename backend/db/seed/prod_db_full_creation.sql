@@ -400,7 +400,7 @@ CREATE TABLE [befordring].[Koersel](
 	[bevilling_id] [int] NOT NULL,
 	[gyldig_fra] [date] NOT NULL,
 	[gyldig_til] [date] NOT NULL,
-	[tidspunkt_id] [int] NOT NULL,
+	[tidspunkt_id] [int] NULL,
 	[befordringstype_id] [int] NOT NULL,
 	[bevilget_koereafstand_pr_vej] [float] NULL,
 	[taxa_id] [varchar](max) NULL,
@@ -1012,6 +1012,7 @@ CREATE TABLE [befordring].[Rutetype](
 	[rutetype_tekst] [nvarchar](255) NOT NULL,
 	[beskrivelse] [nvarchar](1000) NULL,
 	[aktiv] [bit] NOT NULL,
+	[sorteringsorden] [int] NULL,
  CONSTRAINT [PK_Rutetype] PRIMARY KEY CLUSTERED 
 (
 	[rutetype_id] ASC
@@ -1117,6 +1118,10 @@ AS
 
         k.rutetype_id,
         rt.rutetype_tekst,
+        -- Befordrings rækkefølge for rutetyper, brugt som TIE-BREAK under
+        -- datosorteringen. En kolonne frem for en liste i koden, så UI og
+        -- brev sorterer ens. NULL på de udgående typer. Se migration 032.
+        rt.sorteringsorden          AS rutetype_sortering,
 
         kt.tillaeg_ids,
         kt.tillaeg_tekst,
@@ -1368,8 +1373,22 @@ AS
 
         t.tidspunkt_tekst AS tidspunkt,
 
+        -- Rutetypen med lille begyndelsesbogstav: den står midt i en
+        -- sætning i afgørelsen. Kun her — i UI'et står den med stort.
+        LOWER(LEFT(rt.rutetype_tekst, 1)) + SUBSTRING(rt.rutetype_tekst, 2, LEN(rt.rutetype_tekst))
+            AS rutetype,
+
+        -- Tie-break under datosorteringen. NULL sorterer sidst.
+        rt.sorteringsorden AS rutetype_sortering,
+
         CONVERT(varchar(10), k.gyldig_fra, 105) AS bevilling_fra,
         CONVERT(varchar(10), k.gyldig_til, 105) AS bevilling_til,
+
+        -- Datoerne usorterede, så der kan sorteres på dem: felterne ovenfor
+        -- er varchar i dd-mm-yyyy og ville sortere på dag-i-måneden. Når
+        -- ikke ud i brevet — get_letter_data kopierer felter ved navn.
+        k.gyldig_fra,
+        k.gyldig_til,
 
         k.bevilget_koereafstand_pr_vej,
         k.taxa_id,
@@ -1414,6 +1433,9 @@ AS
     LEFT JOIN
         [Befordringssystemet].[befordring].[Tidspunkt] t
         ON t.tidspunkt_id = k.tidspunkt_id
+    LEFT JOIN
+        [Befordringssystemet].[befordring].[Rutetype] rt
+        ON rt.rutetype_id = k.rutetype_id
     LEFT JOIN (
         SELECT
             kud.koersel_id,

@@ -23,6 +23,13 @@ AS
 
         k.rutetype_id,
         rt.rutetype_tekst,
+        -- Befordrings rækkefølge for rutetyper, brugt som TIE-BREAK under
+        -- datosorteringen: den afgør kun rækkefølgen mellem rækker med samme
+        -- gyldig_fra og gyldig_til. En kolonne frem for en liste i koden,
+        -- fordi rækkefølgen hverken kan udledes af navnet eller af id'et —
+        -- og fordi både UI'et og brevet skal sortere ens. Se migration 032.
+        -- NULL på de udgående typer, så de sorterer sidst.
+        rt.sorteringsorden          AS rutetype_sortering,
 
         kt.tillaeg_ids,
         kt.tillaeg_tekst,

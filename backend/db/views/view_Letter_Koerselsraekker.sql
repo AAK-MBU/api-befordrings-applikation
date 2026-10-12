@@ -27,8 +27,25 @@ AS
 
         t.tidspunkt_tekst AS tidspunkt,
 
+        -- Rutetypen, med lille begyndelsesbogstav: den står midt i en
+        -- sætning i afgørelsen ("... bevilges kørsel fra hjem til skole"),
+        -- og Befordring har bedt om små bogstaver DÉR. Kun her — i UI'et
+        -- står den med stort, som den er gemt. Ét sted at rette navnet.
+        LOWER(LEFT(rt.rutetype_tekst, 1)) + SUBSTRING(rt.rutetype_tekst, 2, LEN(rt.rutetype_tekst))
+            AS rutetype,
+
+        -- Tie-break under datosorteringen nedenfor. NULL sorterer sidst.
+        rt.sorteringsorden AS rutetype_sortering,
+
         CONVERT(varchar(10), k.gyldig_fra, 105) AS bevilling_fra,
         CONVERT(varchar(10), k.gyldig_til, 105) AS bevilling_til,
+
+        -- Datoerne igen, usorterede og uformaterede, så de kan sorteres på.
+        -- bevilling_fra/_til ovenfor er varchar i dd-mm-yyyy: sorteret som
+        -- tekst ville de ligge i dag-i-måneden-rækkefølge. De to her når
+        -- ikke ud i brevet — get_letter_data kopierer felter ved navn.
+        k.gyldig_fra,
+        k.gyldig_til,
 
         k.bevilget_koereafstand_pr_vej,
         k.taxa_id,
@@ -73,6 +90,9 @@ AS
     LEFT JOIN
         [Befordringssystemet].[befordring].[Tidspunkt] t
         ON t.tidspunkt_id = k.tidspunkt_id
+    LEFT JOIN
+        [Befordringssystemet].[befordring].[Rutetype] rt
+        ON rt.rutetype_id = k.rutetype_id
     LEFT JOIN (
         SELECT
             kud.koersel_id,
