@@ -142,7 +142,11 @@ class KoerselsraekkeCreateRequest(BaseModel):
 
     gyldig_fra: date
     gyldig_til: date
-    tidspunkt_id: int
+    # Optional since migration 033. Rutetype now says where a trip starts and
+    # ends, which makes the time of day derivable, and the form no longer
+    # asks for it — a required field here would 422 every kørselsrække
+    # created without one.
+    tidspunkt_id: int | None = None
     befordringstype_id: int
     rutetype_id: int | None = None
     bevilget_koereafstand_pr_vej: float | None = None

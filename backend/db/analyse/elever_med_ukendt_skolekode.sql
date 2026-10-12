@@ -54,7 +54,11 @@ DROP TABLE IF EXISTS #kandidater;
    tæller dem, så de ikke forsvinder i stilhed.
 ------------------------------------------------------------ */
 SELECT
-    e.cpr,
+    -- Bindestreg ind, så CPR overlever en kopiering til Excel: uden den
+    -- læses 0101101234 som et tal, og det foranstillede nul forsvinder.
+    -- Skal nummeret bruges til et opslag igen, fjernes stregen med
+    -- REPLACE(cpr, '-', '').
+    STUFF(e.cpr, 7, 0, '-')     AS cpr,
     e.adresseringsnavn,
     e.skolekode,
     e.elevklassetrin,
@@ -104,7 +108,7 @@ WHERE  e.skolekode IS NOT NULL
 --    Står de to ens, findes koden simpelthen ikke i Skolematrikel endnu.
 -- ---------------------------------------------------------------------------
 SELECT
-    k.cpr,
+    STUFF(k.cpr, 7, 0, '-')     AS cpr,
     k.adresseringsnavn,
     k.alder,
     k.skolekode                 AS elev_skolekode,

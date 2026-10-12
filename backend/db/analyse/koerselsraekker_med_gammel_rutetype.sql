@@ -16,6 +16,12 @@
    indberetter bagud for perioder, der allerede er kørt. Står rutetypen
    forkert dér, fejler valideringen på en indberetning, der er helt i orden.
 
+   Undtagelsen har selv en grænse: er egen befordring-rækken udløbet for mere
+   end et halvt år siden, kommer der ikke flere indberetninger for den
+   periode, og så er der heller ikke noget at validere. Grænsen står som
+   @egenbefordring_graense nedenfor — ét sted, så alle tre dele afgrænser
+   ens. Skal vinduet være længere eller kortere, er det den ene linje.
+
    Når del 1 returnerer nul rækker, kan de gamle typer sættes aktiv = 0 i en
    senere migration, og tidspunkt kan begynde at udgå.
 
@@ -25,6 +31,10 @@
 USE [Befordringssystemet];
 
 SET NOCOUNT ON;
+
+/* Hvor langt tilbage en udløbet egen befordring-række stadig tæller med.
+   Seks måneder: derefter indberetter ingen for perioden længere. */
+DECLARE @egenbefordring_graense date = DATEADD(MONTH, -6, CAST(GETDATE() AS date));
 
 
 -- ---------------------------------------------------------------------------
@@ -40,10 +50,17 @@ SET NOCOUNT ON;
 --    "Fra klub til hjem". Det er et fingerpeg, ikke et svar.
 --
 --    Kun AKTIVE bevillinger og rækker: en afsluttet bevilling beholder den
---    rutetype, den blev skrevet med, og skal ikke rettes bagud.
+--    rutetype, den blev skrevet med, og skal ikke rettes bagud. Undtaget er
+--    udløbne bevillinger med en egen befordring-række, der er udløbet for
+--    mindre end et halvt år siden — se headeren. Del 3 tæller, hvad de to
+--    afgrænsninger holder ude.
 -- ---------------------------------------------------------------------------
 SELECT
-    e.cpr,
+    -- Bindestreg ind, så CPR overlever en kopiering til Excel: uden den
+    -- læses 0101101234 som et tal, og det foranstillede nul forsvinder.
+    -- Skal nummeret bruges til et opslag igen, fjernes stregen med
+    -- REPLACE(cpr, '-', '').
+    STUFF(e.cpr, 7, 0, '-')     AS cpr,
     e.adresseringsnavn,
     b.bevilling_id,
     b.loebenummer,
@@ -76,7 +93,10 @@ WHERE  k.aktiv = 1
        )
   AND  (
            st.status_tekst <> N'Udløbet'
-        OR bt.befordringstype_tekst = N'Egen befordring'
+        OR (
+               bt.befordringstype_tekst = N'Egen befordring'
+           AND k.gyldig_til >= @egenbefordring_graense
+           )
        )
 ORDER BY st.status_tekst, e.adresseringsnavn, b.loebenummer, k.gyldig_fra;
 
@@ -108,7 +128,11 @@ LEFT  JOIN [befordring].[Befordringstype] bt ON bt.befordringstype_id = k.beford
 WHERE  k.aktiv = 1
   AND  (k.rutetype_id IS NULL OR r.sorteringsorden IS NULL)
   -- Samme afgrænsning som del 1, ellers tæller de to forskellige bunker.
-  AND  (st.status_tekst <> N'Udløbet' OR bt.befordringstype_tekst = N'Egen befordring')
+  AND  (
+           st.status_tekst <> N'Udløbet'
+        OR (bt.befordringstype_tekst = N'Egen befordring'
+            AND k.gyldig_til >= @egenbefordring_graense)
+       )
 GROUP BY r.rutetype_tekst
 ORDER BY antal_raekker DESC;
 
@@ -121,9 +145,9 @@ SELECT
      INNER JOIN [befordring].[Bevilling] b ON b.bevilling_id = k.bevilling_id AND b.aktiv = 1
      WHERE k.aktiv = 1)                                              AS aktive_raekker_i_alt,
 
-    -- Udeladt af del 1 og 2: udløbet bevilling UDEN egen befordring. De
-    -- beholder deres gamle rutetype, og det er med vilje — ingen fremtidig
-    -- kørsel, og ingen indberetninger at validere imod.
+    -- Udeladt af del 1 og 2, delt op efter hvorfor. Begge er med vilje:
+    -- den første har ingen indberetninger at validere imod, den anden har
+    -- ikke flere på vej.
     (SELECT COUNT(*)
      FROM       [befordring].[Koersel]         k
      INNER JOIN [befordring].[Bevilling]       b  ON b.bevilling_id = k.bevilling_id AND b.aktiv = 1
@@ -135,6 +159,18 @@ SELECT
        AND  st.status_tekst = N'Udløbet'
        AND  ISNULL(bt.befordringstype_tekst, N'') <> N'Egen befordring')
                                                                      AS udeladt_udloebet_uden_egenbefordring,
+    (SELECT COUNT(*)
+     FROM       [befordring].[Koersel]         k
+     INNER JOIN [befordring].[Bevilling]       b  ON b.bevilling_id = k.bevilling_id AND b.aktiv = 1
+     INNER JOIN [befordring].[Status]          st ON st.status_id   = b.status_id
+     LEFT  JOIN [befordring].[Rutetype]        r  ON r.rutetype_id  = k.rutetype_id
+     LEFT  JOIN [befordring].[Befordringstype] bt ON bt.befordringstype_id = k.befordringstype_id
+     WHERE  k.aktiv = 1
+       AND  (k.rutetype_id IS NULL OR r.sorteringsorden IS NULL)
+       AND  st.status_tekst = N'Udløbet'
+       AND  bt.befordringstype_tekst = N'Egen befordring'
+       AND  k.gyldig_til < @egenbefordring_graense)
+                                                                     AS udeladt_egenbefordring_over_6_mdr,
 
     (SELECT COUNT(*) FROM [befordring].[Rutetype] WHERE sorteringsorden IS NOT NULL)
                                                                      AS rutetyper_med_sortering,
