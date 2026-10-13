@@ -65,10 +65,30 @@ export function daysUntil(dateStr: string | null | undefined): number | null {
 }
 
 
-/** The kørselstyper on a row's kørselsrækker that are not locked. */
-function aktiveKoerselstyper(row: any): string[] {
+/**
+ * The kørselstyper a row's bevilling currently grants.
+ *
+ * Current means NOT EXPIRED. It used to mean "not locked", which was the wrong
+ * flag: Koersel.final is set when a decision letter is created, so it marks a
+ * kørsel as settled, not as finished — see
+ * BevillingService.lock_koerselsraekker, which says so outright. A properly
+ * processed, actively running kørsel therefore has final = 1, and on a
+ * worklist of bevillinger that have all been through a letter the old rule hid
+ * almost everything it was supposed to show.
+ *
+ * A række with no end date counts as running, and one that starts in the
+ * future still counts: the bevilling grants that type, it just has not begun.
+ * Soft-deleted rækker never arrive here — overview_service joins k.aktiv = 1.
+ */
+export function aktiveKoerselstyper(row: any): string[] {
   return (row.koerselsraekker ?? [])
-    .filter((k: any) => !k.final)
+    .filter((k: any) => {
+      const dageTilbage = daysUntil(k.gyldig_til);
+
+      // null: no end date, or one that cannot be read. Both are better shown
+      // than silently dropped.
+      return dageTilbage === null || dageTilbage >= 0;
+    })
     .map((k: any) => k.befordringstype_tekst)
     .filter(Boolean);
 }

@@ -1,4 +1,4 @@
-import { filterFraQuery, matcherFilter, daysUntil } from "$lib/revurderingFilter";
+import { filterFraQuery, matcherFilter, daysUntil, aktiveKoerselstyper } from "$lib/revurderingFilter";
 import { csvCpr, csvResponse, type CsvColumn } from "$lib/server/csv";
 import { backendUserFetcher } from "$lib/server/backendApi";
 
@@ -47,17 +47,10 @@ const COLUMNS: CsvColumn[] = [
   {
     key: "koerselsraekker",
     header: "Kørselstyper",
-    // Locked rækker are excluded, matching what the kørselstype filter and the
-    // page's own list consider current.
-    format: (value) =>
-      [
-        ...new Set(
-          ((value as any[]) ?? [])
-            .filter((k) => !k.final)
-            .map((k) => k.befordringstype_tekst)
-            .filter(Boolean)
-        ),
-      ].join(", "),
+    // Through the same helper the page filters and the badges use, so the
+    // file never lists a different set of types than the screen showed.
+    format: (_value, row) =>
+      [...new Set(aktiveKoerselstyper(row))].join(", "),
   },
 ];
 

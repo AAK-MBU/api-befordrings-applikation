@@ -11,7 +11,7 @@
   import { iBatches } from "$lib/batching";
   import AnsvarligSelect from "$lib/components/AnsvarligSelect.svelte";
     import { filterHjemler } from "$lib/lookupFilters";
-    import { matcherFilter, filterTilQuery, daysUntil, IKKE_TILDELT, type RevurderingFilter } from "$lib/revurderingFilter";
+    import { matcherFilter, filterTilQuery, daysUntil, aktiveKoerselstyper, IKKE_TILDELT, type RevurderingFilter } from "$lib/revurderingFilter";
 
     export let data;
 
@@ -54,12 +54,7 @@
     $: uniqueSagsbehandlere    = [...new Set(revurderinger.map((b: any) => b.ansvarlig_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
     $: uniquePprSagsbehandlere = [...new Set(revurderinger.map((b: any) => b.ansvarlig_ppr_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
     $: uniqueKoerselstyper     = [...new Set(
-      revurderinger.flatMap((b: any) =>
-        (b.koerselsraekker ?? [])
-          .filter((k: any) => !k.final)
-          .map((k: any) => k.befordringstype_tekst)
-          .filter(Boolean)
-      )
+      revurderinger.flatMap((b: any) => aktiveKoerselstyper(b))
     )].sort() as string[];
 
     // One object, so the predicate and the export URL are built from exactly
@@ -703,7 +698,7 @@
           <option value="">Alle kørselstyper</option>
           {#each uniqueKoerselstyper as type}
             {@const count = revurderinger.filter((b: any) =>
-              (b.koerselsraekker ?? []).filter((k: any) => !k.final).some((k: any) => k.befordringstype_tekst === type)
+              aktiveKoerselstyper(b).includes(type)
             ).length}
             <option value={type}>{type} ({count})</option>
           {/each}
@@ -825,7 +820,7 @@
         {@const color = urgencyColor(bev.revurderingsdato)}
         {@const label = urgencyLabel(bev.revurderingsdato)}
         {@const isExpanded = expandedIds.has(bev.bevilling_id)}
-        {@const activeKoerselstyper = [...new Set((bev.koerselsraekker ?? []).filter((k: any) => !k.final).map((k: any) => k.befordringstype_tekst).filter(Boolean))]}
+        {@const activeKoerselstyper = [...new Set(aktiveKoerselstyper(bev))]}
 
         <div class="overflow-hidden transition-colors {isExpanded ? 'border border-gray-300 bg-gray-100 rounded-lg shadow-md my-2' : 'border border-gray-200 bg-white' + (i > 0 ? ' -mt-px' : '')}">
 

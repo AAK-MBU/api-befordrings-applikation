@@ -10,7 +10,7 @@
   import { sorterBevillinger } from "$lib/bevillingSortering";
   import { iBatches } from "$lib/batching";
   import AnsvarligSelect from "$lib/components/AnsvarligSelect.svelte";
-  import { IKKE_TILDELT, matcherTildeling } from "$lib/revurderingFilter";
+  import { IKKE_TILDELT, matcherTildeling, aktiveKoerselstyper } from "$lib/revurderingFilter";
     import { filterHjemler } from "$lib/lookupFilters";
 
     export let data;
@@ -48,12 +48,7 @@
     $: uniqueSagsbehandlere    = [...new Set(genbehandlinger.map((b: any) => b.ansvarlig_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
     $: uniquePprSagsbehandlere = [...new Set(genbehandlinger.map((b: any) => b.ansvarlig_ppr_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
     $: uniqueKoerselstyper     = [...new Set(
-      genbehandlinger.flatMap((b: any) =>
-        (b.koerselsraekker ?? [])
-          .filter((k: any) => !k.final)
-          .map((k: any) => k.befordringstype_tekst)
-          .filter(Boolean)
-      )
+      genbehandlinger.flatMap((b: any) => aktiveKoerselstyper(b))
     )].sort() as string[];
 
     $: filteredGenbehandlinger = genbehandlinger.filter((b: any) => {
@@ -63,8 +58,7 @@
       if (!matcherTildeling(b.ansvarlig_sagsbehandler_tekst, selectedSagsbehandler)) return false;
       if (!matcherTildeling(b.ansvarlig_ppr_sagsbehandler_tekst, selectedPprSagsbehandler)) return false;
       if (selectedKoerselstype) {
-        const types = (b.koerselsraekker ?? []).filter((k: any) => !k.final).map((k: any) => k.befordringstype_tekst);
-        if (!types.includes(selectedKoerselstype)) return false;
+        if (!aktiveKoerselstyper(b).includes(selectedKoerselstype)) return false;
       }
       return true;
     });
@@ -527,7 +521,7 @@
           <option value="">Alle kørselstyper</option>
           {#each uniqueKoerselstyper as type}
             {@const count = genbehandlinger.filter((b: any) =>
-              (b.koerselsraekker ?? []).filter((k: any) => !k.final).some((k: any) => k.befordringstype_tekst === type)
+              aktiveKoerselstyper(b).includes(type)
             ).length}
             <option value={type}>{type} ({count})</option>
           {/each}
@@ -599,7 +593,7 @@
       {#each filteredGenbehandlinger as bev, i}
 
         {@const isExpanded = expandedIds.has(bev.bevilling_id)}
-        {@const activeKoerselstyper = [...new Set((bev.koerselsraekker ?? []).filter((k: any) => !k.final).map((k: any) => k.befordringstype_tekst).filter(Boolean))]}
+        {@const activeKoerselstyper = [...new Set(aktiveKoerselstyper(bev))]}
 
         <div class="overflow-hidden transition-colors {isExpanded ? 'border border-gray-300 bg-gray-100 rounded-lg shadow-md my-2' : 'border border-gray-200 bg-white' + (i > 0 ? ' -mt-px' : '')}">
 
