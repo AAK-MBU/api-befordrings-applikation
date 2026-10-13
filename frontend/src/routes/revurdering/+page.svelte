@@ -877,16 +877,21 @@
             </div>
 
             <div class="hidden lg:flex flex-1 items-center min-w-0 overflow-hidden px-2">
+              <!-- leading-[26px] på værdierne: rækken er items-center, og en
+                   <select> er 26px høj (text-sm 20px + py-0.5 + kant), mens en
+                   tekstlinje er 20px. Uden samme højde centreres kolonnerne
+                   hver for sig, og etiketterne over dropdownsene kom til at
+                   ligge et par pixels højere end de øvrige. -->
               <!-- Skolen står først: PPR læser rækken som navn, skole, klasseart,
                    klassebetegnelse, når de forbereder møder ude på skolerne.
                    Det er elevens indskrevne skole — se skole_navn i viewet. -->
               <div class="flex flex-col min-w-0 min-w-[110px] w-[160px]">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Skole</span>
-                <span class="text-sm text-gray-600 truncate" title={bev.skole_navn ?? ""}>{bev.skole_navn ?? "—"}</span>
+                <span class="text-sm text-gray-600 truncate leading-[26px]" title={bev.skole_navn ?? ""}>{bev.skole_navn ?? "—"}</span>
               </div>
               <div class="flex flex-col min-w-0 min-w-[80px] w-[130px]">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Klasseart</span>
-                <span class="text-sm text-gray-600 truncate">{bev.klasseart ?? "—"}</span>
+                <span class="text-sm text-gray-600 truncate leading-[26px]">{bev.klasseart ?? "—"}</span>
               </div>
               <!-- Klassebetegnelse (4X, MOB1, 9-10X), ikke klassetrin. De tre er
                    hver sit begreb hos Befordring: klasseart, klassetrin
@@ -896,7 +901,7 @@
                    Elevdata, når rækken foldes ud. -->
               <div class="flex flex-col min-w-0 min-w-[80px] w-[110px]">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Klassebetegnelse</span>
-                <span class="text-sm text-gray-600 truncate">{bev.klassebetegnelse ?? "—"}</span>
+                <span class="text-sm text-gray-600 truncate leading-[26px]">{bev.klassebetegnelse ?? "—"}</span>
               </div>
               <!-- Tildelingen, ikke bevillingens egne sagsbehandlerfelter. De to
                    er fyldt ud på stort set alle rækker fra oprettelsen, og et
@@ -927,16 +932,16 @@
               </div>
               <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Revurderingsdato</span>
-                <span class="text-sm text-gray-600 truncate">{formatDanishDate(bev.revurderingsdato) ?? "—"}</span>
+                <span class="text-sm text-gray-600 truncate leading-[26px]">{formatDanishDate(bev.revurderingsdato) ?? "—"}</span>
               </div>
               <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Udløbsdato</span>
-                <span class="text-sm text-gray-600 truncate">{formatDanishDate(bev.seneste_gyldig_til)}</span>
+                <span class="text-sm text-gray-600 truncate leading-[26px]">{formatDanishDate(bev.seneste_gyldig_til)}</span>
               </div>
               {#if bev.statusbemaerkning}
                 <div class="flex flex-col min-w-0 flex-1 pl-2 border-l border-amber-200 ml-2">
                   <span class="text-[10px] font-bold uppercase tracking-wider text-amber-500 leading-none mb-0.5">Årsag</span>
-                  <span class="text-sm text-amber-700 truncate" title={bev.statusbemaerkning}>{bev.statusbemaerkning}</span>
+                  <span class="text-sm text-amber-700 truncate leading-[26px]" title={bev.statusbemaerkning}>{bev.statusbemaerkning}</span>
                 </div>
               {/if}
             </div>
