@@ -38,7 +38,21 @@ SELECT
     e.klasseart,
     e.elevklassetrin,
     e.klassebetegnelse,
-    sm.matrikel_navn                AS skole_navn,
+    -- Elevens INDSKREVNE skole — e.matrikel_id, ikke b.matrikel_id. De to er
+    -- tit forskellige: en bevilling bærer den skole, afgørelsen blev truffet
+    -- på, og en elev, der er flyttet eller visiteret videre, står indskrevet
+    -- et andet sted. PPR forbereder revurderinger ude på skolerne og skal
+    -- bruge den skole, eleven faktisk går på.
+    --
+    -- Det er også den samme kolonne, Elevoplysninger-komponenten læser, og
+    -- view_Stamdata har altid slået den op på e.matrikel_id. Indtil nu sagde
+    -- disse to views b.matrikel_id, så "Elevdata" viste bevillingens skole.
+    --
+    -- Bevillingens egen skole er uændret tilgængelig: b.matrikel_id står
+    -- ovenfor, og den udfoldede Bevillinger-sektion henter navnet fra
+    -- view_Student_Bevillinger, som joiner på netop b.matrikel_id.
+    COALESCE(sm.matrikel_navn, uu.ungdomsuddannelse_navn)
+                                    AS skole_navn,
     b.revurderingsdato,
     b.genbehandling,
     b.genbehandling_haandteret,
@@ -59,7 +73,8 @@ INNER JOIN [befordring].[Status]             s   ON s.status_id              = b
 INNER JOIN [befordring].[Elev]               e   ON e.cpr                    = b.cpr_elev
 INNER JOIN [befordring].[Adresse]            a   ON a.adresse_id             = e.adresse_id
 LEFT  JOIN [befordring].[Adresse]            ba  ON ba.adresse_id            = b.adresse_id
-LEFT  JOIN [befordring].[Skolematrikel]      sm  ON sm.matrikel_id           = b.matrikel_id
+LEFT  JOIN [befordring].[Skolematrikel]      sm  ON sm.matrikel_id           = e.matrikel_id
+LEFT  JOIN [befordring].[Ungdomsuddannelse]  uu  ON uu.ungdomsuddannelse_id  = e.ungdomsuddannelse_id
 LEFT  JOIN [befordring].[Hjemmel]            h   ON h.hjemmel_id             = b.hjemmel_id
 LEFT  JOIN [befordring].[Afgoerelsesbrev]    ab  ON ab.afgoerelsesbrev_id    = b.afgoerelsesbrev_id
 LEFT  JOIN [befordring].[PPR_Sagsbehandler]  ppr ON ppr.ppr_sagsbehandler_id = b.ppr_sagsbehandler_id

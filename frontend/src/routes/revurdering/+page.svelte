@@ -863,7 +863,7 @@
                 </div>
               </div>
               {#if bev.skole_navn}
-                <span class="text-gray-500 text-[13px] mt-0.5 mb-1 leading-snug">{bev.skole_navn}</span>
+                <span class="lg:hidden text-gray-500 text-[13px] mt-0.5 mb-1 leading-snug">{bev.skole_navn}</span>
               {/if}
               {#if activeKoerselstyper.length > 0}
                 <div class="flex items-center gap-1 mt-1 flex-wrap">
@@ -875,38 +875,47 @@
             </div>
 
             <div class="hidden lg:flex flex-1 items-center min-w-0 overflow-hidden px-2">
-              <div class="flex flex-col min-w-0 min-w-[80px] w-[130px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Klasseart</span>
-                <span class="text-xs text-gray-600 truncate">{bev.klasseart ?? "—"}</span>
-              </div>
-              <div class="flex flex-col min-w-0 min-w-[60px] w-[80px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Klassetrin</span>
-                <span class="text-xs text-gray-600 truncate">{bev.klassebetegnelse ?? (bev.elevklassetrin ? `Trin ${bev.elevklassetrin}` : '—')}</span>
-              </div>
-              <div class="flex flex-col min-w-0 min-w-[60px] w-[80px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Gåafstand</span>
-                <span class="text-xs text-gray-600 truncate">{bev.gaaafstand_km != null ? Number(bev.gaaafstand_km).toFixed(1) + ' km' : '—'}</span>
+              <!-- Skolen står først: PPR læser rækken som navn, skole, klasseart,
+                   klassebetegnelse, når de forbereder møder ude på skolerne.
+                   Det er elevens indskrevne skole — se skole_navn i viewet. -->
+              <div class="flex flex-col min-w-0 min-w-[110px] w-[160px]">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Skole</span>
+                <span class="text-sm text-gray-600 truncate" title={bev.skole_navn ?? ""}>{bev.skole_navn ?? "—"}</span>
               </div>
               <div class="flex flex-col min-w-0 min-w-[80px] w-[130px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">PPR sagsbehandler</span>
-                <span class="text-xs text-gray-600 truncate">{bev.ppr_sagsbehandler_tekst ?? "—"}</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Klasseart</span>
+                <span class="text-sm text-gray-600 truncate">{bev.klasseart ?? "—"}</span>
+              </div>
+              <!-- Klassebetegnelse (4X, MOB1, 9-10X), ikke klassetrin. De tre er
+                   hver sit begreb hos Befordring: klasseart, klassetrin
+                   (personligt) og klassebetegnelse. Derfor ingen fallback til
+                   klassetrin — en trinværdi under denne etiket er netop den
+                   forveksling, etiketten skal fjerne. Klassetrin står i
+                   Elevdata, når rækken foldes ud. -->
+              <div class="flex flex-col min-w-0 min-w-[80px] w-[110px]">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Klassebetegnelse</span>
+                <span class="text-sm text-gray-600 truncate">{bev.klassebetegnelse ?? "—"}</span>
+              </div>
+              <div class="flex flex-col min-w-0 min-w-[80px] w-[130px]">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">PPR sagsbehandler</span>
+                <span class="text-sm text-gray-600 truncate">{bev.ppr_sagsbehandler_tekst ?? "—"}</span>
               </div>
               <div class="flex flex-col min-w-0 min-w-[80px] w-[110px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Sagsbehandler</span>
-                <span class="text-xs text-gray-600 truncate">{bev.sagsbehandler_tekst ?? "—"}</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Sagsbehandler</span>
+                <span class="text-sm text-gray-600 truncate">{bev.sagsbehandler_tekst ?? "—"}</span>
               </div>
               <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Revurderingsdato</span>
-                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.revurderingsdato) ?? "—"}</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Revurderingsdato</span>
+                <span class="text-sm text-gray-600 truncate">{formatDanishDate(bev.revurderingsdato) ?? "—"}</span>
               </div>
               <div class="flex flex-col min-w-0 min-w-[90px] w-[110px]">
-                <span class="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Udløbsdato</span>
-                <span class="text-xs text-gray-600 truncate">{formatDanishDate(bev.seneste_gyldig_til)}</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Udløbsdato</span>
+                <span class="text-sm text-gray-600 truncate">{formatDanishDate(bev.seneste_gyldig_til)}</span>
               </div>
               {#if bev.statusbemaerkning}
                 <div class="flex flex-col min-w-0 flex-1 pl-2 border-l border-amber-200 ml-2">
-                  <span class="text-[9px] font-bold uppercase tracking-wider text-amber-500 leading-none mb-0.5">Årsag</span>
-                  <span class="text-xs text-amber-700 truncate" title={bev.statusbemaerkning}>{bev.statusbemaerkning}</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-amber-500 leading-none mb-0.5">Årsag</span>
+                  <span class="text-sm text-amber-700 truncate" title={bev.statusbemaerkning}>{bev.statusbemaerkning}</span>
                 </div>
               {/if}
             </div>
