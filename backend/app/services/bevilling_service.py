@@ -1145,6 +1145,13 @@ class BevillingService:
         # fire that only on the false -> true transition.
         was_final = bevilling.final
 
+        # Signing off the pending work releases whoever was handling it. Both
+        # captured before mutating, so the release fires on the TRANSITION and
+        # not on every later save of an already-signed-off bevilling — which
+        # would wipe a fresh assignment if the case came back.
+        was_revurderet_af_br = bevilling.revurderet_af_br
+        was_genbehandling_haandteret = bevilling.genbehandling_haandteret
+
         # The genbehandling mismatch compares the bevilling against the elev, so
         # a sign-off acknowledges that specific PAIR. Captured before mutating so
         # the block below can tell whether the bevilling half of it moved.
@@ -1274,6 +1281,19 @@ class BevillingService:
                 bevilling.genbehandling_haandteret = None
                 bevilling.genbehandling_haandteret_adresse_id = None
                 bevilling.genbehandling_haandteret_skolekode = None
+
+            # The bevilling's own sagsbehandler_id / ppr_sagsbehandler_id are
+            # left alone: they now name whoever did this piece of work, which
+            # is exactly what they should say afterwards. Only the "who has it
+            # right now" answer is retired.
+            if (
+                bevilling.revurderet_af_br is True and not was_revurderet_af_br
+            ) or (
+                bevilling.genbehandling_haandteret is True
+                and not was_genbehandling_haandteret
+            ):
+                bevilling.ansvarlig_sagsbehandler_id = None
+                bevilling.ansvarlig_ppr_sagsbehandler_id = None
 
             bevilling.updated_by = "frontend"
 
@@ -1645,6 +1665,87 @@ class BevillingService:
         except Exception:
             self.db.rollback()
             raise
+
+
+    def set_ansvarlig(
+        self,
+        bevilling_id: int,
+        felt: str,
+        tildelt_id: int | None,
+    ):
+        """Claim, reassign or release the bevilling's pending work.
+
+        Args:
+            bevilling_id:
+                ID of the bevilling.
+
+            felt:
+                Either "sagsbehandler" or "ppr_sagsbehandler".
+
+            tildelt_id:
+                The person taking it on, or None to release it.
+
+        Returns:
+            Dictionary with the bevilling id, the field written and its value.
+
+        Raises:
+            HTTPException:
+                400 if the field name is not one of the two.
+                404 if the bevilling does not exist.
+
+        Notes:
+            Assigning also writes the bevilling's own sagsbehandler_id /
+            ppr_sagsbehandler_id, so the bevilling always names whoever most
+            recently took responsibility for it rather than whoever happened to
+            create it.
+
+            Releasing does NOT. Clearing the assignment says "nobody is on this
+            now"; it does not say "nobody ever handled this", and the second
+            field is the one that has to survive to answer the first question
+            later.
+
+            Deliberately not routed through update_bevilling. That method
+            recalculates status, re-measures gaaafstand and writes audit events
+            for a dozen fields — none of which an assignment should trigger,
+            and one of which (status) reads sagsbehandler_id.
+        """
+
+        FELTER = {
+            "sagsbehandler": ("ansvarlig_sagsbehandler_id", "sagsbehandler_id"),
+            "ppr_sagsbehandler": (
+                "ansvarlig_ppr_sagsbehandler_id",
+                "ppr_sagsbehandler_id",
+            ),
+        }
+
+        if felt not in FELTER:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ukendt felt: {felt}",
+            )
+
+        ansvarlig_felt, bevilling_felt = FELTER[felt]
+
+        bevilling = self.db.get(Bevilling, bevilling_id)
+
+        if bevilling is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bevilling not found: {bevilling_id}",
+            )
+
+        setattr(bevilling, ansvarlig_felt, tildelt_id)
+
+        if tildelt_id is not None:
+            setattr(bevilling, bevilling_felt, tildelt_id)
+
+        self.db.commit()
+
+        return {
+            "bevilling_id": bevilling_id,
+            "felt": ansvarlig_felt,
+            "tildelt_id": tildelt_id,
+        }
 
 
     def set_oensket_befordringstype(

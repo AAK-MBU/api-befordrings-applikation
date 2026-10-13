@@ -34,8 +34,14 @@ const COLUMNS: CsvColumn[] = [
   },
   // Sidste dag en af bevillingens kørselsrækker dækker. Se view_Revurderinger.
   { key: "seneste_gyldig_til", header: "Udløbsdato" },
-  { key: "sagsbehandler_tekst", header: "Sagsbehandler" },
-  { key: "ppr_sagsbehandler_tekst", header: "PPR ansvarlig" },
+  // Four name columns, because two different questions are being answered.
+  // The ansvarlig pair is who has the revurdering now — what the page's
+  // filters work on — and is empty until somebody claims it. The bevilling
+  // pair is who handled the decision the bevilling records.
+  { key: "ansvarlig_sagsbehandler_tekst", header: "Ansvarlig nu" },
+  { key: "ansvarlig_ppr_sagsbehandler_tekst", header: "PPR-ansvarlig nu" },
+  { key: "sagsbehandler_tekst", header: "Sagsbehandler (bevilling)" },
+  { key: "ppr_sagsbehandler_tekst", header: "PPR sagsbehandler (bevilling)" },
   { key: "status_tekst", header: "Status" },
   { key: "afstandskriterie_dato", header: "Afstandskriterie dato" },
   {

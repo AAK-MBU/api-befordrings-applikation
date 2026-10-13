@@ -66,6 +66,14 @@ SELECT
     ppr.ppr_sagsbehandler_tekst,
     b.sagsbehandler_id,
     sb.sagsbehandler_tekst,
+    -- Hvem der har den ventende opgave LIGE NU, modsat de to felter ovenfor,
+    -- som siger hvem der behandlede selve bevillingen. NULL betyder, at ingen
+    -- har taget sagen endnu — og det er netop det, listen skal kunne vise.
+    -- Se migration 034.
+    b.ansvarlig_sagsbehandler_id,
+    asb.sagsbehandler_tekst         AS ansvarlig_sagsbehandler_tekst,
+    b.ansvarlig_ppr_sagsbehandler_id,
+    appr.ppr_sagsbehandler_tekst    AS ansvarlig_ppr_sagsbehandler_tekst,
     s.status_tekst,
     b.statusbemaerkning
 FROM       [befordring].[Bevilling]          b
@@ -79,6 +87,8 @@ LEFT  JOIN [befordring].[Hjemmel]            h   ON h.hjemmel_id             = b
 LEFT  JOIN [befordring].[Afgoerelsesbrev]    ab  ON ab.afgoerelsesbrev_id    = b.afgoerelsesbrev_id
 LEFT  JOIN [befordring].[PPR_Sagsbehandler]  ppr ON ppr.ppr_sagsbehandler_id = b.ppr_sagsbehandler_id
 LEFT  JOIN [befordring].[Sagsbehandler]      sb  ON sb.sagsbehandler_id      = b.sagsbehandler_id
+LEFT  JOIN [befordring].[Sagsbehandler]      asb ON asb.sagsbehandler_id     = b.ansvarlig_sagsbehandler_id
+LEFT  JOIN [befordring].[PPR_Sagsbehandler]  appr ON appr.ppr_sagsbehandler_id = b.ansvarlig_ppr_sagsbehandler_id
 WHERE      b.aktiv = 1
 AND        b.genbehandling = 1;
 GO

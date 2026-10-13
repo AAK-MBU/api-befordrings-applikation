@@ -9,7 +9,8 @@
   import Elevoplysninger from "$lib/components/Elevoplysninger.svelte";
   import { sorterBevillinger } from "$lib/bevillingSortering";
   import { iBatches } from "$lib/batching";
-  import PprSagsbehandlerSelect from "$lib/components/PprSagsbehandlerSelect.svelte";
+  import AnsvarligSelect from "$lib/components/AnsvarligSelect.svelte";
+  import { IKKE_TILDELT, matcherTildeling } from "$lib/revurderingFilter";
     import { filterHjemler } from "$lib/lookupFilters";
 
     export let data;
@@ -44,8 +45,8 @@
     let selectedKoerselstype = "";
 
     $: uniqueSkoler            = [...new Set(genbehandlinger.map((b: any) => b.skole_navn).filter(Boolean))].sort() as string[];
-    $: uniqueSagsbehandlere    = [...new Set(genbehandlinger.map((b: any) => b.sagsbehandler_tekst).filter(Boolean))].sort() as string[];
-    $: uniquePprSagsbehandlere = [...new Set(genbehandlinger.map((b: any) => b.ppr_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
+    $: uniqueSagsbehandlere    = [...new Set(genbehandlinger.map((b: any) => b.ansvarlig_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
+    $: uniquePprSagsbehandlere = [...new Set(genbehandlinger.map((b: any) => b.ansvarlig_ppr_sagsbehandler_tekst).filter(Boolean))].sort() as string[];
     $: uniqueKoerselstyper     = [...new Set(
       genbehandlinger.flatMap((b: any) =>
         (b.koerselsraekker ?? [])
@@ -57,8 +58,10 @@
 
     $: filteredGenbehandlinger = genbehandlinger.filter((b: any) => {
       if (selectedSkole            && b.skole_navn              !== selectedSkole)            return false;
-      if (selectedSagsbehandler    && b.sagsbehandler_tekst     !== selectedSagsbehandler)    return false;
-      if (selectedPprSagsbehandler && b.ppr_sagsbehandler_tekst !== selectedPprSagsbehandler) return false;
+      // The ansvarlig columns, through the shared matcher — same rule the
+      // revurderingsside filters by, including the "Ikke tildelt" sentinel.
+      if (!matcherTildeling(b.ansvarlig_sagsbehandler_tekst, selectedSagsbehandler)) return false;
+      if (!matcherTildeling(b.ansvarlig_ppr_sagsbehandler_tekst, selectedPprSagsbehandler)) return false;
       if (selectedKoerselstype) {
         const types = (b.koerselsraekker ?? []).filter((k: any) => !k.final).map((k: any) => k.befordringstype_tekst);
         if (!types.includes(selectedKoerselstype)) return false;
@@ -497,22 +500,24 @@
         </select>
       {/if}
 
-      {#if uniqueSagsbehandlere.length > 0}
+      {#if genbehandlinger.length > 0}
         <select class="min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedSagsbehandler}>
-          <option value="">Alle sagsbehandlere</option>
-          {#each uniqueSagsbehandlere as sb}
-            {@const count = genbehandlinger.filter((b: any) => b.sagsbehandler_tekst === sb).length}
-            <option value={sb}>{sb} ({count})</option>
+          <option value="">Alle ansvarlige</option>
+          <option value={IKKE_TILDELT}>Ikke tildelt ({genbehandlinger.filter((b: any) => !b.ansvarlig_sagsbehandler_tekst).length})</option>
+          {#each uniqueSagsbehandlere as navn}
+            {@const count = genbehandlinger.filter((b: any) => b.ansvarlig_sagsbehandler_tekst === navn).length}
+            <option value={navn}>{navn} ({count})</option>
           {/each}
         </select>
       {/if}
 
-      {#if uniquePprSagsbehandlere.length > 0}
+      {#if genbehandlinger.length > 0}
         <select class="min-w-[160px] border border-gray-300 rounded pl-2 pr-6 py-1 text-xs text-gray-700 focus:border-blue-400 focus:ring-0 bg-white" bind:value={selectedPprSagsbehandler}>
-          <option value="">Alle PPR sagsbehandlere</option>
-          {#each uniquePprSagsbehandlere as ppr}
-            {@const count = genbehandlinger.filter((b: any) => b.ppr_sagsbehandler_tekst === ppr).length}
-            <option value={ppr}>{ppr} ({count})</option>
+          <option value="">Alle PPR-ansvarlige</option>
+          <option value={IKKE_TILDELT}>Ikke tildelt ({genbehandlinger.filter((b: any) => !b.ansvarlig_ppr_sagsbehandler_tekst).length})</option>
+          {#each uniquePprSagsbehandlere as navn}
+            {@const count = genbehandlinger.filter((b: any) => b.ansvarlig_ppr_sagsbehandler_tekst === navn).length}
+            <option value={navn}>{navn} ({count})</option>
           {/each}
         </select>
       {/if}
@@ -667,13 +672,30 @@
                 <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Klassebetegnelse</span>
                 <span class="text-sm text-gray-600 truncate">{bev.klassebetegnelse ?? "—"}</span>
               </div>
-              <div class="flex flex-col min-w-0 min-w-[80px] w-[130px]">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">PPR sagsbehandler</span>
-                <span class="text-sm text-gray-600 truncate">{bev.ppr_sagsbehandler_tekst ?? "—"}</span>
+              <!-- Tildelingen, ikke bevillingens egne sagsbehandlerfelter. De to
+                   er fyldt ud på stort set alle rækker fra oprettelsen, og et
+                   udfyldt navn læses som "nogen har den her" — hvilket næsten
+                   aldrig passer. Disse to er tomme, indtil nogen tager sagen,
+                   og tomheden er hele pointen. Se migration 034. -->
+              <div class="flex flex-col min-w-0 min-w-[110px] w-[150px] pr-2"
+                   role="presentation" on:click|stopPropagation>
+                <AnsvarligSelect
+                  bevillingId={bev.bevilling_id}
+                  valgt={bev.ansvarlig_sagsbehandler_id ?? null}
+                  muligheder={sagsbehandlere}
+                  felt="sagsbehandler"
+                  label="Ansvarlig nu"
+                />
               </div>
-              <div class="flex flex-col min-w-0 min-w-[80px] w-[110px]">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-none mb-0.5">Sagsbehandler</span>
-                <span class="text-sm text-gray-600 truncate">{bev.sagsbehandler_tekst ?? "—"}</span>
+              <div class="flex flex-col min-w-0 min-w-[110px] w-[150px] pr-2"
+                   role="presentation" on:click|stopPropagation>
+                <AnsvarligSelect
+                  bevillingId={bev.bevilling_id}
+                  valgt={bev.ansvarlig_ppr_sagsbehandler_id ?? null}
+                  muligheder={pprSagsbehandlere}
+                  felt="ppr_sagsbehandler"
+                  label="PPR-ansvarlig nu"
+                />
               </div>
               {#if bev.genbehandling_bemaerkning}
                 <div class="flex flex-col min-w-0 flex-1 pl-2 border-l border-amber-200 ml-2">

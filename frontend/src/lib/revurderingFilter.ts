@@ -74,11 +74,35 @@ function aktiveKoerselstyper(row: any): string[] {
 }
 
 
+/**
+ * Filter value matching rows nobody has claimed.
+ *
+ * A sentinel rather than "" because "" already means "no filter". It travels
+ * in the query string to the CSV export, so it has to survive a round trip.
+ */
+export const IKKE_TILDELT = "__ikke_tildelt__";
+
+
+/** Matches one assignment column, including the unassigned case. */
+export function matcherTildeling(vaerdi: unknown, valgt: string): boolean {
+  if (!valgt) return true;
+  if (valgt === IKKE_TILDELT) return !vaerdi;
+
+  return vaerdi === valgt;
+}
+
+
 /** True when `row` belongs in the filtered view. */
 export function matcherFilter(row: any, filter: RevurderingFilter): boolean {
   if (filter.skole && row.skole_navn !== filter.skole) return false;
-  if (filter.sagsbehandler && row.sagsbehandler_tekst !== filter.sagsbehandler) return false;
-  if (filter.pprSagsbehandler && row.ppr_sagsbehandler_tekst !== filter.pprSagsbehandler) {
+
+  // The ANSVARLIG columns, not the bevilling's own sagsbehandler fields. Those
+  // are filled on nearly every row from creation, so filtering on them answered
+  // "who decided this" — never the question being asked here, which is who is
+  // handling it now. They are also no longer what the row displays, and a
+  // filter on a column nobody can see is a filter nobody can explain.
+  if (!matcherTildeling(row.ansvarlig_sagsbehandler_tekst, filter.sagsbehandler)) return false;
+  if (!matcherTildeling(row.ansvarlig_ppr_sagsbehandler_tekst, filter.pprSagsbehandler)) {
     return false;
   }
 
