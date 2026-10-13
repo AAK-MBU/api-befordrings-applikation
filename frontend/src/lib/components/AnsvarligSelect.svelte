@@ -25,6 +25,17 @@
   /** Which side of the assignment this control writes. */
   export let felt: "sagsbehandler" | "ppr_sagsbehandler" = "sagsbehandler";
 
+  /**
+   * Run after a successful write.
+   *
+   * invalidateAll() only re-runs SvelteKit load functions, and the expanded
+   * bevillingskort is not one — the worklists fetch it on demand and keep it
+   * in a component-local map. Assigning also writes the bevilling's own
+   * sagsbehandler_id, so without this the card below goes on showing the
+   * previous name until the browser is reloaded.
+   */
+  export let efterGem: (() => void | Promise<void>) | null = null;
+
   $: sti =
     felt === "ppr_sagsbehandler"
       ? `/bevilling/${bevillingId}/ansvarlig_ppr_sagsbehandler`
@@ -86,6 +97,7 @@
     }
 
     await invalidateAll();
+    await efterGem?.();
   }
 </script>
 

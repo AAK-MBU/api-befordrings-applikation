@@ -685,6 +685,7 @@
                   muligheder={sagsbehandlere}
                   felt="sagsbehandler"
                   label="Ansvarlig nu"
+                  efterGem={() => { if (bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev); }}
                 />
               </div>
               <div class="flex flex-col min-w-0 min-w-[110px] w-[150px] pr-2"
@@ -695,6 +696,7 @@
                   muligheder={pprSagsbehandlere}
                   felt="ppr_sagsbehandler"
                   label="PPR-ansvarlig nu"
+                  efterGem={() => { if (bevillingerByCpr[bev.cpr_elev]) loadBevillinger(bev.cpr_elev); }}
                 />
               </div>
               {#if bev.genbehandling_bemaerkning}
