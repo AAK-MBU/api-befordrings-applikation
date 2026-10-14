@@ -11,7 +11,6 @@
   import { iBatches } from "$lib/batching";
   import AnsvarligSelect from "$lib/components/AnsvarligSelect.svelte";
   import { IKKE_TILDELT, matcherTildeling, aktiveKoerselstyper } from "$lib/revurderingFilter";
-    import { filterHjemler } from "$lib/lookupFilters";
 
     export let data;
 

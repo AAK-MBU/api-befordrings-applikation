@@ -10,7 +10,6 @@
   import { sorterBevillinger } from "$lib/bevillingSortering";
   import { iBatches } from "$lib/batching";
   import AnsvarligSelect from "$lib/components/AnsvarligSelect.svelte";
-    import { filterHjemler } from "$lib/lookupFilters";
     import { matcherFilter, filterTilQuery, daysUntil, aktiveKoerselstyper, IKKE_TILDELT, type RevurderingFilter } from "$lib/revurderingFilter";
 
     export let data;

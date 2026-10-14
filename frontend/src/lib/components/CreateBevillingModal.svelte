@@ -1,7 +1,7 @@
   <script lang="ts">
     import { onMount, createEventDispatcher } from "svelte";
     import { backendFetch } from "$lib/client/backendFetch";
-    import { filterHjemler, filterAfgoerelsesbreve, isMidlertidigKoersel } from "$lib/lookupFilters";
+    import { filterHjemler, filterAfgoerelsesbreve, filterAfgoerelsesbreveByStatus, isMidlertidigKoersel } from "$lib/lookupFilters";
     import { MIN_DATE, MAX_DATE, isDateOutOfRange, iDagISO } from "$lib/dates";
     import {
       AFSTANDSKRITERIE_KLASSETRIN,
@@ -111,9 +111,48 @@
       newBevilling.ansoegningstype
     );
 
-    $: visibleHjemler = filterHjemler(lookupOptions?.hjemler, newBevilling.ansoegningstype, skoleType);
+    // Resolved against the FULL list, not visibleHjemler, which is what it
+    // feeds — a bevilling created "fra kopi" carries the source's hjemmel, and
+    // deriving the label from the filtered list would make it disappear from
+    // its own keep-alive.
+    $: valgtHjemmelLabel = (lookupOptions?.hjemler ?? []).find(
+      (h: any) => String(h.id) === String(newBevilling.hjemmel_id)
+    )?.label ?? null;
+
+    // null status: this modal never sets one — create_bevilling is called with
+    // status_text=Kommende, which is a calculated status, so the auto-status
+    // rules are the right ones.
+    $: visibleHjemler = filterHjemler(
+      lookupOptions?.hjemler,
+      newBevilling.ansoegningstype,
+      skoleType,
+      null,
+      valgtHjemmelLabel
+    );
     $: selectedHjemmelLabel = visibleHjemler.find((h: any) => String(h.id) === String(newBevilling.hjemmel_id))?.label ?? null;
-    $: visibleAfgoerelsesbreve = filterAfgoerelsesbreve(lookupOptions?.afgoerelsesbreve, newBevilling.ansoegningstype, skoleType, selectedHjemmelLabel);
+    // Same two-step the bevillingskortet uses: hjemmel narrows WHICH paragraph
+    // the letter decides under, status narrows whether it decides a grant, a
+    // refusal or an ophør. Without the second step this dropdown offered the
+    // afslag letters on a bevilling being granted — "Midlertidig kørsel
+    // afslag: …" sat right under its bevilling counterpart.
+    //
+    // null status: this modal never sets one. create_bevilling is called with
+    // status_text=Kommende, a calculated status, so "bevilling" is the right
+    // category.
+    $: valgtAfgoerelsesbrevLabel = (lookupOptions?.afgoerelsesbreve ?? []).find(
+      (b: any) => String(b.id) === String(newBevilling.afgoerelsesbrev_id)
+    )?.label ?? null;
+
+    $: visibleAfgoerelsesbreve = filterAfgoerelsesbreveByStatus(
+      filterAfgoerelsesbreve(
+        lookupOptions?.afgoerelsesbreve,
+        newBevilling.ansoegningstype,
+        skoleType,
+        selectedHjemmelLabel
+      ),
+      null,
+      valgtAfgoerelsesbrevLabel
+    );
 
   // ---------------------------------------------------------------------------
   // Functions
