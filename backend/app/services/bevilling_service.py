@@ -1282,10 +1282,9 @@ class BevillingService:
                 bevilling.genbehandling_haandteret_adresse_id = None
                 bevilling.genbehandling_haandteret_skolekode = None
 
-            # The bevilling's own sagsbehandler_id / ppr_sagsbehandler_id are
-            # left alone: they now name whoever did this piece of work, which
-            # is exactly what they should say afterwards. Only the "who has it
-            # right now" answer is retired.
+            # Only the "who has it right now" answer is retired. The
+            # bevilling's own sagsbehandler_id / ppr_sagsbehandler_id were
+            # never touched by the assignment in the first place.
             if (
                 bevilling.revurderet_af_br is True and not was_revurderet_af_br
             ) or (
@@ -1694,15 +1693,14 @@ class BevillingService:
                 404 if the bevilling does not exist.
 
         Notes:
-            Assigning also writes the bevilling's own sagsbehandler_id /
-            ppr_sagsbehandler_id, so the bevilling always names whoever most
-            recently took responsibility for it rather than whoever happened to
-            create it.
-
-            Releasing does NOT. Clearing the assignment says "nobody is on this
-            now"; it does not say "nobody ever handled this", and the second
-            field is the one that has to survive to answer the first question
-            later.
+            Touches ONLY the ansvarlig column. The bevilling's own
+            sagsbehandler_id / ppr_sagsbehandler_id are deliberately left
+            alone: view_Letter_BevillingData resolves {sagsbehandler} on the
+            afgørelsesbrev from sagsbehandler_id, so writing it here would
+            change the name printed on a letter that has already been sent,
+            or is about to be, because somebody picked the case up for a
+            revurdering. The two answer different questions and the letter
+            needs the first one.
 
             Deliberately not routed through update_bevilling. That method
             recalculates status, re-measures gaaafstand and writes audit events
@@ -1711,11 +1709,8 @@ class BevillingService:
         """
 
         FELTER = {
-            "sagsbehandler": ("ansvarlig_sagsbehandler_id", "sagsbehandler_id"),
-            "ppr_sagsbehandler": (
-                "ansvarlig_ppr_sagsbehandler_id",
-                "ppr_sagsbehandler_id",
-            ),
+            "sagsbehandler": "ansvarlig_sagsbehandler_id",
+            "ppr_sagsbehandler": "ansvarlig_ppr_sagsbehandler_id",
         }
 
         if felt not in FELTER:
@@ -1724,7 +1719,7 @@ class BevillingService:
                 detail=f"Ukendt felt: {felt}",
             )
 
-        ansvarlig_felt, bevilling_felt = FELTER[felt]
+        ansvarlig_felt = FELTER[felt]
 
         bevilling = self.db.get(Bevilling, bevilling_id)
 
@@ -1735,9 +1730,6 @@ class BevillingService:
             )
 
         setattr(bevilling, ansvarlig_felt, tildelt_id)
-
-        if tildelt_id is not None:
-            setattr(bevilling, bevilling_felt, tildelt_id)
 
         self.db.commit()
 

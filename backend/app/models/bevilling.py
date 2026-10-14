@@ -164,9 +164,10 @@ class Bevilling(Base):
     # NULL until a caseworker claims the case, and NULL is the useful state:
     # it is the only thing on the row that says nobody has started.
     #
-    # Setting one also writes the matching field above, so the bevilling names
-    # whoever most recently took it on. Cleared when the work is signed off —
-    # see update_bevilling. See migration 034.
+    # Strictly separate from the two above, which the afgørelsesbrev prints
+    # {sagsbehandler} from: a case changing hands for a revurdering must not
+    # rewrite the name on a letter that was already sent. Cleared when the work
+    # is signed off — see update_bevilling. See migration 034.
     ansvarlig_sagsbehandler_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(f"{DB_SCHEMA}.Sagsbehandler.sagsbehandler_id"),

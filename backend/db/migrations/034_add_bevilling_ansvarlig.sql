@@ -31,17 +31,17 @@
 --   same person doing the work either way.
 --
 -- Lifecycle:
---   Set from the revurderings- and genbehandlingssiden. Setting one also
---   writes the matching sagsbehandler_id / ppr_sagsbehandler_id, so the
---   bevilling always names whoever most recently took responsibility for it.
+--   Set from the revurderings- and genbehandlingssiden, and NOTHING else is
+--   written when they are. sagsbehandler_id and ppr_sagsbehandler_id keep
+--   whatever they held: view_Letter_BevillingData resolves {sagsbehandler} on
+--   the afgørelsesbrev from sagsbehandler_id, so a case changing hands for a
+--   revurdering would otherwise rewrite the name on a letter that has already
+--   gone out. The bevilling has to keep matching its own letter.
 --
 --   Cleared when the work completes — BR sign-off (revurderet_af_br) or the
 --   genbehandling sign-off — in BevillingService.update_bevilling, which
 --   already handles that kind of transition. Completion is a real user action,
 --   unlike entry, so the clear happens once and cannot repeat.
---
---   Clearing an assignment by hand does NOT clear sagsbehandler_id. "Nobody is
---   on this now" and "nobody ever handled this" are different statements.
 --
 -- Not backfilled:
 --   Every existing row starts NULL, which is correct — nobody has claimed any

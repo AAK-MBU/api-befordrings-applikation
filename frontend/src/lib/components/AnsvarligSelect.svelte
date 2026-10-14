@@ -13,8 +13,9 @@
    * the bevilling's own two name fields are filled on nearly every row from
    * creation, so they could never say it.
    *
-   * Assigning writes the matching field on the bevilling too; the backend does
-   * that. Releasing does not. See BevillingService.set_ansvarlig.
+   * Writes ONLY this field. The bevilling's own sagsbehandler / PPR-
+   * sagsbehandler are left untouched, because the afgørelsesbrev prints its
+   * {sagsbehandler} from them — see BevillingService.set_ansvarlig.
    */
 
   export let bevillingId: number;
