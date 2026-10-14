@@ -446,8 +446,17 @@
 
   const manualStatusLabels = ["Afslag", "Ophørt"];
 
+  // Ophørt does not apply to a Midlertidig kørsel: it is granted for a fixed
+  // short period and simply runs out, so there is nothing to end early — and
+  // there is no midlertidig ophør letter to send if anyone tried. Withheld
+  // from the dropdown rather than rejected on save, so it is never offered.
+  //
+  // Reads the bevilling being edited, so it follows the row rather than the
+  // table. Falls back to showing both while nothing is being edited.
   $: manualStatuser = (lookupOptions.statuser ?? []).filter(
-    (s: any) => manualStatusLabels.includes(s.label)
+    (s: any) =>
+      manualStatusLabels.includes(s.label) &&
+      !(s.label === "Ophørt" && isMidlertidigKoersel(editableBevilling?.ansoegningstype))
   );
 
   // The status currently chosen in the edit form — null while "beregnes
@@ -495,10 +504,14 @@
   // Status and hjemmel both narrow which afgørelsesbreve are valid, so a letter
   // picked before the change must not silently survive it.
   //
-  // Hjemmel itself is deliberately NOT narrowed by status: it records the legal
-  // basis the bevilling was granted on, and that fact does not change when the
-  // bevilling is later ended or rejected. A caseworker keeps the original
-  // paragraph and changes only the status and the letter.
+  // Hjemmel is narrowed by status too — see HJEMLER_PR_STATUS, which lists the
+  // paragraphs that actually carry a letter of each kind. Ophørt has no list
+  // yet and is therefore not narrowed.
+  //
+  // Nothing clears hjemmel here, whatever the status becomes. filterHjemler
+  // keeps the stored value in the list even when it no longer belongs, so
+  // switching a bevilling to Afslag and back cannot lose the paragraph it was
+  // granted on.
   //
   // Rather than special-casing which field changed, recompute the valid list
   // for the state the edit produces and drop the choice when it no longer
@@ -1246,7 +1259,7 @@
                 on:change={(e) => updateNarrowingField("hjemmel_id", numberOrNull(e.currentTarget.value))}
               >
                 <option value="">Vælg</option>
-                {#each filterHjemler(lookupOptions.hjemler ?? [], bevilling.ansoegningstype, editSkoleType) as option}
+                {#each filterHjemler(lookupOptions.hjemler ?? [], bevilling.ansoegningstype, editSkoleType, editStatusLabel, editHjemmelLabel) as option}
                   <option value={option.id}>{option.label}</option>
                 {/each}
               </select>
